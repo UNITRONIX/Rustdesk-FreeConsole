@@ -1,0 +1,35 @@
+{
+  "honorary": [
+    {
+      "name": "INSOLVE",
+      "role": "Honorary Supporter",
+      "url": "https://insolve.pl",
+      "logo": "/img/supporters/insolve-logo.png",
+      "blurb": "Security review, production audits, infrastructure testing, and real-world deployment feedback."
+    }
+  ],
+  "individuals": [
+    {
+      "name": "Marco Jakobs",
+      "github": "jacotec",
+      "githubUrl": "https://github.com/jacotec"
+    },
+    {
+      "name": "MyNameisStitch",
+      "github": "MyNameisStitch",
+      "githubUrl": "https://github.com/MyNameisStitch"
+    },
+    {
+      "name": "Redspin",
+      "github": "playerumpknow",
+      "githubUrl": null
+    }
+  ],
+  "links": {
+    "repo": "https://github.com/UNITRONIX/BetterDesk",
+    "issues": "https://github.com/UNITRONIX/BetterDesk/issues",
+    "sponsors": "https://github.com/sponsors/UNITRONIX",
+    "buyMeACoffee": "https://buymeacoffee.com/unitronix",
+    "sponsorsMd": "https://github.com/UNITRONIX/BetterDesk/blob/main/SPONSORS.md"
+  }
+}

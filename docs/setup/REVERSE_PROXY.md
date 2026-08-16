@@ -228,6 +228,48 @@ sudo systemctl reload caddy
 
 ---
 
+## Desktop WebSocket Mode checklist (not server WebSocket-only)
+
+BetterDesk supports RustDesk **desktop WebSocket Mode** (WSS signal/relay). There is **no** server toggle that disables native TCP/UDP listeners — “WS-only” means client settings plus optional firewall/proxy choices. Desktop WSS maturity is in **≥ 3.4.0** (proxy session keys, mixed-transport reject, full WS relay frames); **3.4.2** fixed Web Remote after the enrollment gate, not desktop WS-only. FAQ: [#344](https://github.com/UNITRONIX/BetterDesk/issues/344).
+
+### Two stacks — do not mix
+
+| Stack | Client | Public paths | Upstream |
+|-------|--------|--------------|----------|
+| Native desktop WSS | RustDesk with `allow-websocket=Y` / “Use WebSocket” | `/ws/id`, optional `/ws/relay` | Go `:21118` / `:21119` (raw protobuf) |
+| Web Remote | Browser RdClient | `/ws/rendezvous`, `/ws/relay` | Panel `:5000` → TCP `:21116` / `:21117` (TCP-framed) |
+
+Never route `/ws/rendezvous` to Go. On **one hostname**, `/ws/relay` cannot cleanly serve both stacks — prefer the panel catch-all for Web Remote, or put native WSS on a **separate hostname** (examples below).
+
+### Operator checklist
+
+1. **Client:** WebSocket Mode on; ID host is an HTTPS domain so the client builds **`wss://`**. Do not put `ws://…/ws/id` in the ID field (Caddy auto-HTTPS → HTTP **308** — [#294](https://github.com/UNITRONIX/BetterDesk/issues/294)).
+2. **Proxy:** `/ws/id` → `:21118`. For desktop relay WSS, `/ws/relay` → `:21119` only when Web Remote is not on that vhost (or use a second hostname).
+3. **Go env:** `TRUST_PROXY=Y` and `TRUSTED_PROXIES=<proxy CIDR>`; `X-Real-IP` / `X-Forwarded-For` as **IP-only** ([#276](https://github.com/UNITRONIX/BetterDesk/issues/276), [#294](https://github.com/UNITRONIX/BetterDesk/issues/294)).
+4. **Homogeneous transport:** both peers must use WebSocket Mode for relay — mixed WSS (`:21119`) + native TCP/TLS (`:21117`) is rejected ([#290](https://github.com/UNITRONIX/BetterDesk/issues/290)).
+5. **Optional hardening:** firewall WAN `21116` TCP/UDP and `21117` if you want traffic only on 443 WSS — BetterDesk does **not** enforce this.
+6. **Config gap:** panel key/generator TOML does **not** emit `allow-websocket` — set it in a custom client build or manually.
+
+### Separate hostnames (recommended when both Web Remote and native WSS are needed)
+
+| Hostname | Role | Key proxy routes |
+|----------|------|------------------|
+| `console.example.com` | Panel + Web Remote | `/` and `/ws/*` → panel `:5000` (no `/ws/id` → Go required) |
+| `desk.example.com` | Native desktop WSS | `/ws/id` → `:21118`, `/ws/relay` → `:21119`; set client ID/relay to this host |
+
+Set `PANEL_PUBLIC_HOST`, `PUBLIC_SERVER_ID`, and related vars under [Split DNS / multiple hostnames](#split-dns--multiple-hostnames) (or **Settings → Public client endpoints**).
+
+### How to verify
+
+1. Desktop client stays online via `wss://YOUR_DOMAIN/ws/id` (proxy → `:21118`).
+2. Two WebSocket Mode peers can connect (relay or punch as applicable).
+3. Behind a proxy, Go logs show `effective=<client-ip>:<non-zero-port>` (not `:0`).
+4. If Web Remote is used, browser `/ws/rendezvous` hits panel `:5000`, not Go.
+
+More Nginx detail and troubleshooting: [HTTPS_SETUP.md — RustDesk Client WSS Through Nginx](HTTPS_SETUP.md#rustdesk-client-wss-through-nginx).
+
+---
+
 ## Nginx configuration
 
 Full examples with WebSocket timeouts and RustDesk WSS paths are in [HTTPS_SETUP.md — Option 4](HTTPS_SETUP.md#option-4-reverse-proxy-with-nginx) and [RustDesk Client WSS Through Nginx](HTTPS_SETUP.md#rustdesk-client-wss-through-nginx).

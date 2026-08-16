@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -49,6 +50,7 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 	status := st.EnrollmentStatus
 	token := st.DeviceToken
 	deviceID := st.DeviceID
+	message := st.EnrollmentMessage
 	st.mu.Unlock()
 
 	// #region agent log
@@ -62,8 +64,9 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 		if token != "" {
 			// Refresh credentials with the server on every startup. Re-register
 			// re-issues a device_token for known peers and fixes stale local state.
-			if res, err := RegisterDevice(b, st, version); err == nil {
-				return res, nil
+			res, err := RegisterDevice(b, st, version)
+			if err == nil || res.Status == EnrollmentRejected {
+				return res, err
 			}
 			// #region agent log
 			debugLog("H4", "enrollment.go:EnsureEnrolled", "refresh failed, using cached token", map[string]any{
@@ -83,7 +86,7 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 		return EnrollmentStatus{
 			Status:   EnrollmentRejected,
 			DeviceID: deviceID,
-			Message:  st.EnrollmentMessage,
+			Message:  message,
 		}, nil
 	}
 
@@ -97,6 +100,10 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 // RegisterDevice POSTs /api/devices/register.
 func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus, error) {
 	deviceID, _, _, _ := st.Snapshot()
+	publicKey, proofErr := enrollmentPublicKey(st)
+	if proofErr != nil {
+		return EnrollmentStatus{}, fmt.Errorf("create enrollment identity: %w", proofErr)
+	}
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "unknown"
@@ -109,29 +116,48 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 		"platform":    fmt.Sprintf("%s %s", runtime.GOOS, runtime.GOARCH),
 		"version":     version,
 		"device_type": "os_agent",
+		"public_key":  publicKey,
 	}
 	if b.BundleID != "" {
 		payload["bundle_id"] = b.BundleID
 	}
-	// Never send a shared bundle enrollment token — each device registers
-	// independently and receives a unique device_token after approval.
+	// A bundle credential is never embedded or sent here. An already-approved
+	// device may authenticate its own refresh with its per-device bearer token
+	// (set below), which prevents unnecessary token re-issuance.
 	tags := []string{"support-agent"}
 	if IsPortable() {
 		tags = append(tags, "portable")
 	} else {
 		tags = append(tags, "installed")
 	}
-	payload["tags"] = tags
+	payload["tags"] = strings.Join(tags, ",")
 
-	url := apiBaseURL(b) + "/devices/register"
-	// #region agent log
-	debugLog("H1", "enrollment.go:RegisterDevice", "register request", map[string]any{
-		"url": url, "device_id": deviceID, "sends_token": false,
-		"bundle_id": b.BundleID, "use_https": b.UseHTTPS,
-	})
-	// #endregion
 	var resp enrollmentResponse
-	code, err := apiJSON(http.MethodPost, url, payload, &resp)
+	var code int
+	var err error
+	var url string
+	for _, base := range CandidateAPIBases(b, st) {
+		url = strings.TrimRight(base, "/") + "/devices/register"
+		headers, proofErr := enrollmentProofHeaders(http.MethodPost, url, deviceID, st)
+		if proofErr != nil {
+			return EnrollmentStatus{}, proofErr
+		}
+		_, currentToken, _ := st.EnrollmentSnapshot()
+		if currentToken != "" {
+			headers.Set("Authorization", "Bearer "+currentToken)
+		}
+		// #region agent log
+		debugLog("H1", "enrollment.go:RegisterDevice", "register request", map[string]any{
+			"url": url, "device_id": deviceID, "sends_token": false,
+			"bundle_id": b.BundleID, "use_https": b.UseHTTPS,
+		})
+		// #endregion
+		code, err = apiJSONWithHeaders(http.MethodPost, url, payload, headers, &resp)
+		if err == nil {
+			st.RememberGoodEndpoints("", base)
+			break
+		}
+	}
 	if err != nil {
 		return EnrollmentStatus{}, err
 	}
@@ -141,6 +167,16 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 		"token_len": len(strings.TrimSpace(resp.DeviceToken)), "message": resp.Message,
 	})
 	// #endregion
+	result := EnrollmentStatus{
+		Status:      resp.Status,
+		DeviceID:    resp.DeviceID,
+		DeviceToken: strings.TrimSpace(resp.DeviceToken),
+		Message:     resp.Message,
+	}
+	if result.DeviceID == "" {
+		result.DeviceID = deviceID
+	}
+
 	if code != http.StatusOK && code != http.StatusAccepted {
 		if code == http.StatusConflict && resp.Error == "identity_conflict" {
 			newID := strings.TrimSpace(resp.SuggestedDeviceID)
@@ -152,23 +188,27 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 			}
 			return RegisterDevice(b, st, version)
 		}
-		return EnrollmentStatus{}, fmt.Errorf("registration failed (HTTP %d)", code)
-	}
-
-	result := EnrollmentStatus{
-		Status:      resp.Status,
-		DeviceID:    resp.DeviceID,
-		DeviceToken: strings.TrimSpace(resp.DeviceToken),
-		Message:     resp.Message,
-	}
-	if result.DeviceID == "" {
-		result.DeviceID = deviceID
+		if result.Status == EnrollmentRejected {
+			if err := st.SetEnrollment(EnrollmentRejected, result.DeviceID, "", result.Message); err != nil {
+				return result, err
+			}
+			return result, nil
+		}
+		return result, fmt.Errorf("registration failed (HTTP %d)", code)
 	}
 
 	switch resp.Status {
 	case EnrollmentApproved:
 		if result.DeviceToken == "" {
-			return result, fmt.Errorf("registration approved without device_token")
+			// Ordinary authenticated refreshes intentionally do not re-emit
+			// the long-lived device credential. Retain the locally encrypted
+			// token instead of treating a successful refresh as an error.
+			st.mu.Lock()
+			result.DeviceToken = strings.TrimSpace(st.DeviceToken)
+			st.mu.Unlock()
+			if result.DeviceToken == "" {
+				return result, fmt.Errorf("registration approved without device_token")
+			}
 		}
 		if err := st.SetEnrollment(EnrollmentApproved, result.DeviceID, result.DeviceToken, ""); err != nil {
 			return result, err
@@ -190,13 +230,29 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 // PollEnrollment GETs /api/devices/register/status.
 func PollEnrollment(b Branding, st *AppState, version string) (EnrollmentStatus, error) {
 	deviceID, _, _, _ := st.Snapshot()
-	url := fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBaseURL(b), deviceID)
-	// #region agent log
-	debugLog("H3", "enrollment.go:PollEnrollment", "poll request", map[string]any{"url": url, "device_id": deviceID})
-	// #endregion
-
 	var resp enrollmentResponse
-	code, err := apiJSON(http.MethodGet, url, nil, &resp)
+	var code int
+	var err error
+	var requestURL string
+	for _, base := range CandidateAPIBases(b, st) {
+		requestURL = strings.TrimRight(base, "/") + "/devices/register/status?device_id=" + url.QueryEscape(deviceID)
+		headers, proofErr := enrollmentProofHeaders(http.MethodGet, requestURL, deviceID, st)
+		if proofErr != nil {
+			return EnrollmentStatus{}, proofErr
+		}
+		_, currentToken, _ := st.EnrollmentSnapshot()
+		if currentToken != "" {
+			headers.Set("Authorization", "Bearer "+currentToken)
+		}
+		// #region agent log
+		debugLog("H3", "enrollment.go:PollEnrollment", "poll request", map[string]any{"url": requestURL, "device_id": deviceID})
+		// #endregion
+		code, err = apiJSONWithHeaders(http.MethodGet, requestURL, nil, headers, &resp)
+		if err == nil {
+			st.RememberGoodEndpoints("", base)
+			break
+		}
+	}
 	if err != nil {
 		return EnrollmentStatus{}, err
 	}
@@ -206,14 +262,6 @@ func PollEnrollment(b Branding, st *AppState, version string) (EnrollmentStatus,
 		"message": resp.Message,
 	})
 	// #endregion
-	if code == http.StatusNotFound {
-		// Lost pending state on server — re-register.
-		return RegisterDevice(b, st, version)
-	}
-	if code != http.StatusOK {
-		return EnrollmentStatus{}, fmt.Errorf("status poll failed (HTTP %d)", code)
-	}
-
 	result := EnrollmentStatus{
 		Status:      resp.Status,
 		DeviceID:    resp.DeviceID,
@@ -224,10 +272,55 @@ func PollEnrollment(b Branding, st *AppState, version string) (EnrollmentStatus,
 		result.DeviceID = deviceID
 	}
 
+	if code == http.StatusNotFound {
+		st.mu.Lock()
+		localStatus := st.EnrollmentStatus
+		st.mu.Unlock()
+		if localStatus == EnrollmentPending {
+			// A pending request may have been pruned before a decision. It has
+			// no active credential, so retrying registration is safe.
+			return RegisterDevice(b, st, version)
+		}
+		result := EnrollmentStatus{
+			Status:   EnrollmentRejected,
+			DeviceID: deviceID,
+			Message:  "device enrollment is no longer recognized by the server",
+		}
+		if err := st.SetEnrollment(EnrollmentRejected, result.DeviceID, "", result.Message); err != nil {
+			return result, err
+		}
+		return result, nil
+	}
+	if code == http.StatusForbidden && resp.Status == EnrollmentRejected {
+		result := EnrollmentStatus{
+			Status:   EnrollmentRejected,
+			DeviceID: deviceID,
+			Message:  resp.Message,
+		}
+		if err := st.SetEnrollment(EnrollmentRejected, result.DeviceID, "", result.Message); err != nil {
+			return result, err
+		}
+		return result, nil
+	}
+	if code != http.StatusOK {
+		if result.Status == EnrollmentRejected {
+			if err := st.SetEnrollment(EnrollmentRejected, result.DeviceID, "", result.Message); err != nil {
+				return result, err
+			}
+			return result, nil
+		}
+		return result, fmt.Errorf("status poll failed (HTTP %d)", code)
+	}
+
 	switch resp.Status {
 	case EnrollmentApproved:
 		if result.DeviceToken == "" {
-			return RegisterDevice(b, st, version)
+			st.mu.Lock()
+			result.DeviceToken = strings.TrimSpace(st.DeviceToken)
+			st.mu.Unlock()
+			if result.DeviceToken == "" {
+				return RegisterDevice(b, st, version)
+			}
 		}
 		if err := st.SetEnrollment(EnrollmentApproved, result.DeviceID, result.DeviceToken, ""); err != nil {
 			return result, err
@@ -261,6 +354,37 @@ func StartEnrollmentPoll(b Branding, st *AppState, version string, interval time
 			if res.Status != EnrollmentPending {
 				return
 			}
+		}
+	}()
+}
+
+// StartEnrollmentRevalidation checks an already-approved device periodically
+// so a server-side revoke/disable stops the local transport without requiring
+// a restart. Network failures are intentionally retried rather than turning a
+// transient outage into an enrollment decision.
+func StartEnrollmentRevalidation(b Branding, st *AppState, version string, interval time.Duration, onUpdate func(EnrollmentStatus)) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for range ticker.C {
+			status, _, _ := st.EnrollmentSnapshot()
+			if status != EnrollmentApproved {
+				return
+			}
+			result, err := PollEnrollment(b, st, version)
+			if err != nil {
+				continue
+			}
+			if result.Status == EnrollmentApproved {
+				continue
+			}
+			if onUpdate != nil {
+				onUpdate(result)
+			}
+			return
 		}
 	}()
 }

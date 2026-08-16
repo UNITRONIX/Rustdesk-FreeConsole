@@ -461,6 +461,39 @@ async function getServerInfo() {
     }
 }
 
+/**
+ * Ask the running Go server to replace its own binary and exit (NSSM restarts it).
+ * Used on Windows when the console VA cannot stop/kill BetterDeskServer.
+ *
+ * @param {string} sourcePath absolute path to the newly built betterdesk-server.exe
+ * @returns {Promise<{ success: boolean, backupPath?: string, error?: string }>}
+ */
+async function replaceServerBinary(sourcePath) {
+    try {
+        const res = await apiClient.post('/system/replace-binary', { source: sourcePath }, {
+            timeout: 120000,
+            validateStatus: () => true,
+        });
+        if (res.status === 404) {
+            return { success: false, error: 'replace-binary not supported by this Go build', unsupported: true };
+        }
+        if (res.status === 401 || res.status === 403) {
+            return { success: false, error: `replace-binary auth failed (${res.status})` };
+        }
+        if (res.status >= 200 && res.status < 300 && res.data && res.data.success) {
+            return {
+                success: true,
+                backupPath: res.data.backupPath || null,
+                target: res.data.target || null,
+            };
+        }
+        const err = (res.data && (res.data.error || res.data.message)) || `HTTP ${res.status}`;
+        return { success: false, error: String(err) };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+}
+
 // ========================== Sync (no-op for BetterDesk) ======================
 
 /**
@@ -786,6 +819,21 @@ async function getEnrollmentPending() {
 }
 
 /**
+ * Get approved/rejected Go enrollment history (#351).
+ * @param {string} [status] - "approved" | "rejected" | omit for both
+ */
+async function getEnrollmentHistory(status) {
+    try {
+        const params = {};
+        if (status) params.status = status;
+        const { data } = await apiClient.get('/enrollment/history', { params });
+        return { success: true, data: data.devices || [], count: data.count || 0 };
+    } catch (e) {
+        return { success: false, error: e.message, data: [], count: 0 };
+    }
+}
+
+/**
  * Approve a pending enrollment request on Go server.
  * @param {string} deviceId - Device ID to approve
  * @param {string} displayName - Operator-assigned display name
@@ -815,6 +863,19 @@ async function rejectEnrollment(deviceId, ban) {
         const { data } = await apiClient.post(`/enrollment/reject/${encodeURIComponent(deviceId)}`, {
             ban: !!ban
         });
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Clear enrollment rejection lock so the device can re-request enrollment (#351).
+ * @param {string} deviceId
+ */
+async function clearEnrollmentRejection(deviceId) {
+    try {
+        const { data } = await apiClient.post(`/enrollment/clear-rejection/${encodeURIComponent(deviceId)}`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -867,7 +928,13 @@ async function saveAccessPolicy(id, policy) {
         const { data } = await apiClient.put(`/peers/${encodeURIComponent(safeId)}/access-policy`, policy);
         return wrap(data);
     } catch (e) {
-        return { success: false, error: e.message };
+        const status = e.response && e.response.status;
+        const apiErr = e.response && e.response.data && e.response.data.error;
+        return {
+            success: false,
+            error: apiErr || e.message,
+            status: status || 502,
+        };
     }
 }
 
@@ -881,6 +948,24 @@ async function deleteAccessPolicy(id) {
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Fetch plaintext connect secret for unattended auto-auth (operator session).
+ */
+async function getConnectSecret(id) {
+    try {
+        const safeId = assertSafeApiId(id, 'peerId');
+        const { data } = await apiClient.get(`/peers/${encodeURIComponent(safeId)}/connect-secret`);
+        return wrap(data);
+    } catch (e) {
+        const status = e.response && e.response.status;
+        const apiErr = e.response && e.response.data && e.response.data.error;
+        if (status === 404 || status === 403 || status === 503) {
+            return { success: false, error: apiErr || e.message, status };
+        }
+        return { success: false, error: apiErr || e.message, status };
     }
 }
 
@@ -1277,6 +1362,7 @@ module.exports = {
     getHealth,
     getServerStats,
     getServerInfo,
+    replaceServerBinary,
     // Peers
     getAllPeers,
     getPeer,
@@ -1332,8 +1418,10 @@ module.exports = {
     setEnrollmentMode,
     // Enrollment — pending devices
     getEnrollmentPending,
+    getEnrollmentHistory,
     approveEnrollment,
     rejectEnrollment,
+    clearEnrollmentRejection,
     // Branding (Go server)
     getBranding: getBranding,
     saveBranding: saveBranding,
@@ -1341,6 +1429,7 @@ module.exports = {
     getAccessPolicy,
     saveAccessPolicy,
     deleteAccessPolicy,
+    getConnectSecret,
     // RBAC: Roles & Permissions (Phase 52)
     listRoles,
     getRolePermissions,

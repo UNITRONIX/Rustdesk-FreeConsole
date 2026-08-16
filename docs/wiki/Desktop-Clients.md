@@ -11,9 +11,42 @@ BetterDesk provides two Tauri v2 desktop applications and a headless Go agent fo
 |-----------|--------|----------------|
 | **Go Server** | ✅ Stable | ✅ Recommended |
 | **Web Console (Node.js)** | ✅ Stable | ✅ Recommended |
+| **Support Agent (Go/Fyne)** | ✅ Active | ✅ Recommended end-user agent |
 | **MGMT Client (Tauri)** | ⚠️ Alpha | ❌ Do not use in production |
-| **Agent Client (Tauri)** | ⚠️ Alpha | ❌ Do not use in production |
-| **Native Agent (Go)** | ✅ Stable | ✅ OK for deployment |
+| **Agent Client (Tauri)** | ⚠️ Alpha | ❌ Do not use in production (Support Agent is preferred) |
+| **Native Agent (Go)** | ✅ Stable | Engine used by Support Agent |
+
+---
+
+## BetterDesk Support Agent
+
+**Purpose:** Lightweight inbound-only end-user agent for remote support. Operators connect via **Web Remote (CDAP)** in the console — the Support Agent never initiates connections to other peers.
+
+**Technology:** Single Go binary (Fyne UI) embedding the `betterdesk-agent` CDAP engine.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Your ID + access password** | Stable per-machine ID; supervised accept or unattended password |
+| **Web Remote desktop** | CDAP session (keyboard/mouse, quality presets) |
+| **File transfer** | Bidirectional via Web Remote file modal (CDAP `/files` channel) |
+| **Chat** | Operator ↔ end-user chat in Web Remote |
+| **Remote audio** | CDAP audio stream in unified `/remote` viewer |
+| **Lock / restart** | Operator toolbar actions relayed to the agent |
+| **Branding** | Appearance + server endpoints baked at Generator build time |
+| **Enrollment** | Per-device register; unique `device_token` after approval (managed mode) |
+| **Artifacts** | Windows portable `.exe` / `.msi`; Linux portable, AppImage, `.deb`, `.rpm` |
+
+### Build & deploy
+
+1. Console → **Generator** → **New Support Agent bundle**
+2. Set branding, server host, optional unattended
+3. Wait for platform builds (toolchain status shown in the editor)
+4. Share the public hub link `/d/:slug`
+5. After panel updates that change agent source, bundles are requeued automatically
+
+See also [`betterdesk-support-agent/README.md`](../../betterdesk-support-agent/README.md).
 
 ---
 

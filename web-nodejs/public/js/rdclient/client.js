@@ -13,7 +13,7 @@
  *   client.disconnect();
  */
 
-/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection, RDClipboard */
+/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection, RDClipboard, RDCliprdr */
 
 // eslint-disable-next-line no-unused-vars
 class RDClient {
@@ -40,6 +40,9 @@ class RDClient {
         this.audio = new RDAudio();
         this.renderer = new RDRenderer(canvas);
         this.input = new RDInput(canvas, this.renderer, (msg) => this._sendPeerMessage(msg));
+        this.input.onLocalPaste = (text) => this._onBrowserLocalPaste(text);
+        this.input.onLocalPasteFiles = (files) => this._emit('local-paste-files', files);
+        this._pendingLocalClipboardText = '';
         this._fileConnection = null;
         this._sessionPassword = '';
         this.fileTransfer = new RDFileTransfer({
@@ -769,7 +772,7 @@ class RDClient {
             return;
         }
 
-        // Cursor data (cursor image)
+        // Cursor data (cursor image — RustDesk sends zstd-compressed RGBA)
         if (msg.cursorData) {
             this.renderer.updateCursor(msg.cursorData).catch(() => {
                 // Handled inside updateCursor — ignore unhandled promise rejection
@@ -777,14 +780,15 @@ class RDClient {
             return;
         }
 
-        // Cursor position
+        // Cursor position (software overlay / follower; CSS cursor tracks local pointer)
         if (msg.cursorPosition) {
             this.renderer.updateCursorPosition(msg.cursorPosition);
             return;
         }
 
-        // Cursor ID (predefined cursor)
-        if (msg.cursorId) {
+        // Cursor ID (peer cache hit — only id, client must retain prior CursorData)
+        if (msg.cursorId != null && msg.cursorId !== '') {
+            this.renderer.setCursorById(msg.cursorId);
             this._emit('cursor_id', msg.cursorId);
             return;
         }
@@ -837,6 +841,12 @@ class RDClient {
         // File response (directory listing, transfer blocks, digest, done, error)
         if (msg.fileResponse) {
             this.fileTransfer.handleFileResponse(msg.fileResponse);
+            return;
+        }
+
+        // Cliprdr file clipboard (Explorer copy → remote paste on desktop)
+        if (msg.cliprdr) {
+            void this._handleCliprdr(msg.cliprdr);
             return;
         }
 
@@ -1097,9 +1107,50 @@ class RDClient {
             this._emit('clipboard', text);
         }
 
-        await RDClipboard.applyToLocal(decoded, {
+        const applied = await RDClipboard.applyToLocal(decoded, {
             enabled: this._clipboardToLocalEnabled
         });
+        // Browsers often deny clipboard.write without a user gesture. Stash
+        // plain text and flush on the next focus/mousedown (see remote.js).
+        if (applied && applied.wrote) {
+            this._pendingLocalClipboardText = '';
+        } else if (applied && applied.text) {
+            this._pendingLocalClipboardText = applied.text;
+        } else if (text) {
+            this._pendingLocalClipboardText = text;
+        }
+    }
+
+    /**
+     * Retry writing a remote→local text clipboard after a user gesture.
+     * @returns {Promise<boolean>}
+     */
+    async flushPendingLocalClipboard() {
+        if (!this._clipboardToLocalEnabled) return false;
+        const text = this._pendingLocalClipboardText;
+        if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return false;
+        try {
+            await navigator.clipboard.writeText(text);
+            this._pendingLocalClipboardText = '';
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Browser paste event: push local text to the peer before KeyV is sent.
+     * @param {string} text
+     * @returns {Promise<void>}
+     */
+    async _onBrowserLocalPaste(text) {
+        if (this._state !== 'streaming' || this._viewOnly) return;
+        const value = text == null ? '' : String(text);
+        if (!value) return;
+        this._lastSyncedClipboardHint = value;
+        await this._sendClipboard(value);
+        // Brief yield so the peer can apply Clipboard before KeyV arrives.
+        await new Promise((resolve) => setTimeout(resolve, 40));
     }
 
     _handleClipboard(clipboard) {
@@ -1204,13 +1255,10 @@ class RDClient {
             this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
         };
 
-        // Signal CSS when remote cursor data is available (hide local crosshair)
-        this.renderer.onCursorReady = (ready) => {
-            const container = this.canvas.parentElement;
-            if (container) {
-                container.classList.toggle('has-remote-cursor', !!ready);
-            }
-        };
+        // Remote CursorData applied as CSS cursor on the canvas (resize shapes, etc.).
+        // Do not toggle has-remote-cursor / cursor:none — that hid the OS pointer behind
+        // a software overlay and left a permanent crosshair when zstd cursors were skipped.
+        this.renderer.onCursorReady = null;
 
         // Start render loop
         this.renderer.startRenderLoop();
@@ -1238,6 +1286,10 @@ class RDClient {
         this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
 
         this._advertiseSupportedEncoding();
+
+        if (typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            void RDCliprdr.initClient(this);
+        }
 
         // Start ping interval
         this._pingInterval = setInterval(() => {
@@ -1384,7 +1436,15 @@ class RDClient {
      * @param {Object} msgObj - Message object (will be encoded as Message protobuf)
      */
     _sendPeerMessage(msgObj) {
-        if (!this.proto.loaded) return;
+        if (!this.proto.loaded) {
+            if (msgObj && (msgObj.clipboard || msgObj.cliprdr)) {
+                console.warn('[RDClient] Dropped clipboard/cliprdr message — proto not loaded yet');
+            }
+            return;
+        }
+        if (msgObj && (msgObj.clipboard || msgObj.cliprdr)) {
+            this._debugRelay('[RDClient] Sending', msgObj.clipboard ? 'clipboard' : 'cliprdr.' + Object.keys(msgObj.cliprdr)[0], msgObj);
+        }
 
         // Step 1: Serialize to raw protobuf bytes (no frame header)
         let data = this.proto.serializeMessage(msgObj);
@@ -1466,6 +1526,10 @@ class RDClient {
         if (this._rendezvousDecoder) {
             this._rendezvousDecoder.reset();
         }
+        if (typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            RDCliprdr.stopPolling(this);
+            void RDCliprdr.clearLocalCache();
+        }
     }
 
     // ---- Public Utility Methods ----
@@ -1483,6 +1547,31 @@ class RDClient {
     async _sendClipboard(text) {
         const msg = await this.proto.buildClipboard(text);
         this._sendPeerMessage(msg);
+    }
+
+    /**
+     * Sync local file clipboard to remote (desktop Cliprdr).
+     * @returns {Promise<{hasFiles?: boolean, signature?: string, busy?: boolean}|void>}
+     */
+    syncCliprdrFiles() {
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) {
+            return Promise.resolve({ hasFiles: false, signature: '', busy: false });
+        }
+        return RDCliprdr.syncLocalFiles(this);
+    }
+
+    /**
+     * @param {string[]} paths
+     * @param {{x?: number, y?: number}|null} [position]
+     */
+    syncCliprdrPaths(paths, position) {
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) return;
+        void RDCliprdr.syncPaths(this, paths, position || null);
+    }
+
+    _handleCliprdr(cliprdr) {
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) return;
+        void RDCliprdr.handleMessage(this, cliprdr);
     }
 
     /**

@@ -137,6 +137,11 @@ func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uuid := rr.Uuid
+	if s.authorizations == nil || !s.authorizations.Claim(uuid) {
+		log.Printf("[relay] WS unauthorized relay UUID from %s (rejecting)", r.RemoteAddr)
+		wsc.Close()
+		return
+	}
 	log.Printf("[relay] WS connection from %s for UUID %s", r.RemoteAddr, uuid)
 
 	// Keep the raw WebSocket for message-preserving bidirectional copy.

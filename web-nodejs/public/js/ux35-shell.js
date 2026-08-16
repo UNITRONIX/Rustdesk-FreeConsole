@@ -22,6 +22,8 @@
     function applySidebarWidth(px) {
         var w = clamp(px, WIDTH_MIN, WIDTH_MAX);
         document.documentElement.style.setProperty('--ux35-sidebar-width', w + 'px');
+        var handle = document.getElementById('ux35-sidebar-resize');
+        if (handle) handle.setAttribute('aria-valuenow', String(w));
         return w;
     }
 
@@ -37,6 +39,22 @@
     }
 
     var drawerAnimTimer = null;
+    var drawerFocusOrigin = null;
+
+    function focusableIn(container) {
+        if (!container) return [];
+        return Array.prototype.slice.call(container.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(function (el) { return el.offsetParent !== null; });
+    }
+
+    function syncDrawerAccessibility(open) {
+        var sidebar = document.getElementById('ux35-sidebar');
+        if (!sidebar) return;
+        var drawerMode = MQ_DRAWER.matches;
+        sidebar.setAttribute('aria-hidden', drawerMode && !open ? 'true' : 'false');
+        if ('inert' in sidebar) sidebar.inert = drawerMode && !open;
+    }
 
     function clearDrawerAnimating(shell) {
         if (drawerAnimTimer) {
@@ -55,8 +73,10 @@
         if (wasOpen === !!open) return;
 
         clearDrawerAnimating(shell);
+        if (open) drawerFocusOrigin = document.activeElement;
         shell.classList.add('ux35-drawer-animating');
         shell.classList.toggle('ux35-drawer-open', open);
+        syncDrawerAccessibility(open);
 
         if (overlay) {
             overlay.hidden = false;
@@ -80,6 +100,16 @@
         }
         if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         document.body.style.overflow = open && MQ_DRAWER.matches ? 'hidden' : '';
+        if (open) {
+            window.requestAnimationFrame(function () {
+                var first = focusableIn(document.getElementById('ux35-sidebar'))[0];
+                if (first) first.focus({ preventScroll: true });
+            });
+        } else if (drawerFocusOrigin && document.contains(drawerFocusOrigin)
+            && document.getElementById('ux35-sidebar').contains(document.activeElement)) {
+            drawerFocusOrigin.focus({ preventScroll: true });
+            drawerFocusOrigin = null;
+        }
 
         drawerAnimTimer = setTimeout(function () {
             shell.classList.remove('ux35-drawer-animating');
@@ -141,7 +171,7 @@
         '--ux35-bg', '--ux35-sidebar-bg', '--ux35-card-bg', '--ux35-border',
         '--ux35-border-light', '--ux35-text', '--ux35-muted', '--ux35-hover',
         '--ux35-primary', '--ux35-active-bg', '--ux35-glass-blur', '--ux35-glass-saturate',
-        '--ux35-topbar-bg', '--ux35-topbar-fg', '--ux35-topbar-fg-muted'
+        '--ux35-topbar-bg', '--ux35-topbar-fg', '--ux35-topbar-fg-muted', '--ux35-topbar-border'
     ];
 
     function clearThemeInlineOverrides() {
@@ -151,9 +181,29 @@
         });
     }
 
+    /** Match brandingService.hexToMutedRgba — solid hex → translucent muted for theme preview. */
+    function hexToMutedRgba(hex, alpha) {
+        if (hex == null) return null;
+        var raw = String(hex).trim().replace(/^#/, '');
+        if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null;
+        var r = parseInt(raw.substring(0, 2), 16);
+        var g = parseInt(raw.substring(2, 4), 16);
+        var b = parseInt(raw.substring(4, 6), 16);
+        var a = (typeof alpha === 'number' && isFinite(alpha)) ? alpha : 0.15;
+        return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+    }
+
     function applyThemeLocally(next) {
         document.documentElement.setAttribute('data-theme', next);
         document.documentElement.setAttribute('data-theme-mode', next);
+        var a11yContrast = document.documentElement.getAttribute('data-a11y-contrast');
+        if (a11yContrast && a11yContrast !== 'normal') {
+            /* High-contrast preferences deliberately own the palette. Do not
+               add inline theme variables that would override those settings. */
+            clearThemeInlineOverrides();
+            syncThemeIcon();
+            return;
+        }
         var palette = THEME_PALETTES[next] || THEME_PALETTES.dark;
         var root = document.documentElement.style;
         var map = {
@@ -167,8 +217,16 @@
             borderPrimary: '--border-primary', borderSecondary: '--border-secondary'
         };
         Object.keys(palette).forEach(function (key) {
-            if (map[key]) root.setProperty(map[key], palette[key]);
+            if (!map[key]) return;
+            var value = palette[key];
+            // Muted accents must be translucent (same as branding.css) or filters/nav/avatar flash solid blue
+            if (/Muted$/.test(key) && typeof value === 'string' && value.charAt(0) === '#') {
+                value = hexToMutedRgba(value, 0.15) || value;
+            }
+            root.setProperty(map[key], value);
         });
+
+        var accentBlueMutedCss = hexToMutedRgba(palette.accentBlueMuted, 0.15) || palette.accentBlueMuted;
 
         // Solid surfaces — opaque tokens so UX 3.5 repaints immediately (no glass compositor lag)
         root.setProperty('--bg-hover', next === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
@@ -189,19 +247,15 @@
         root.setProperty('--ux35-muted', palette.textSecondary);
         root.setProperty('--ux35-hover', next === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
         root.setProperty('--ux35-primary', palette.accentBlue);
-        root.setProperty('--ux35-active-bg', palette.accentBlueMuted);
+        root.setProperty('--ux35-active-bg', accentBlueMutedCss);
         root.setProperty('--ux35-glass-blur', '0px');
         root.setProperty('--ux35-glass-saturate', '1');
 
-        if (next === 'light') {
-            root.setProperty('--ux35-topbar-bg', palette.accentBlue);
-            root.setProperty('--ux35-topbar-fg', '#ffffff');
-            root.setProperty('--ux35-topbar-fg-muted', 'rgba(255,255,255,0.78)');
-        } else {
-            root.setProperty('--ux35-topbar-bg', palette.bgElevated);
-            root.setProperty('--ux35-topbar-fg', palette.textPrimary);
-            root.setProperty('--ux35-topbar-fg-muted', palette.textSecondary);
-        }
+        // Topbar chrome is theme-invariant (always dark)
+        root.setProperty('--ux35-topbar-bg', '#161b22');
+        root.setProperty('--ux35-topbar-fg', '#e6edf3');
+        root.setProperty('--ux35-topbar-fg-muted', '#8b949e');
+        root.setProperty('--ux35-topbar-border', '#30363d');
 
         // Force a synchronous style flush so paint does not wait for the next click
         void document.documentElement.offsetHeight;
@@ -357,6 +411,19 @@
 
         handle.addEventListener('pointerup', function () { endDrag(true); });
         handle.addEventListener('pointercancel', function () { endDrag(true); });
+        handle.addEventListener('keydown', function (e) {
+            if (MQ_DRAWER.matches) return;
+            var current = currentSidebarWidth();
+            var next = null;
+            if (e.key === 'ArrowLeft') next = current - 10;
+            else if (e.key === 'ArrowRight') next = current + 10;
+            else if (e.key === 'Home') next = WIDTH_MIN;
+            else if (e.key === 'End') next = WIDTH_MAX;
+            if (next == null) return;
+            e.preventDefault();
+            lastApplied = applySidebarWidth(next);
+            try { localStorage.setItem(STORAGE_WIDTH, String(lastApplied)); } catch (err) { /* ignore */ }
+        });
 
         window.addEventListener('keydown', function (e) {
             if (!dragging) return;
@@ -402,10 +469,24 @@
         }
 
         window.addEventListener('keydown', function (e) {
-            if (e.key !== 'Escape') return;
             var shell = document.getElementById('app');
-            if (shell && shell.classList.contains('ux35-drawer-open') && MQ_DRAWER.matches) {
+            if (!shell || !shell.classList.contains('ux35-drawer-open') || !MQ_DRAWER.matches) return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
                 setDrawerOpen(false);
+                return;
+            }
+            if (e.key !== 'Tab') return;
+            var focusable = focusableIn(sidebar);
+            if (!focusable.length) return;
+            var first = focusable[0];
+            var last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
             }
         });
 
@@ -414,24 +495,50 @@
                 setDrawerOpen(false);
                 restoreSidebarWidth();
             }
+            syncDrawerAccessibility(false);
         }
         if (MQ_DRAWER.addEventListener) MQ_DRAWER.addEventListener('change', onMqChange);
         else if (MQ_DRAWER.addListener) MQ_DRAWER.addListener(onMqChange);
-    }
-
-    function initHelp() {
-        var helpBtn = document.getElementById('ux35-help-btn');
-        if (helpBtn) {
-            helpBtn.addEventListener('click', function () {
-                if (typeof Tutorial !== 'undefined') Tutorial.start('console');
-            });
-        }
+        syncDrawerAccessibility(false);
     }
 
     function initThemeBtn() {
         var btn = document.getElementById('ux35-theme-btn');
         if (btn) btn.addEventListener('click', cycleThemePreview);
         syncThemeIcon();
+    }
+
+    function initCompactActions() {
+        var button = document.getElementById('ux35-actions-menu-btn');
+        var list = document.getElementById('ux35-topbar-action-list');
+        if (!button || !list) return;
+
+        function setOpen(open) {
+            list.classList.toggle('is-open', open);
+            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (!open && document.activeElement && list.contains(document.activeElement)) {
+                button.focus({ preventScroll: true });
+            }
+        }
+
+        button.addEventListener('click', function () {
+            setOpen(!list.classList.contains('is-open'));
+        });
+        document.addEventListener('click', function (event) {
+            if (!list.classList.contains('is-open')) return;
+            if (event.target !== button && !button.contains(event.target) && !list.contains(event.target)) {
+                setOpen(false);
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && list.classList.contains('is-open')) {
+                event.preventDefault();
+                setOpen(false);
+            }
+        });
+        window.addEventListener('resize', function () {
+            if (!window.matchMedia('(max-width: 767px)').matches) setOpen(false);
+        });
     }
 
     function initScrollPreserve() {
@@ -460,8 +567,8 @@
         restoreSidebarWidth();
         initDrawer();
         initResize();
-        initHelp();
         initThemeBtn();
+        initCompactActions();
         initScrollPreserve();
     }
 

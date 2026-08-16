@@ -1,0 +1,133 @@
+package api
+
+import (
+	"testing"
+
+	"github.com/unitronix/betterdesk-server/db"
+)
+
+func TestRustDeskCardFields_panelDisplayNameBecomesAlias(t *testing.T) {
+	t.Parallel()
+
+	p := &db.Peer{
+		ID:          "1031876693",
+		Hostname:    "dcstrainingserver01",
+		User:        "admin",
+		DisplayName: "Training",
+		Note:        "Training",
+	}
+	alias, note, host, user := rustDeskCardFields(p, "", "", p.Hostname, p.User)
+	if alias != "Training" {
+		t.Fatalf("alias=%q, want Training", alias)
+	}
+	if note != "1031876693" {
+		t.Fatalf("note should be peer ID under display name, got %q", note)
+	}
+	// Stock Group PeerPayload.toPeer drops alias; device_name carries the label.
+	if host != "Training" {
+		t.Fatalf("device_name should mirror alias for Group cards, got %q", host)
+	}
+	if user != "" {
+		t.Fatalf("username should clear when title alias is set, got %q", user)
+	}
+}
+
+func TestRustDeskCardFields_noteFillsAliasWhenNoDisplayName(t *testing.T) {
+	t.Parallel()
+
+	p := &db.Peer{ID: "1", Hostname: "pc-1", Note: "Front desk"}
+	alias, note, host, user := rustDeskCardFields(p, "", "", p.Hostname, "alice")
+	if alias != "Front desk" {
+		t.Fatalf("alias=%q, want Front desk", alias)
+	}
+	if note != "1" {
+		t.Fatalf("note should be peer ID, got %q", note)
+	}
+	if host != "Front desk" || user != "" {
+		t.Fatalf("expected device_name=alias and cleared user, got host=%q user=%q", host, user)
+	}
+}
+
+func TestRustDeskCardFields_displayNameWinsOverAbAlias(t *testing.T) {
+	t.Parallel()
+
+	p := &db.Peer{ID: "99", DisplayName: "Training", Note: "other"}
+	alias, note, _, _ := rustDeskCardFields(p, "ClientRename", "", "host", "user")
+	if alias != "Training" {
+		t.Fatalf("panel display name should win, got %q", alias)
+	}
+	if note != "other" {
+		t.Fatalf("unique panel note should stay secondary, got %q", note)
+	}
+}
+
+func TestRustDeskCardFields_hostnameBecomesAliasWhenNoLabels(t *testing.T) {
+	t.Parallel()
+
+	p := &db.Peer{ID: "42", Hostname: "pc-1"}
+	alias, note, host, user := rustDeskCardFields(p, "", "", "pc-1", "alice")
+	if alias != "pc-1" {
+		t.Fatalf("alias=%q, want hostname as title", alias)
+	}
+	if note != "42" {
+		t.Fatalf("note=%q, want peer ID", note)
+	}
+	if host != "pc-1" || user != "" {
+		t.Fatalf("expected device_name=alias, got host=%q user=%q", host, user)
+	}
+}
+
+func TestRustDeskCardFields_abAliasUsedWhenNoPanelLabel(t *testing.T) {
+	t.Parallel()
+
+	p := &db.Peer{ID: "7", Hostname: "pc-1"}
+	alias, note, host, _ := rustDeskCardFields(p, "My Alias", "", "pc-1", "")
+	if alias != "My Alias" {
+		t.Fatalf("alias=%q, want My Alias", alias)
+	}
+	if note != "7" {
+		t.Fatalf("note=%q, want peer ID", note)
+	}
+	if host != "My Alias" {
+		t.Fatalf("device_name should mirror alias, got %q", host)
+	}
+}
+
+func TestRustDeskCardFields_abNotePromotedToAlias(t *testing.T) {
+	t.Parallel()
+
+	p := &db.Peer{ID: "1031876693", Hostname: "dcstrainingserver01"}
+	alias, note, host, user := rustDeskCardFields(p, "", "Training", p.Hostname, "admin")
+	if alias != "Training" {
+		t.Fatalf("alias=%q, want Training from AB note", alias)
+	}
+	if note != "1031876693" {
+		t.Fatalf("note=%q, want peer ID", note)
+	}
+	if host != "Training" || user != "" {
+		t.Fatalf("expected device_name=alias, got host=%q user=%q", host, user)
+	}
+}
+
+func TestRustDeskPanelAlias(t *testing.T) {
+	t.Parallel()
+	if got := rustDeskPanelAlias(&db.Peer{DisplayName: " A ", Note: "B"}); got != "A" {
+		t.Fatalf("got %q", got)
+	}
+	if got := rustDeskPanelAlias(&db.Peer{Note: " B "}); got != "B" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestRustDeskGroupSecondaryNote_stripsDuplicatePeerID(t *testing.T) {
+	t.Parallel()
+	if got := rustDeskGroupSecondaryNote("1031876693", "1031876693"); got != "" {
+		t.Fatalf("duplicate peer ID note should clear, got %q", got)
+	}
+	if got := rustDeskGroupSecondaryNote("Front desk", "1031876693"); got != "Front desk" {
+		t.Fatalf("distinct note must stay, got %q", got)
+	}
+	if got := rustDeskGroupSecondaryNote("", "1031876693"); got != "" {
+		t.Fatalf("empty note stays empty, got %q", got)
+	}
+}

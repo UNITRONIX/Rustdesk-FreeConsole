@@ -73,11 +73,12 @@ type Server struct {
 	// branding endpoints to deter device-ID enumeration and config probing.
 	enrollmentLimiter *ratelimit.IPLimiter
 	brandingLimiter   *ratelimit.IPLimiter
-	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
-	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
+	keyPair           *crypto.KeyPair              // Ed25519 keypair for signing
+	accessSecret      *crypto.AccessSecretCodec    // reversible access-policy passwords
+	cdapGw            *cdap.Gateway                // CDAP gateway (nil if CDAP disabled)
 	meshGw            *meshcentral.Gateway // MeshCentral compat (nil if disabled)
-	ldapProvider      ldapAuthProvider // LDAP auth provider (nil if not configured)
-	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
+	ldapProvider      ldapAuthProvider     // LDAP auth provider (nil if not configured)
+	oidcProvider      *auth.OIDCProvider   // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
 	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)
 	timeSync          *timesync.Service
@@ -99,7 +100,7 @@ func (s *Server) SetConsoleAuth(c *db.ConsoleAuthDB) {
 
 // New creates a new API server.
 func New(cfg *config.Config, database db.Database, peerMap *peer.Map, relaySrv *relay.Server, version string) *Server {
-	return &Server{
+	s := &Server{
 		cfg:               cfg,
 		db:                database,
 		peers:             peerMap,
@@ -111,6 +112,14 @@ func New(cfg *config.Config, database db.Database, peerMap *peer.Map, relaySrv *
 		brandingLimiter:   ratelimit.NewIPLimiter(60, 1*time.Minute, 5*time.Minute),  // M-07: 60/min per IP
 		clientTFASessions: newTFASessionStore(),
 	}
+	if cfg != nil && cfg.JWTSecret != "" {
+		if codec, err := crypto.NewAccessSecretCodec(cfg.JWTSecret); err == nil {
+			s.accessSecret = codec
+		} else {
+			log.Printf("[api] access secret codec unavailable: %v", err)
+		}
+	}
+	return s
 }
 
 // rateLimitPublic wraps a public (no-auth) handler with the supplied IP limiter.
@@ -199,9 +208,25 @@ func (s *Server) SetMetrics(m *metrics.Collector) {
 	s.metrics = m
 }
 
-// SetJWTManager sets the JWT manager for auth.
+// SetJWTManager sets the JWT manager for auth and ensures the access-policy
+// secret codec uses the same resolved secret (cfg.JWTSecret may be empty when
+// the secret is loaded from DB / generated in main).
 func (s *Server) SetJWTManager(jm *auth.JWTManager) {
 	s.jwtManager = jm
+	if jm == nil {
+		return
+	}
+	secret := jm.Secret()
+	if len(secret) < 16 {
+		return
+	}
+	codec, err := crypto.NewAccessSecretCodec(secret)
+	if err != nil {
+		log.Printf("[api] access secret codec unavailable: %v", err)
+		return
+	}
+	s.accessSecret = codec
+	log.Printf("[api] access-policy connect-secret codec ready")
 }
 
 // SetKeyPair sets the Ed25519 keypair for the server (used for signing IdPk).
@@ -243,9 +268,10 @@ func (s *Server) InitOIDC() {
 func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	// Health + info (public, no auth required)
+	// Health and public key are needed for client bootstrap. Detailed runtime
+	// stats use the same allowlist/auth policy as Prometheus metrics.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("GET /api/server/stats", s.handleServerStats)
+	mux.HandleFunc("GET /api/server/stats", s.metricsGuard(s.handleServerStats))
 	mux.HandleFunc("GET /api/server/pubkey", s.handlePubKey)
 
 	// Peers (permission-based access control)
@@ -268,6 +294,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/peers/{id}/access-policy", s.requireRole(auth.RoleOperator, s.handleGetAccessPolicy))
 	mux.HandleFunc("PUT /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleSaveAccessPolicy))
 	mux.HandleFunc("DELETE /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleDeleteAccessPolicy))
+	mux.HandleFunc("GET /api/peers/{id}/connect-secret", s.requireRole(auth.RoleOperator, s.handleGetConnectSecret))
+	mux.HandleFunc("POST /api/peers/{id}/session-grant", s.requireRole(auth.RoleOperator, s.handleIssueSupportSessionGrant))
 	mux.HandleFunc("GET /api/peers/{id}/policy", s.handleGetPeerPolicy)
 
 	// Blocklist management
@@ -332,6 +360,8 @@ func (s *Server) Start(ctx context.Context) error {
 	// Config (server.config permission)
 	mux.HandleFunc("GET /api/config/{key}", s.requirePermission(auth.PermServerConfig, s.handleGetConfig))
 	mux.HandleFunc("PUT /api/config/{key}", s.requirePermission(auth.PermServerConfig, s.handleSetConfig))
+	// Panel Windows updates: server replaces its own binary (console cannot taskkill it).
+	mux.HandleFunc("POST /api/system/replace-binary", s.requirePermission(auth.PermServerConfig, s.handleReplaceBinary))
 
 	// Auth (public — no auth required, handled by middleware exclusion)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
@@ -354,6 +384,22 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/ab/personal", s.handleClientAddressBookPersonal)
 	mux.HandleFunc("POST /api/ab/personal", s.handleClientAddressBookPersonal)
 	mux.HandleFunc("GET /api/ab/tags", s.handleClientAddressBookTags)
+	// RustDesk Pro shared address book protocol (password auto-connect).
+	mux.HandleFunc("POST /api/ab/settings", s.handleClientABSettings)
+	mux.HandleFunc("GET /api/ab/settings", s.handleClientABSettings)
+	mux.HandleFunc("POST /api/ab/shared/profiles", s.handleClientABSharedProfiles)
+	mux.HandleFunc("GET /api/ab/shared/profiles", s.handleClientABSharedProfiles)
+	mux.HandleFunc("POST /api/ab/peers", s.handleClientABPeers)
+	mux.HandleFunc("GET /api/ab/peers", s.handleClientABPeers)
+	mux.HandleFunc("POST /api/ab/tags/{guid}", s.handleClientABTagsByGUID)
+	mux.HandleFunc("GET /api/ab/tags/{guid}", s.handleClientABTagsByGUID)
+	mux.HandleFunc("POST /api/ab/peer/add/{guid}", s.handleClientABPeerMutation)
+	mux.HandleFunc("PUT /api/ab/peer/update/{guid}", s.handleClientABPeerMutation)
+	mux.HandleFunc("DELETE /api/ab/peer/{guid}", s.handleClientABPeerMutation)
+	mux.HandleFunc("POST /api/ab/tag/add/{guid}", s.handleClientABTagMutation)
+	mux.HandleFunc("PUT /api/ab/tag/update/{guid}", s.handleClientABTagMutation)
+	mux.HandleFunc("PUT /api/ab/tag/rename/{guid}", s.handleClientABTagMutation)
+	mux.HandleFunc("DELETE /api/ab/tag/{guid}", s.handleClientABTagMutation)
 
 	// RustDesk PRO group endpoint stubs — Flutter clients query these and expect
 	// the {total,data,msg} envelope; without them the device list never finishes
@@ -444,8 +490,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/devices/register", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceRegister))
 	mux.HandleFunc("GET /api/devices/register/status", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceRegisterStatus))
 	mux.HandleFunc("POST /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfAccessPolicy))
+	mux.HandleFunc("GET /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfGetAccessPolicy))
 	mux.HandleFunc("POST /api/devices/self/help-request", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfHelpRequest))
-	mux.HandleFunc("GET /api/devices/self/totp", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfTOTP))
 	mux.HandleFunc("POST /api/devices/self/totp", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfTOTP))
 
 	// Help requests — operator panel (raised by agents via CDAP or REST self endpoint)
@@ -478,8 +524,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Enrollment — operator approval (admin/operator)
 	mux.HandleFunc("GET /api/enrollment/pending", s.requireRole(auth.RoleOperator, s.handleListPendingDevices))
+	mux.HandleFunc("GET /api/enrollment/history", s.requireRole(auth.RoleOperator, s.handleListEnrollmentHistory))
 	mux.HandleFunc("POST /api/enrollment/approve/{id}", s.requireRole(auth.RoleOperator, s.handleApproveDevice))
 	mux.HandleFunc("POST /api/enrollment/reject/{id}", s.requireRole(auth.RoleOperator, s.handleRejectDevice))
+	mux.HandleFunc("POST /api/enrollment/clear-rejection/{id}", s.requireRole(auth.RoleOperator, s.handleClearEnrollmentRejection))
 
 	// LDAP configuration (server.config permission)
 	mux.HandleFunc("GET /api/auth/ldap/config", s.requirePermission(auth.PermServerConfig, s.handleGetLDAPConfig))
@@ -827,7 +875,7 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		user := s.rustDeskUserForGroups(r, username, role)
-		if visible := s.rustDeskVisiblePeerSet(user, role, peerByID); visible != nil {
+		if visible := s.coerceNonAdminVisibleSet(user, role, peerByID, s.rustDeskVisiblePeerSet(user, role, peerByID)); visible != nil {
 			filtered := make([]*db.Peer, 0, len(peers))
 			for _, p := range peers {
 				if p != nil && visible[p.ID] {
@@ -1256,6 +1304,28 @@ func (s *Server) handleUnbanPeer(w http.ResponseWriter, r *http.Request) {
 	if !s.peerOrgScopeCheck(w, r, id) {
 		return
 	}
+
+	peerRow, _ := s.db.GetPeer(id)
+	enrollmentRejectBan := peerRow != nil && peerRow.BanReason == enrollmentRejectBanReason
+
+	// Enrollment Reject & Ban created an audit-only peer. Unban must remove it
+	// so managed mode re-queues for approval instead of treating the ID as enrolled (#351).
+	if enrollmentRejectBan {
+		s.clearEnrollmentRejectionState(id)
+		if err := s.removeEnrollmentRejectAuditPeer(id); err != nil {
+			writeInternalError(w, err, "removeEnrollmentRejectAuditPeer")
+			return
+		}
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerUnbanned, s.remoteIP(r), id, map[string]string{
+				"peer_removed": "true",
+				"reason":       enrollmentRejectBanReason,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unbanned", "id": id, "peer_removed": "true"})
+		return
+	}
+
 	if err := s.db.UnbanPeer(id); err != nil {
 		writeInternalError(w, err, "UnbanPeer")
 		return
@@ -1265,6 +1335,9 @@ func (s *Server) handleUnbanPeer(w http.ResponseWriter, r *http.Request) {
 	if entry != nil {
 		entry.Banned = false
 	}
+
+	// Also clear enrollment rejection lock so the device can re-queue (#351).
+	s.clearEnrollmentRejectionState(id)
 
 	if s.auditLog != nil {
 		s.auditLog.Log(audit.ActionPeerUnbanned, s.remoteIP(r), id, nil)
@@ -2001,24 +2074,43 @@ func (s *Server) handleGetAccessPolicy(w http.ResponseWriter, r *http.Request) {
 
 	policy, err := s.db.GetAccessPolicy(id)
 	if err != nil {
-		// No policy = defaults (all disabled)
+		// No policy = defaults (all disabled; prefer server password when enabled later)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"peer_id":             id,
-			"unattended_enabled":  false,
-			"password_set":        false,
-			"schedule_enabled":    false,
-			"schedule_days":       "",
-			"schedule_start_time": "",
-			"schedule_end_time":   "",
-			"schedule_timezone":   "",
-			"allowed_operators":   "",
-			"updated_at":          "",
-			"updated_by":          "",
+			"peer_id":                     id,
+			"unattended_enabled":          false,
+			"password_set":                false,
+			"connect_secret_ready":        false,
+			"connect_secret_codec":        s.accessSecret != nil,
+			"passwordless_server_access":  true,
+			"schedule_enabled":            false,
+			"schedule_days":               "",
+			"schedule_start_time":         "",
+			"schedule_end_time":           "",
+			"schedule_timezone":           "",
+			"allowed_operators":           "",
+			"updated_at":                  "",
+			"updated_by":                  "",
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, policy)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"peer_id":                     policy.PeerID,
+		"unattended_enabled":          policy.UnattendedEnabled,
+		"password_set":                policy.PasswordSet,
+		// Sealed in DB (password_enc). Auto-auth also needs the codec at runtime.
+		"connect_secret_ready":        policy.PasswordEnc != "",
+		"connect_secret_codec":        s.accessSecret != nil,
+		"passwordless_server_access":  policy.PasswordlessServerAccess,
+		"schedule_enabled":            policy.ScheduleEnabled,
+		"schedule_days":               policy.ScheduleDays,
+		"schedule_start_time":         policy.ScheduleStartTime,
+		"schedule_end_time":           policy.ScheduleEndTime,
+		"schedule_timezone":           policy.ScheduleTimezone,
+		"allowed_operators":           policy.AllowedOperators,
+		"updated_at":                  policy.UpdatedAt,
+		"updated_by":                  policy.UpdatedBy,
+	})
 }
 
 func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) {
@@ -2029,15 +2121,16 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var body struct {
-		UnattendedEnabled bool   `json:"unattended_enabled"`
-		Password          string `json:"password,omitempty"`       // Plain text — will be hashed
-		ClearPassword     bool   `json:"clear_password,omitempty"` // If true, remove password
-		ScheduleEnabled   bool   `json:"schedule_enabled"`
-		ScheduleDays      string `json:"schedule_days"`
-		ScheduleStartTime string `json:"schedule_start_time"`
-		ScheduleEndTime   string `json:"schedule_end_time"`
-		ScheduleTimezone  string `json:"schedule_timezone"`
-		AllowedOperators  string `json:"allowed_operators"`
+		UnattendedEnabled        bool   `json:"unattended_enabled"`
+		Password                 string `json:"password,omitempty"`       // Plain text — will be hashed
+		ClearPassword            bool   `json:"clear_password,omitempty"` // If true, remove password
+		PasswordlessServerAccess *bool  `json:"passwordless_server_access,omitempty"`
+		ScheduleEnabled          bool   `json:"schedule_enabled"`
+		ScheduleDays             string `json:"schedule_days"`
+		ScheduleStartTime        string `json:"schedule_start_time"`
+		ScheduleEndTime          string `json:"schedule_end_time"`
+		ScheduleTimezone         string `json:"schedule_timezone"`
+		AllowedOperators         string `json:"allowed_operators"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -2068,19 +2161,45 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	policy := &db.AccessPolicy{
-		PeerID:            id,
-		UnattendedEnabled: body.UnattendedEnabled,
-		ScheduleEnabled:   body.ScheduleEnabled,
-		ScheduleDays:      body.ScheduleDays,
-		ScheduleStartTime: body.ScheduleStartTime,
-		ScheduleEndTime:   body.ScheduleEndTime,
-		ScheduleTimezone:  body.ScheduleTimezone,
-		AllowedOperators:  body.AllowedOperators,
-		UpdatedBy:         s.remoteIP(r),
+	existing, _ := s.db.GetAccessPolicy(id)
+	preferServer := true
+	if body.PasswordlessServerAccess != nil {
+		preferServer = *body.PasswordlessServerAccess
+	} else if existing != nil {
+		preferServer = existing.PasswordlessServerAccess
 	}
 
-	// Hash password if provided
+	policy := &db.AccessPolicy{
+		PeerID:                   id,
+		UnattendedEnabled:        body.UnattendedEnabled,
+		PasswordlessServerAccess: preferServer,
+		ScheduleEnabled:          body.ScheduleEnabled,
+		ScheduleDays:             body.ScheduleDays,
+		ScheduleStartTime:        body.ScheduleStartTime,
+		ScheduleEndTime:          body.ScheduleEndTime,
+		ScheduleTimezone:         body.ScheduleTimezone,
+		AllowedOperators:         body.AllowedOperators,
+		UpdatedAt:                time.Now().UTC().Format(time.RFC3339),
+		UpdatedBy:                s.remoteIP(r),
+	}
+
+	existingSealed := existing != nil && existing.PasswordEnc != ""
+
+	// Unattended auto-auth needs a sealed password. Bcrypt-only legacy rows cannot be recovered.
+	if body.UnattendedEnabled && !body.ClearPassword && body.Password == "" && !existingSealed {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": "enter the access password once to enable unattended auto-connect (legacy hashes cannot be reused)",
+		})
+		return
+	}
+	if body.Password != "" && s.accessSecret == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"error": "connect-secret codec unavailable — check JWT_SECRET / restart betterdesk-server",
+		})
+		return
+	}
+
+	// Hash password if provided; also store reversible ciphertext for connect auto-auth.
 	if body.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 		if err != nil {
@@ -2088,8 +2207,16 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		policy.PasswordHash = string(hash)
+		enc, err := s.accessSecret.Encrypt(body.Password)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to seal password"})
+			return
+		}
+		policy.PasswordEnc = enc
+		log.Printf("[api] access policy password sealed for peer %s (unattended=%v)", id, body.UnattendedEnabled)
 	} else if body.ClearPassword {
 		policy.PasswordHash = "CLEAR"
+		policy.PasswordEnc = ""
 	}
 	// If PasswordHash is empty string, SaveAccessPolicy preserves existing hash
 
@@ -2107,6 +2234,83 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// handleGetConnectSecret returns the plaintext unattended password for an authorized
+// operator when unattended access is enabled and a sealed secret exists.
+func (s *Server) handleGetConnectSecret(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "peer ID required"})
+		return
+	}
+	if s.accessSecret == nil {
+		log.Printf("[api] connect-secret peer=%s: codec unavailable", id)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "connect secret unavailable"})
+		return
+	}
+
+	policy, err := s.db.GetAccessPolicy(id)
+	if err != nil || policy == nil {
+		log.Printf("[api] connect-secret peer=%s: no access policy", id)
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no access policy"})
+		return
+	}
+	if !policy.UnattendedEnabled {
+		log.Printf("[api] connect-secret peer=%s: unattended disabled", id)
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "unattended access disabled"})
+		return
+	}
+	if policy.PasswordEnc == "" {
+		if policy.PasswordSet {
+			log.Printf("[api] connect-secret peer=%s: password hash present but not sealed", id)
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"error": "connect secret not sealed — re-save the Access Policy password in the console",
+			})
+			return
+		}
+		log.Printf("[api] connect-secret peer=%s: no password", id)
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no connect secret"})
+		return
+	}
+
+	username := getUsernameFromCtx(r)
+	// Panel proxies via X-API-Key; device ACL was already enforced in Node.
+	// Only enforce AllowedOperators when the caller is a real user JWT.
+	if policy.AllowedOperators != "" && !strings.HasPrefix(username, "apikey:") {
+		allowed := false
+		for _, op := range strings.Split(policy.AllowedOperators, ",") {
+			if strings.EqualFold(strings.TrimSpace(op), username) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "operator not allowed"})
+			return
+		}
+	}
+
+	plain, err := s.accessSecret.Decrypt(policy.PasswordEnc)
+	if err != nil || plain == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to unlock secret"})
+		return
+	}
+
+	if s.auditLog != nil {
+		s.auditLog.Log(audit.ActionPeerUpdated, s.remoteIP(r), id, map[string]string{
+			"action":   "connect_secret_fetched",
+			"operator": username,
+		})
+	}
+
+	log.Printf("[api] connect-secret peer=%s: ok (auto-auth)", id)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"password":                    plain,
+		"unattended_enabled":          true,
+		"passwordless_server_access":  policy.PasswordlessServerAccess,
+		"peer_id":                     id,
+	})
 }
 
 func (s *Server) handleDeleteAccessPolicy(w http.ResponseWriter, r *http.Request) {

@@ -35,11 +35,12 @@ func (ch *ClipboardHandler) Get() string {
 			return ""
 		}
 	case "windows":
-		cmd = exec.Command("powershell", "-NoProfile", "-Command", "Get-Clipboard")
+		cmd = exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", "Get-Clipboard")
 	default:
 		return ""
 	}
 
+	hideConsole(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		log.Printf("[clipboard] Get failed: %v", err)
@@ -67,11 +68,12 @@ func (ch *ClipboardHandler) Set(text string) {
 			return
 		}
 	case "windows":
-		cmd = exec.Command("powershell", "-NoProfile", "-Command", "Set-Clipboard -Value $input")
+		cmd = exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", "Set-Clipboard -Value $input")
 	default:
 		return
 	}
 
+	hideConsole(cmd)
 	cmd.Stdin = strings.NewReader(text)
 	if err := cmd.Run(); err != nil {
 		log.Printf("[clipboard] Set failed: %v", err)

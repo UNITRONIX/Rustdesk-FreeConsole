@@ -7,7 +7,7 @@
     body: `
         <div class="page-header">
             <h1 class="page-title">
-                <span class="material-icons">tune</span>
+                <span class="material-icons">support_agent</span>
                 ${_('generator.title')}
             </h1>
             <p class="page-subtitle">${_('generator.subtitle')}</p>
@@ -21,17 +21,9 @@
                         <span class="material-icons">inventory_2</span>
                         ${_('generator.bundles_title')}
                     </h2>
-                    <button id="gen-new-bundle" class="btn btn-primary btn-sm" title="${_('generator.agent_client_new_bundle')}">
+                    <button id="gen-new-support" class="btn btn-primary btn-sm" title="${_('generator.support_agent_new_bundle')}">
                         <span class="material-icons">add</span>
-                        ${_('generator.agent_client_tab')}
-                    </button>
-                    <button id="gen-new-support" class="btn btn-secondary btn-sm" title="${_('generator.support_agent_new_bundle')}">
-                        <span class="material-icons">support_agent</span>
-                        ${_('generator.support_agent_tab')}
-                    </button>
-                    <button id="gen-new-rdclient" class="btn btn-secondary btn-sm" title="${_('generator.rdclient_new_bundle')}">
-                        <span class="material-icons">connected_tv</span>
-                        ${_('generator.rdclient_tab')}
+                        ${_('generator.support_agent_new_bundle')}
                     </button>
                 </div>
                 <div class="card-body">
@@ -113,100 +105,110 @@
                                     </div>
                                 </div>
 
-                                <h3 class="section-title">${_('generator.branding_section')}</h3>
+                                <h3 class="section-title">${_('generator.platforms_section')}</h3>
+                                <p class="form-hint">${_('generator.platforms_hint')}</p>
+                                <div id="gen-platforms" class="platforms-checklist" role="group" aria-label="${_('generator.platforms_section')}"></div>
 
-                                <div class="form-group">
-                                    <label class="form-label" for="gen-company">${_('generator.company_name')}</label>
-                                    <input type="text" id="gen-company" class="form-input" maxlength="100" required>
-                                </div>
+                                <details id="gen-advanced-branding" class="gen-advanced">
+                                    <summary class="gen-advanced-summary">
+                                        <span class="material-icons">palette</span>
+                                        ${_('generator.advanced_branding')}
+                                    </summary>
+                                    <p class="form-hint">${_('generator.advanced_branding_hint')}</p>
 
-                                <div class="form-group">
-                                    <label class="form-label" for="gen-short-text">${_('generator.short_text')}</label>
-                                    <textarea id="gen-short-text" class="form-input" rows="2" maxlength="500"></textarea>
-                                </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-company">${_('generator.company_name')}</label>
+                                        <input type="text" id="gen-company" class="form-input" maxlength="100">
+                                    </div>
 
-                                <div class="form-row">
                                     <div class="form-group">
-                                        <label class="form-label" for="gen-email">${_('generator.contact_email')}</label>
-                                        <input type="email" id="gen-email" class="form-input" maxlength="200">
+                                        <label class="form-label" for="gen-short-text">${_('generator.short_text')}</label>
+                                        <textarea id="gen-short-text" class="form-input" rows="2" maxlength="500"></textarea>
                                     </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-phone">${_('generator.contact_phone')}</label>
-                                        <input type="text" id="gen-phone" class="form-input" maxlength="200">
-                                    </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label class="form-label" for="gen-url">${_('generator.contact_url')}</label>
-                                    <input type="url" id="gen-url" class="form-input" maxlength="200" placeholder="https://example.com">
-                                </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-email">${_('generator.contact_email')}</label>
+                                            <input type="email" id="gen-email" class="form-input" maxlength="200">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-phone">${_('generator.contact_phone')}</label>
+                                            <input type="text" id="gen-phone" class="form-input" maxlength="200">
+                                        </div>
+                                    </div>
 
-                                <div class="form-group">
-                                    <label class="form-label" for="gen-logo">${_('generator.logo')}</label>
-                                    <input type="file" id="gen-logo" class="form-input" accept="image/png,image/jpeg,image/svg+xml,image/webp">
-                                    <p class="form-hint">${_('generator.logo_hint')}</p>
-                                    <button type="button" id="gen-logo-clear" class="btn btn-ghost btn-sm hidden">
-                                        <span class="material-icons">close</span>
-                                        ${_('generator.logo_clear')}
-                                    </button>
-                                </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-url">${_('generator.contact_url')}</label>
+                                        <input type="url" id="gen-url" class="form-input" maxlength="200" placeholder="https://example.com">
+                                    </div>
 
-                                <div class="form-row">
                                     <div class="form-group">
-                                        <label class="form-label" for="gen-primary">${_('generator.primary_color')}</label>
-                                        <input type="color" id="gen-primary" class="form-input form-color" value="#2563eb">
+                                        <label class="form-label" for="gen-logo">${_('generator.logo')}</label>
+                                        <input type="file" id="gen-logo" class="form-input" accept="image/png,image/jpeg,image/svg+xml,image/webp">
+                                        <p class="form-hint">${_('generator.logo_hint')}</p>
+                                        <button type="button" id="gen-logo-clear" class="btn btn-ghost btn-sm hidden">
+                                            <span class="material-icons">close</span>
+                                            ${_('generator.logo_clear')}
+                                        </button>
                                     </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-accent">${_('generator.accent_color')}</label>
-                                        <input type="color" id="gen-accent" class="form-input form-color" value="#1e293b">
-                                    </div>
-                                </div>
 
-                                <div class="form-row color-grid">
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-bg">${_('generator.background_color')}</label>
-                                        <input type="color" id="gen-bg" class="form-input form-color" value="#0f172a">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-primary">${_('generator.primary_color')}</label>
+                                            <input type="color" id="gen-primary" class="form-input form-color" value="#2563eb">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-accent">${_('generator.accent_color')}</label>
+                                            <input type="color" id="gen-accent" class="form-input form-color" value="#1e293b">
+                                        </div>
                                     </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-surface">${_('generator.surface_color')}</label>
-                                        <input type="color" id="gen-surface" class="form-input form-color" value="#1e293b">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-text">${_('generator.text_color')}</label>
-                                        <input type="color" id="gen-text" class="form-input form-color" value="#e2e8f0">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-text-muted">${_('generator.text_muted_color')}</label>
-                                        <input type="color" id="gen-text-muted" class="form-input form-color" value="#94a3b8">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-status-ready">${_('generator.status_ready_color')}</label>
-                                        <input type="color" id="gen-status-ready" class="form-input form-color" value="#22c55e">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-header-text">${_('generator.header_text_color')}</label>
-                                        <input type="color" id="gen-header-text" class="form-input form-color" value="#ffffff">
-                                    </div>
-                                </div>
 
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label" for="gen-lang">${_('generator.default_lang')}</label>
-                                        <select id="gen-lang" class="form-input">
-                                            ${(typeof supportedLangs !== 'undefined' ? supportedLangs : ['en', 'pl', 'zh-TW']).map(function(code) {
-                                                const label = (typeof localeLabels !== 'undefined' && localeLabels[code]) ? localeLabels[code] : code;
-                                                return '<option value="' + code + '">' + label + '</option>';
-                                            }).join('')}
-                                        </select>
+                                    <div class="form-row color-grid">
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-bg">${_('generator.background_color')}</label>
+                                            <input type="color" id="gen-bg" class="form-input form-color" value="#0f172a">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-surface">${_('generator.surface_color')}</label>
+                                            <input type="color" id="gen-surface" class="form-input form-color" value="#1e293b">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-text">${_('generator.text_color')}</label>
+                                            <input type="color" id="gen-text" class="form-input form-color" value="#e2e8f0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-text-muted">${_('generator.text_muted_color')}</label>
+                                            <input type="color" id="gen-text-muted" class="form-input form-color" value="#94a3b8">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-status-ready">${_('generator.status_ready_color')}</label>
+                                            <input type="color" id="gen-status-ready" class="form-input form-color" value="#22c55e">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-header-text">${_('generator.header_text_color')}</label>
+                                            <input type="color" id="gen-header-text" class="form-input form-color" value="#ffffff">
+                                        </div>
                                     </div>
-                                    <div class="form-group form-group-checkbox">
-                                        <label class="form-label">
-                                            <input type="checkbox" id="gen-unattended">
-                                            ${_('generator.allow_unattended')}
-                                        </label>
-                                        <p class="form-hint">${_('generator.allow_unattended_hint')}</p>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label" for="gen-lang">${_('generator.default_lang')}</label>
+                                            <select id="gen-lang" class="form-input">
+                                                ${(typeof supportedLangs !== 'undefined' ? supportedLangs : ['en', 'pl', 'zh-TW']).map(function(code) {
+                                                    const label = (typeof localeLabels !== 'undefined' && localeLabels[code]) ? localeLabels[code] : code;
+                                                    return '<option value="' + code + '">' + label + '</option>';
+                                                }).join('')}
+                                            </select>
+                                        </div>
+                                        <div class="form-group form-group-checkbox">
+                                            <label class="form-label">
+                                                <input type="checkbox" id="gen-unattended">
+                                                ${_('generator.allow_unattended')}
+                                            </label>
+                                            <p class="form-hint">${_('generator.allow_unattended_hint')}</p>
+                                        </div>
                                     </div>
-                                </div>
+                                </details>
 
                                 <div id="gen-download-info" class="download-info hidden">
                                     <div class="builds-section" id="gen-builds-section">
@@ -218,6 +220,7 @@
                                             </button>
                                         </div>
                                         <p class="form-hint">${_('generator.builds_hint')}</p>
+                                        <div id="gen-toolchain-banner" class="toolchain-banner hidden" role="status"></div>
                                         <div id="gen-builds-summary" class="builds-summary hidden"></div>
                                         <div id="gen-builds-list" class="builds-list">
                                             <p class="text-muted">${_('generator.builds_loading')}</p>
@@ -298,3 +301,4 @@
         </div>
     `
 }) %>
+

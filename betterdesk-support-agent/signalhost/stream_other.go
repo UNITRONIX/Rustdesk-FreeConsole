@@ -2,6 +2,4 @@
 
 package signalhost
 
-func ffmpegStreamArgs(_ int) []string {
-	return nil
-}
+// Capture strategies for other GOOS live in capture_other.go.

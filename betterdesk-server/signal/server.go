@@ -127,7 +127,15 @@ type Server struct {
 	networkPolicy *policy.NetworkResolver
 
 	billing *billing.Service
+
+	// targetAccess optionally enforces panel device ACL for logged-in initiators
+	// (wired from api.Server.UserMayConnectToPeer in main).
+	targetAccess TargetAccessFunc
 }
+
+// TargetAccessFunc reports whether a panel user may open a session to targetID.
+// nil checker = skip (unit tests / signal-only without panel sync).
+type TargetAccessFunc func(userID int64, username, role, targetID string) bool
 
 // New creates a new signal server instance.
 func New(cfg *config.Config, kp *crypto.KeyPair, database db.Database) *Server {
@@ -161,6 +169,12 @@ func (s *Server) SetAuditLogger(l *audit.Logger) {
 // SetBillingService attaches commercialization billing gates to signal handling.
 func (s *Server) SetBillingService(b *billing.Service) {
 	s.billing = b
+}
+
+// SetTargetAccessChecker attaches panel device-scope ACL for PunchHole/RequestRelay
+// when the initiator is identified via a BetterDesk client login session.
+func (s *Server) SetTargetAccessChecker(fn TargetAccessFunc) {
+	s.targetAccess = fn
 }
 
 // PeerMap returns the server's in-memory peer map for external access (e.g., API).
@@ -457,7 +471,9 @@ func normalizeAddrKey(addr string) string {
 
 // handleTCPConn handles a single TCP signal connection.
 // Matches Rust hbbs behavior: reads framed protobuf in a loop.
-// PunchHoleRequest and RequestRelay keep the connection alive; others close after handling.
+// PunchHoleRequest, RequestRelay, and RegisterPk keep the connection alive
+// (RegisterPk so #327 viewer-only PunchHole can use tcpSessionPeerID on the
+// same session); other message types close after handling.
 //
 // When in keep-alive mode the connection is registered in tcpPunchConns so that
 // RelayResponse messages from the target peer can be forwarded here.  Go's
@@ -660,6 +676,9 @@ func (s *Server) logAndCheckKeepAlive(msg *pb.RendezvousMessage, addrKey string,
 		return true
 	case msg.GetRegisterPk() != nil:
 		log.Printf("[signal] TCP msg from %s%s: RegisterPk (id=%s)", addrKey, tag, msg.GetRegisterPk().Id)
+		// Keep alive so bindTCPSessionPeer + a following PunchHole/RequestRelay
+		// on this connection can authorize without IP-only FindByIP (#302/#327).
+		return true
 	case msg.GetFetchLocalAddr() != nil:
 		log.Printf("[signal] TCP msg from %s%s: FetchLocalAddr", addrKey, tag)
 	case msg.GetLocalAddr() != nil:

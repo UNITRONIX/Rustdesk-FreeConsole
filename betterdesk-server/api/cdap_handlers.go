@@ -46,6 +46,7 @@ type desktopWSMessage struct {
 	Data        string          `json:"data,omitempty"`
 	SessionID   string          `json:"session_id,omitempty"`
 	Index       int             `json:"index,omitempty"`
+	Enabled     *bool           `json:"enabled,omitempty"`
 	Raw         json.RawMessage `json:"-"`
 }
 
@@ -777,6 +778,15 @@ func (s *Server) handleCDAPDesktop(w http.ResponseWriter, r *http.Request) {
 			s.cdapGw.RelayKeyframeRequest(ctx, session.ID)
 		case "monitor_select":
 			s.cdapGw.RelayMonitorSelect(ctx, session.ID, msg.Index)
+		case "lock_screen", "restart_device", "block_input", "privacy_mode",
+			"disable_clipboard", "lock_after_session", "show_cursor", "quality_set":
+			enabled := false
+			if msg.Enabled != nil {
+				enabled = *msg.Enabled
+			}
+			if err := s.cdapGw.RelayDesktopControl(ctx, session.ID, msg.Type, enabled, msg.Raw); err != nil {
+				log.Printf("[cdap] desktop control %s relay failed: %v", msg.Type, err)
+			}
 		case "close":
 			s.cdapGw.EndDesktopSession(ctx, session.ID, "user closed desktop")
 			return

@@ -15,7 +15,9 @@ jest.mock('../services/database', () => ({
     saveAddressBook: jest.fn(),
     getAllDeviceGroups: jest.fn(),
     getDeviceGroupByGuid: jest.fn(),
-    getDeviceGroupMembers: jest.fn()
+    getDeviceGroupMembers: jest.fn(),
+    getSetting: jest.fn(),
+    getUserPeerGrants: jest.fn()
 }));
 
 jest.mock('../services/authService', () => ({
@@ -30,6 +32,7 @@ jest.mock('../services/serverBackend', () => ({
 const db = require('../services/database');
 const authService = require('../services/authService');
 const serverBackend = require('../services/serverBackend');
+const deviceGroupService = require('../services/deviceGroupService');
 const rustdeskApiRoutes = require('../routes/rustdesk-api.routes');
 
 describe('RustDesk Client API routes', () => {
@@ -40,6 +43,7 @@ describe('RustDesk Client API routes', () => {
         app.use('/', rustdeskApiRoutes);
 
         jest.clearAllMocks();
+        deviceGroupService.invalidateDeviceScopeDefaultCache();
         authService.validateAccessToken.mockResolvedValue({ id: 2, username: 'viewer1', role: 'viewer' });
         db.getAllDevices.mockResolvedValue([
             { id: 'OWNED1', hostname: 'Owned', online: true, tags: 'Allowed' },
@@ -57,6 +61,9 @@ describe('RustDesk Client API routes', () => {
         db.getAllDeviceGroups.mockResolvedValue([]);
         db.getDeviceGroupByGuid.mockResolvedValue(null);
         db.getDeviceGroupMembers.mockResolvedValue([]);
+        // Open + empty ACL: operators may see unassigned inventory (legacy route tests).
+        db.getSetting.mockResolvedValue('open');
+        db.getUserPeerGrants.mockResolvedValue([]);
         db.getAddressBook.mockImplementation(async (_userId, abType) => {
             if (abType === 'legacy') {
                 return { data: JSON.stringify({ peers: [{ id: 'OWNED1' }] }) };
@@ -163,15 +170,74 @@ describe('RustDesk Client API routes', () => {
             expect(res.body.data[0]).toMatchObject({
                 id: 'PEER1',
                 info: {
+                    device_name: '',
+                    os: 'Windows',
+                    username: ''
+                },
+                user: '',
+                user_name: '',
+                alias: 'Finance PC',
+                note: '',
+                online: true,
+                status: 1
+            });
+        });
+
+        it('uses device note as alias when display_name is empty', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                {
+                    id: 'PEER2',
+                    hostname: 'dcstrainingserver',
+                    username: 'alice',
+                    platform: 'Windows',
+                    note: 'Training',
+                    online: true,
+                    tags: ['Allowed']
+                }
+            ]);
+
+            const res = await request(app)
+                .get('/api/peers')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'PEER2',
+                alias: 'Training',
+                note: '',
+                info: { device_name: '', username: '', os: 'Windows' }
+            });
+        });
+
+        it('keeps hostname on secondary line when no panel display label exists', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                {
+                    id: 'PEER3',
+                    hostname: 'server-a',
+                    username: 'alice',
+                    platform: 'Windows',
+                    online: true,
+                    tags: ['Allowed']
+                }
+            ]);
+
+            const res = await request(app)
+                .get('/api/peers')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'PEER3',
+                alias: '',
+                info: {
                     device_name: 'server-a',
                     os: 'Windows',
                     username: 'alice'
                 },
                 user: 'alice',
-                user_name: 'alice',
-                alias: 'Finance PC',
-                online: true,
-                status: 1
+                user_name: 'alice'
             });
         });
 
@@ -230,7 +296,7 @@ describe('RustDesk Client API routes', () => {
                     guid: 'dg-servers',
                     name: 'Servers',
                     source_type: 'manual',
-                    allowed_users: [],
+                    allowed_users: ['operator1'],
                     allowed_groups: []
                 }
             ]);
@@ -241,11 +307,41 @@ describe('RustDesk Client API routes', () => {
                 .set('Authorization', 'Bearer operator-token');
 
             expect(res.status).toBe(200);
-            expect(res.body.data.find(peer => peer.id === 'GROUP1')).toMatchObject({
+            // Explicit group grant → allowlist-only (OTHER1 must not leak via open overlay).
+            expect(res.body.data.map(peer => peer.id)).toEqual(['GROUP1']);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'GROUP1',
                 device_group_name: 'Servers'
             });
-            expect(res.body.data.find(peer => peer.id === 'OTHER1')).toMatchObject({
-                device_group_name: ''
+        });
+
+        it('prefers device group name over folder assignment for device_group_name', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                { id: 'EVENT1', hostname: 'event-server', online: true, tags: 'Allowed' }
+            ]);
+            db.getAllFolders.mockResolvedValue([{ id: 1, name: 'DCS Servers' }]);
+            db.getAllFolderAssignments.mockResolvedValue({ EVENT1: 1 });
+            db.getAllDeviceGroups.mockResolvedValue([
+                {
+                    id: 9,
+                    guid: 'dg-event',
+                    name: 'Event Servers',
+                    source_type: 'manual',
+                    allowed_users: ['operator1'],
+                    allowed_groups: []
+                }
+            ]);
+            db.getDeviceGroupMembers.mockResolvedValue(['EVENT1']);
+
+            const res = await request(app)
+                .get('/api/peers?accessible=&status=1')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'EVENT1',
+                device_group_name: 'Event Servers'
             });
         });
 
@@ -371,6 +467,12 @@ describe('RustDesk Client API routes', () => {
             ]);
             db.getAllFolders.mockResolvedValue([{ id: 7, name: 'Servers' }]);
             db.getAllFolderAssignments.mockResolvedValue({ FOLDER1: 7 });
+            db.getDeviceGroupByGuid.mockResolvedValue({
+                guid: 'folder_7',
+                name: 'Servers',
+                allowed_users: ['operator1'],
+                allowed_groups: []
+            });
 
             const res = await request(app)
                 .get('/api/device-group')
@@ -390,7 +492,14 @@ describe('RustDesk Client API routes', () => {
         it('serves the legacy RustDesk group aliases with the same payload', async () => {
             authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
             db.getAllDeviceGroups.mockResolvedValue([
-                { guid: 'kuzzel', name: 'KUZZEL', source_type: 'tag', tag_filter: 'KUZZEL' }
+                {
+                    guid: 'kuzzel',
+                    name: 'KUZZEL',
+                    source_type: 'tag',
+                    tag_filter: 'KUZZEL',
+                    allowed_users: ['operator1'],
+                    allowed_groups: []
+                }
             ]);
             serverBackend.getAllDevices.mockResolvedValue([
                 { id: 'TAG1', hostname: 'Tagged', online: true, tags: ['KUZZEL'] }

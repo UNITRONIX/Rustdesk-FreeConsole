@@ -26,8 +26,10 @@ function validateEnrollmentRow(row, deviceId) {
 }
 
 async function lookupEnrollmentTokenSqlite(tokenHash) {
-    const Database = require('better-sqlite3');
-    const db = new Database(config.dbPath, { readonly: true, fileMustExist: false });
+    // Use the shared adapter handle — open/close churn on better-sqlite3
+    // races Node 24 N-API cleanup hooks (#353).
+    const { getAdapter } = require('../services/dbAdapter');
+    const db = getAdapter(config).getSqliteMainDb();
     try {
         return db.prepare(`
             SELECT peer_id, status, max_uses, use_count, expires_at
@@ -36,8 +38,6 @@ async function lookupEnrollmentTokenSqlite(tokenHash) {
     } catch (err) {
         if (String(err.message || '').includes('no such table')) return null;
         throw err;
-    } finally {
-        db.close();
     }
 }
 

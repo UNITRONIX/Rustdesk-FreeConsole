@@ -142,6 +142,12 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		TfaCode          string `json:"tfaCode"`
 		Secret           string `json:"secret"` // TFA session secret
 		AutoLogin        bool   `json:"autoLogin"`
+		DeviceInfo       struct {
+			Name    string `json:"name"`
+			OS      string `json:"os"`
+			Type    string `json:"type"`
+			AppName string `json:"app_name"`
+		} `json:"deviceInfo"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		log.Printf("[api] /api/login: JSON decode error from %s: %v", clientIP, err)
@@ -150,8 +156,24 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DEBUG: Log incoming login request fields (excluding password)
-	log.Printf("[api] /api/login from %s: user=%q type=%q code=%q secret_len=%d id=%q uuid=%q",
-		clientIP, body.Username, body.Type, body.VerificationCode, len(body.Secret), body.ID, body.UUID)
+	log.Printf("[api] /api/login from %s: user=%q type=%q code=%q secret_len=%d id=%q uuid=%q os=%q app_name=%q",
+		clientIP, body.Username, body.Type, body.VerificationCode, len(body.Secret), body.ID, body.UUID,
+		body.DeviceInfo.OS, body.DeviceInfo.AppName)
+
+	if msg := rejectWindowsClientAppName(body.DeviceInfo.OS, body.DeviceInfo.AppName); msg != "" {
+		log.Printf("[api] /api/login rejected Windows client from %s: os=%q app_name=%q",
+			clientIP, body.DeviceInfo.OS, body.DeviceInfo.AppName)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionAuthLoginFailed, clientIP, body.Username, map[string]string{
+				"reason":   "windows_client_app_name",
+				"os":       body.DeviceInfo.OS,
+				"app_name": body.DeviceInfo.AppName,
+				"client_id": body.ID,
+			})
+		}
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": msg})
+		return
+	}
 
 	totpCode := body.VerificationCode
 	if totpCode == "" {
@@ -234,6 +256,7 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = s.db.UpdateUserLogin(user.ID)
+	log.Printf("[api] /api/login ok user=%q role=%q client_id=%q", user.Username, user.Role, body.ID)
 
 	auditFields := map[string]string{"client_id": body.ID}
 	if login.AuthMethod != "" {
@@ -402,6 +425,8 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 		}
 		// Enforce device-group / folder ACL on Address Book peers (org merge + stale entries).
 		data = s.applyDeviceScopeToAddressBook(r, username, role, data)
+		// Inject Access Policy passwords when passwordless server access is enabled.
+		data = s.enrichAddressBookWithAccessPasswords(username, data)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "licensed_devices": 0})
 
 	case http.MethodPost:
@@ -419,6 +444,8 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Address book too large"})
 			return
 		}
+		// Do not persist out-of-scope enrolled peers (client may re-upload a leaked fleet).
+		dataStr = s.applyDeviceScopeToAddressBook(r, username, role, dataStr)
 		if err := s.db.SaveAddressBook(username, "legacy", dataStr); err != nil {
 			log.Printf("[api] SaveAddressBook error for %s: %v", username, err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
@@ -456,6 +483,7 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			data = s.mergeAdminTagsIntoAB(data)
 		}
 		data = s.applyDeviceScopeToAddressBook(r, username, role, data)
+		data = s.enrichAddressBookWithAccessPasswords(username, data)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data})
 
 	case http.MethodPost:
@@ -464,9 +492,11 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
 			return
 		}
-		// RustDesk 1.4.7 probes with an empty POST body; legacy servers return 404 (PR #14813).
+		// Pro shared-AB probe: empty POST expects {"guid": "..."} (not 404).
+		// Returning a guid exits legacy mode so the client can use shared books
+		// with peers[].password for Access Policy auto-connect.
 		if emptyBody || !abDataFieldPresent(body.Data) {
-			http.NotFound(w, r)
+			writeJSON(w, http.StatusOK, map[string]any{"guid": personalABGUID(username)})
 			return
 		}
 		dataStr := normalizeAbDataField(body.Data)
@@ -474,6 +504,8 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Address book too large"})
 			return
 		}
+		// Do not persist out-of-scope enrolled peers (client may re-upload a leaked fleet).
+		dataStr = s.applyDeviceScopeToAddressBook(r, username, role, dataStr)
 		if err := s.db.SaveAddressBook(username, "personal", dataStr); err != nil {
 			log.Printf("[api] SaveAddressBook(personal) error for %s: %v", username, err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
@@ -694,23 +726,56 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 		}
 		filtered = append(filtered, p)
 
-		// Enrich peer with sysinfo from peers table (Issue #138: OS icon/name not showing)
+		// Enrich peer with sysinfo + panel display alias (Issue #138 + AB card title).
 		if info, ok := peerInfo[id]; ok {
-			if _, hasHostname := p["hostname"]; !hasHostname || p["hostname"] == "" {
-				if info.Hostname != "" {
-					p["hostname"] = info.Hostname
+			abAlias, _ := p["alias"].(string)
+			abNote, _ := p["note"].(string)
+			curHost, _ := p["hostname"].(string)
+			curUser, _ := p["username"].(string)
+			if strings.TrimSpace(curHost) == "" {
+				curHost = info.Hostname
+			}
+			if strings.TrimSpace(curUser) == "" {
+				curUser = info.User
+			}
+			alias, note, host, user := rustDeskCardFields(info, abAlias, abNote, curHost, curUser)
+			if a, _ := p["alias"].(string); strings.TrimSpace(a) != alias {
+				p["alias"] = alias
+				modified = true
+			}
+			// Prefer enriched note (ID under Display Name, or cleared duplicate).
+			if n, _ := p["note"].(string); strings.TrimSpace(n) != note {
+				p["note"] = note
+				modified = true
+			}
+			// When a title alias is set, clear computer name so the secondary line
+			// is note (typically the peer ID) rather than username@hostname.
+			if alias != "" {
+				if h, _ := p["hostname"].(string); strings.TrimSpace(h) != "" {
+					p["hostname"] = ""
 					modified = true
+				}
+				if u, _ := p["username"].(string); strings.TrimSpace(u) != "" {
+					p["username"] = ""
+					modified = true
+				}
+			} else {
+				if _, hasHostname := p["hostname"]; !hasHostname || p["hostname"] == "" {
+					if host != "" {
+						p["hostname"] = host
+						modified = true
+					}
+				}
+				if _, hasUsername := p["username"]; !hasUsername || p["username"] == "" {
+					if user != "" {
+						p["username"] = user
+						modified = true
+					}
 				}
 			}
 			if _, hasPlatform := p["platform"]; !hasPlatform || p["platform"] == "" {
 				if info.OS != "" {
 					p["platform"] = info.OS
-					modified = true
-				}
-			}
-			if _, hasUsername := p["username"]; !hasUsername || p["username"] == "" {
-				if info.User != "" {
-					p["username"] = info.User
 					modified = true
 				}
 			}

@@ -91,10 +91,45 @@ function mergePeerFields(existing, device, tags) {
         : {};
 
     peer.id = String(peer.id || device.id || '');
-    if (!peer.username && (device.username || device.user)) peer.username = String(device.username || device.user);
-    if (!peer.hostname && device.hostname) peer.hostname = String(device.hostname);
-    if (!peer.alias && (device.display_name || device.note)) peer.alias = String(device.display_name || device.note);
-    if (!peer.platform && (device.platform || device.os)) peer.platform = String(device.platform || device.os);
+    const displayName = String(device.display_name || '').trim();
+    const deviceNote = String(device.note || '').trim();
+    const panelAlias = displayName || deviceNote;
+
+    // Panel display name is the managed RustDesk card title (alias). Note fills
+    // alias only when the peer has no alias yet. Stale AB cards often keep the
+    // label in note with empty alias — promote that too. Never fall back to
+    // hostname (secondary line on stock RustDesk).
+    const existingAlias = String(peer.alias || '').trim();
+    const existingNote = String(peer.note || '').trim();
+    if (displayName) {
+        peer.alias = displayName;
+    } else if (!existingAlias && deviceNote) {
+        peer.alias = deviceNote;
+    } else if (!existingAlias && existingNote) {
+        peer.alias = existingNote;
+    }
+
+    const titleAlias = String(peer.alias || '').trim();
+    const managedTitle = Boolean(panelAlias) ||
+        (!existingAlias && existingNote && titleAlias === existingNote);
+    if (managedTitle && titleAlias) {
+        peer.hostname = '';
+        peer.username = '';
+        if (String(peer.note || '').trim() === titleAlias) {
+            peer.note = '';
+        }
+    } else {
+        if (!peer.username && (device.username || device.user)) {
+            peer.username = String(device.username || device.user);
+        }
+        if (!peer.hostname && device.hostname) {
+            peer.hostname = String(device.hostname);
+        }
+    }
+
+    if (!peer.platform && (device.platform || device.os)) {
+        peer.platform = String(device.platform || device.os);
+    }
     peer.tags = tags;
 
     return peer;
@@ -191,9 +226,11 @@ function collectPeerTagUpdates(data, options = {}) {
 }
 
 /**
- * Strip known server peers outside the caller's device-group ACL.
- * Peers not in knownDeviceIds (user-typed remote IDs) are kept.
- * When visibleIds is null/undefined, no filtering is applied.
+ * Strip peers outside the caller's device-group ACL.
+ * When visibleIds is null/undefined, no filtering is applied (unrestricted / admin).
+ * When knownDeviceIds is non-empty, user-typed remote IDs (not in inventory) are kept.
+ * When knownDeviceIds is empty under a non-null visible set, allowlist-only: keep iff
+ * visible — otherwise an empty inventory would fail open and re-expose a saved fleet.
  */
 function filterAddressBookPeersByScope(data, options = {}) {
     const ab = parseAddressBookData(data);
@@ -206,12 +243,14 @@ function filterAddressBookPeersByScope(data, options = {}) {
             .map(id => String(id || '').trim())
             .filter(Boolean)
     );
+    const inventoryLoaded = known.size > 0;
     ab.peers = ab.peers.filter(peer => {
         if (!peer || typeof peer !== 'object') return false;
         const id = String(peer.id || '').trim();
         if (!id) return false;
-        if (known.has(id) && !visibleIds.has(id)) return false;
-        return true;
+        if (visibleIds.has(id)) return true;
+        if (inventoryLoaded && !known.has(id)) return true;
+        return false;
     });
     return JSON.stringify(ab);
 }

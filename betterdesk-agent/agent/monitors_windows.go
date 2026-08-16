@@ -12,10 +12,12 @@ import (
 // device-context APIs exist in syscall but pulling them in for what is a
 // once-per-session enumeration costs more than the PowerShell hop.
 func enumerateMonitors() []MonitorInfo {
-	out, err := exec.Command("powershell.exe", "-NoProfile", "-Command",
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
 		`Get-WmiObject -Namespace root\wmi -Class WmiMonitorBasicDisplayParams |
 		ForEach-Object { [pscustomobject]@{ Name = $_.InstanceName } } |
-		ConvertTo-Json -Compress`).Output()
+		ConvertTo-Json -Compress`)
+	hideConsole(cmd)
+	out, err := cmd.Output()
 	if err == nil {
 		s := strings.TrimSpace(string(out))
 		if s != "" {

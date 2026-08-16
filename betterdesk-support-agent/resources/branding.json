@@ -16,6 +16,14 @@
   "logo_data_url": "",
   "default_language": "en",
   "allow_unattended": false,
+  "capabilities": {
+    "desktop": true,
+    "files": true,
+    "clipboard": true,
+    "audio": true,
+    "terminal": true,
+    "restart": true
+  },
   "server": {
     "address": "",
     "api_url": "",

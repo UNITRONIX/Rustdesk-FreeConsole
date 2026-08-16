@@ -78,6 +78,18 @@ class RDProtocol {
         this.types.FileRename = this.protoRoot.lookupType('hbb.FileRename');
         this.types.FileTransfer = this.protoRoot.lookupType('hbb.FileTransfer');
 
+        // Cliprdr (file clipboard / Explorer paste)
+        this.types.Cliprdr = this.protoRoot.lookupType('hbb.Cliprdr');
+        this.types.CliprdrMonitorReady = this.protoRoot.lookupType('hbb.CliprdrMonitorReady');
+        this.types.CliprdrFormat = this.protoRoot.lookupType('hbb.CliprdrFormat');
+        this.types.CliprdrServerFormatList = this.protoRoot.lookupType('hbb.CliprdrServerFormatList');
+        this.types.CliprdrServerFormatListResponse = this.protoRoot.lookupType('hbb.CliprdrServerFormatListResponse');
+        this.types.CliprdrServerFormatDataRequest = this.protoRoot.lookupType('hbb.CliprdrServerFormatDataRequest');
+        this.types.CliprdrServerFormatDataResponse = this.protoRoot.lookupType('hbb.CliprdrServerFormatDataResponse');
+        this.types.CliprdrFileContentsRequest = this.protoRoot.lookupType('hbb.CliprdrFileContentsRequest');
+        this.types.CliprdrFileContentsResponse = this.protoRoot.lookupType('hbb.CliprdrFileContentsResponse');
+        this.types.CliprdrTryEmpty = this.protoRoot.lookupType('hbb.CliprdrTryEmpty');
+
         // Enums
         this.enums = {};
         this.enums.ConnType = this.protoRoot.lookupEnum('hbb.ConnType');
@@ -389,6 +401,167 @@ class RDProtocol {
     }
 
     /**
+     * Build Cliprdr MonitorReady (initialize file clipboard channel)
+     * @returns {Object}
+     */
+    buildCliprdrMonitorReady() {
+        return {
+            cliprdr: {
+                ready: {}
+            }
+        };
+    }
+
+    /**
+     * Build Cliprdr FormatList advertising file descriptor + contents formats
+     * @param {Object} [names] - optional native format id/name map from desktop bridge
+     * @returns {Object}
+     */
+    buildCliprdrFormatList(names) {
+        const fdId = names && (names.fileDescriptorFormatId != null || names.file_descriptor_format_id != null)
+            ? Number(names.fileDescriptorFormatId != null ? names.fileDescriptorFormatId : names.file_descriptor_format_id)
+            : 49334;
+        const fdName = names && (names.fileDescriptorFormatName || names.file_descriptor_format_name)
+            ? String(names.fileDescriptorFormatName || names.file_descriptor_format_name)
+            : 'FileGroupDescriptorW';
+        const fcId = names && (names.fileContentsFormatId != null || names.file_contents_format_id != null)
+            ? Number(names.fileContentsFormatId != null ? names.fileContentsFormatId : names.file_contents_format_id)
+            : 49267;
+        const fcName = names && (names.fileContentsFormatName || names.file_contents_format_name)
+            ? String(names.fileContentsFormatName || names.file_contents_format_name)
+            : 'FileContents';
+        return {
+            cliprdr: {
+                formatList: {
+                    formats: [
+                        { id: fdId, format: fdName },
+                        { id: fcId, format: fcName }
+                    ]
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} requestedFormatId
+     * @returns {Object}
+     */
+    buildCliprdrFormatDataRequest(requestedFormatId) {
+        return {
+            cliprdr: {
+                formatDataRequest: {
+                    requestedFormatId: requestedFormatId
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {Object} opts
+     * @param {number} opts.streamId
+     * @param {number} opts.listIndex
+     * @param {number} opts.dwFlags
+     * @param {number} [opts.nPositionLow]
+     * @param {number} [opts.nPositionHigh]
+     * @param {number} [opts.cbRequested]
+     * @param {boolean} [opts.haveClipDataId]
+     * @param {number} [opts.clipDataId]
+     * @returns {Object}
+     */
+    buildCliprdrFileContentsRequest(opts = {}) {
+        return {
+            cliprdr: {
+                fileContentsRequest: {
+                    streamId: opts.streamId || 0,
+                    listIndex: opts.listIndex || 0,
+                    dwFlags: opts.dwFlags || 0,
+                    nPositionLow: opts.nPositionLow || 0,
+                    nPositionHigh: opts.nPositionHigh || 0,
+                    cbRequested: opts.cbRequested || 0,
+                    haveClipDataId: !!opts.haveClipDataId,
+                    clipDataId: opts.clipDataId || 0
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} msgFlags
+     * @param {Uint8Array|ArrayBuffer|number[]} formatData
+     * @returns {Object}
+     */
+    buildCliprdrFormatDataResponse(msgFlags, formatData) {
+        const bytes = formatData instanceof Uint8Array
+            ? formatData
+            : (typeof formatData === 'string'
+                // Callers must pass binary; string here is almost always mistaken base64.
+                // `new Uint8Array(string)` is length 0 — refuse silent empty FormatData.
+                ? (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload
+                    ? LocalFiles.coerceBinaryPayload(formatData)
+                    : new Uint8Array(0))
+                : (Array.isArray(formatData) || formatData instanceof ArrayBuffer
+                    ? new Uint8Array(formatData)
+                    : new Uint8Array(0)));
+        return {
+            cliprdr: {
+                formatDataResponse: {
+                    msgFlags: msgFlags,
+                    formatData: bytes
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} msgFlags
+     * @param {number} streamId
+     * @param {Uint8Array|ArrayBuffer|number[]} requestedData
+     * @returns {Object}
+     */
+    buildCliprdrFileContentsResponse(msgFlags, streamId, requestedData) {
+        const bytes = requestedData instanceof Uint8Array
+            ? requestedData
+            : (typeof requestedData === 'string'
+                ? (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload
+                    ? LocalFiles.coerceBinaryPayload(requestedData)
+                    : new Uint8Array(0))
+                : (Array.isArray(requestedData) || requestedData instanceof ArrayBuffer
+                    ? new Uint8Array(requestedData)
+                    : new Uint8Array(0)));
+        return {
+            cliprdr: {
+                fileContentsResponse: {
+                    msgFlags: msgFlags,
+                    streamId: streamId,
+                    requestedData: bytes
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} msgFlags
+     * @returns {Object}
+     */
+    buildCliprdrFormatListResponse(msgFlags) {
+        return {
+            cliprdr: {
+                formatListResponse: {
+                    msgFlags: msgFlags
+                }
+            }
+        };
+    }
+
+    buildCliprdrTryEmpty() {
+        return {
+            cliprdr: {
+                tryEmpty: {}
+            }
+        };
+    }
+
+    /**
      * Build a Misc message wrapping an OptionMessage for mid-session setting changes.
      * BoolOption values: NotSet=0, No=1, Yes=2
      * @param {Object} opts - OptionMessage fields
@@ -674,12 +847,21 @@ class RDProtocol {
      * @returns {Object}
      */
     buildFileBlock(id, fileNum, data, compressed, blkId) {
+        const bytes = data instanceof Uint8Array
+            ? data
+            : (typeof data === 'string'
+                ? (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload
+                    ? LocalFiles.coerceBinaryPayload(data)
+                    : new Uint8Array(0))
+                : (Array.isArray(data) || data instanceof ArrayBuffer
+                    ? new Uint8Array(data)
+                    : new Uint8Array(0)));
         return {
             fileResponse: {
                 block: {
                     id: id,
                     fileNum: fileNum,
-                    data: data,
+                    data: bytes,
                     compressed: !!compressed,
                     blkId: blkId || 0
                 }

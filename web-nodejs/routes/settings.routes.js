@@ -35,6 +35,78 @@ const os = require('os');
 const multer = require('multer');
 
 /**
+ * Exit so systemd/NSSM (or a Windows re-exec) can bring the console back.
+ * On Windows, reload windowsConsoleSelfRestart from disk (require cache bust)
+ * so a just-applied panel update can change restart behaviour without an
+ * extra manual start — as long as this exit helper itself is already loaded.
+ */
+function exitConsoleForServiceRestart(reason) {
+    if (process.platform === 'win32') {
+        let prepareWindowsConsoleRestart;
+        try {
+            const helperPath = require.resolve('../lib/windowsConsoleSelfRestart');
+            delete require.cache[helperPath];
+            prepareWindowsConsoleRestart = require('../lib/windowsConsoleSelfRestart')
+                .prepareWindowsConsoleRestart;
+        } catch (err) {
+            console.warn(`[UPDATE] Windows restart helper unavailable: ${err.message}`);
+        }
+
+        if (typeof prepareWindowsConsoleRestart === 'function') {
+            const consoleRoot = path.join(__dirname, '..');
+            const prepared = prepareWindowsConsoleRestart({ consoleRoot, reason });
+            if (prepared.appExit?.changed) {
+                console.log(`[UPDATE] Set ${prepared.appExit.changes.join(', ')}`);
+            }
+            if (prepared.appExit?.error) {
+                console.warn(`[UPDATE] AppExit update skipped: ${prepared.appExit.error}`);
+            }
+            if (prepared.serviceEnv?.changed) {
+                console.log(`[UPDATE] Set ${prepared.serviceEnv.changes.join(', ')}`);
+            }
+            if (prepared.mode === 'interactive-reexec' || prepared.mode === 'service-fallback-reexec') {
+                if (prepared.reexec?.spawned) {
+                    console.log(
+                        `[UPDATE] Spawned replacement console process`
+                        + (prepared.reexec.pid ? ` pid=${prepared.reexec.pid}` : '')
+                        + (reason ? ` (${reason})` : '')
+                    );
+                } else {
+                    console.warn(
+                        `[UPDATE] Could not spawn replacement console: ${prepared.reexec?.error || 'unknown'}`
+                    );
+                }
+            } else if (prepared.scheduled?.scheduled) {
+                console.log(
+                    `[UPDATE] Scheduled NSSM start of ${prepared.scheduled.service}`
+                    + ` in ${prepared.scheduled.delaySec}s after exit`
+                    + (reason ? ` (${reason})` : '')
+                );
+            } else if (prepared.scheduled?.error) {
+                console.warn(`[UPDATE] Could not schedule Windows console restart: ${prepared.scheduled.error}`);
+            }
+        } else {
+            // Last-resort inline re-exec when helper failed to load.
+            try {
+                const { spawn } = require('child_process');
+                const serverJs = path.join(__dirname, '..', 'server.js');
+                const child = spawn(process.execPath, [serverJs], {
+                    detached: true,
+                    stdio: 'ignore',
+                    cwd: path.join(__dirname, '..'),
+                    windowsHide: true,
+                });
+                child.unref();
+                console.log(`[UPDATE] Inline spawned replacement console pid=${child.pid || '?'}`);
+            } catch (err) {
+                console.warn(`[UPDATE] Inline console re-exec failed: ${err.message}`);
+            }
+        }
+    }
+    process.exit(0);
+}
+
+/**
  * GET /settings - Settings page
  */
 router.get('/settings', requireAuth, (req, res) => {
@@ -144,7 +216,7 @@ router.get('/api/settings/server-info', requireAuth, (req, res) => {
 router.get('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
         const stored = await db.getSetting('device_scope_default');
-        const mode = stored && String(stored).toLowerCase() === 'restricted' ? 'restricted' : 'open';
+        const mode = !stored || String(stored).toLowerCase() === 'restricted' ? 'restricted' : 'open';
         res.json({ success: true, data: { mode } });
     } catch (err) {
         console.error('Get device scope setting error:', err);
@@ -157,7 +229,7 @@ router.get('/api/settings/device-scope', requireAuth, requirePermission('server.
  */
 router.post('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const mode = String((req.body && req.body.mode) || 'open').toLowerCase();
+        const mode = String((req.body && req.body.mode) || 'restricted').toLowerCase();
         if (mode !== 'open' && mode !== 'restricted') {
             return res.status(400).json({ success: false, error: req.t('settings.device_scope_invalid') });
         }
@@ -1200,17 +1272,41 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
             }
         }
 
-        // Restart Go server when its binary was updated.
+        // Restart Go server when its binary was updated and applyUpdate did not
+        // already complete stop→start (Windows prefers stop before deploy).
+        //
+        // Windows: never use startService alone — if BetterDeskServer is still
+        // RUNNING the *old* image after rename-swap, start is a no-op and the
+        // new binary never loads. Always stop→start (privileged helper when needed).
         if (result.needsServerRestart) {
             const serviceName = process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server';
             let svc = updateService.restartService(serviceName);
-            if (!svc.success) {
+            if (!svc.success && process.platform === 'win32') {
+                // One more privileged stop/start pass after console files (helper script) landed.
                 svc = updateService.restartService(serviceName);
             }
-            if (svc.success) result.servicesRestarted.push('server');
-            else {
+            if (svc.success) {
+                result.servicesRestarted.push('server');
+                result.serverBinaryPendingRestart = false;
+            } else if (svc.nonCritical) {
+                const recovered = await updateService.recoverSoftServerControlFailure(
+                    result,
+                    serviceName,
+                    svc
+                );
+                if (!recovered.recovered) {
+                    const fail = { service: 'server', error: svc.error, nonCritical: true };
+                    if (svc.hint) fail.hint = svc.hint;
+                    if (result.serverBinaryPendingRestart) {
+                        fail.error = (fail.error || '')
+                            + ' — binary is on disk but old process still runs; Admin: '
+                            + `powershell -ExecutionPolicy Bypass -File "${path.join(__dirname, '..', 'scripts', 'windows-install-service-control-and-deploy.ps1')}"`
+                            + ' (or: nssm restart BetterDeskServer)';
+                    }
+                    result.servicesFailed.push(fail);
+                }
+            } else {
                 const fail = { service: 'server', error: svc.error };
-                if (svc.nonCritical) fail.nonCritical = true;
                 if (svc.hint) fail.hint = svc.hint;
                 result.servicesFailed.push(fail);
             }
@@ -1265,7 +1361,7 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         if (scheduleConsoleRestart) {
             setTimeout(() => {
                 console.log(`[UPDATE] Restarting console after update to ${remoteSHA.slice(0, 7)}...`);
-                process.exit(0);
+                exitConsoleForServiceRestart(`update ${remoteSHA.slice(0, 7)}`);
             }, 2000);
         }
     } catch (err) {
@@ -1356,7 +1452,7 @@ router.post('/api/settings/updates/restore', requireAuth, requirePermission('ser
         // Restart after restore
         setTimeout(() => {
             console.log(`[UPDATE] Restarting after restore from ${backupName}...`);
-            process.exit(0);
+            exitConsoleForServiceRestart(`restore ${backupName}`);
         }, 2000);
     } catch (err) {
         console.error('Restore error:', err);

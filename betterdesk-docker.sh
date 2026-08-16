@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.5.4
+#   BetterDesk Console Manager v3.5.56
 #   All-in-One Interactive Tool for Docker
 #
 #   Features:
@@ -28,7 +28,7 @@
 set -e
 
 # Version
-VERSION="3.5.4"
+VERSION="3.5.56"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default paths (can be overridden by environment variables)
@@ -1408,7 +1408,7 @@ do_install() {
 #===============================================================================
 
 # GitHub repository configuration for online updates
-UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-UNITRONIX}"
+UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-Chesster1981}"
 UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
 UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
 

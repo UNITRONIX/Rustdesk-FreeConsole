@@ -107,7 +107,10 @@ function validateBranding(input = {}) {
     const out = {};
 
     out.company_name = clip(input.company_name || input.companyName, MAX_NAME);
-    if (!out.company_name) errors.push('company_name_required');
+    // Optional for quick Support Agent creation — defaults to product name.
+    if (!out.company_name) {
+        out.company_name = 'BetterDesk Support';
+    }
 
     out.short_text   = clip(input.short_text   || input.shortText,   MAX_SHORT_TEXT);
     out.contact_email = clip(input.contact_email || input.contactEmail, MAX_CONTACT);
@@ -174,6 +177,18 @@ function validateBranding(input = {}) {
 
     out.allow_unattended = !!(input.allow_unattended ?? input.allowUnattended ?? false);
 
+    // Incoming capability defaults (Support Agent). Omitted keys default to true.
+    const capsIn = input.capabilities && typeof input.capabilities === 'object' ? input.capabilities : {};
+    const cap = (v, d = true) => (v === undefined || v === null ? d : !!v);
+    out.capabilities = {
+        desktop:   cap(capsIn.desktop, true),
+        files:     cap(capsIn.files, true),
+        clipboard: cap(capsIn.clipboard, true),
+        audio:     cap(capsIn.audio, true),
+        terminal:  cap(capsIn.terminal, true),
+        restart:   cap(capsIn.restart, true),
+    };
+
     out.default_lang = String(input.default_lang || input.defaultLang || 'en');
     if (!SUPPORTED_LANGS.includes(out.default_lang)) {
         out.default_lang = 'en';
@@ -191,7 +206,10 @@ function validateBranding(input = {}) {
     } else {
         errors.push('server_host_required');
     }
-    out.use_https = !!(input.use_https ?? input.useHttps ?? conn.defaultUseHttps());
+    // HTTPS/WSS is recommended for public internet; HTTP/WS is allowed for
+    // LAN/IP deployments (RustDesk-style). Session crypto stays on the
+    // signal/relay protocol layer; the signed profile still binds endpoints.
+    out.use_https = !!(input.use_https ?? input.useHttps ?? true);
 
     // Never accept enrollment_token from the browser — issued by backend only.
     if (input.server && typeof input.server === 'object') {
@@ -337,9 +355,17 @@ function defaultBranding() {
         status_ready_color: '#22c55e',
         header_text_color: '#ffffff',
         allow_unattended: false,
+        capabilities: {
+            desktop: true,
+            files: true,
+            clipboard: true,
+            audio: true,
+            terminal: true,
+            restart: true,
+        },
         default_lang: 'en',
         server_host: '',
-        use_https: conn.defaultUseHttps(),
+        use_https: true,
         server: { address: '', api_url: '', public_key: '' },
     };
 }

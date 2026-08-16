@@ -26,6 +26,7 @@ const { roleHasPermission, isSuperAdminRole } = require('./middleware/auth');
 const authService = require('./services/authService');
 const serverBackend = require('./services/serverBackend');
 const db = require('./services/database');
+const { DatabaseSessionStore } = require('./services/databaseSessionStore');
 const userSync = require('./services/userSync');
 const { initWsProxy } = require('./services/wsRelay');
 const { initBdRelay } = require('./services/bdRelay');
@@ -38,6 +39,7 @@ const { initMeshAshxProxy } = require('./services/meshAshxProxy');
 const { startDiscoveryService } = require('./services/lanDiscovery');
 const { initDeviceStatusPush } = require('./services/deviceStatusPush');
 const { initHelpRequestEmailService } = require('./services/helpRequestEmailService');
+const { loadSupporters } = require('./services/supportersService');
 const routes = require('./routes');
 const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
 const bdApiRoutes = require('./routes/bd-api.routes');
@@ -108,17 +110,28 @@ app.use(cookieParser());
 // Use a different cookie name in HTTP mode to avoid collision with stale
 // Secure cookies left over from a previous HTTPS configuration (Issue #82).
 //
-// MemoryStore is intentional for the single-process console (GitHub #295).
-// express-session warns in production that MemoryStore is not for multi-process
-// or HA; BetterDesk runs one Node panel per host. Shared store (PostgreSQL/Redis)
-// is planned only for multi-instance HA — see docs/enterprise/IMPLEMENTATION_PLAN.md.
+// Store sessions in the selected BetterDesk database. This makes logout,
+// password/role changes and process restarts enforceable without another
+// hidden auth database.
 const SESSION_COOKIE = config.httpsEnabled ? 'betterdesk.sid' : 'bd.sid';
+const persistentSessionStore = new DatabaseSessionStore({
+    config,
+    ttlMs: config.sessionMaxAge
+});
+persistentSessionStore.ready.catch((err) => {
+    logger.error('[Session] Persistent session store initialization failed:', err.message);
+});
+const sessionCleanupTimer = setInterval(
+    () => persistentSessionStore.cleanup((err) => err && logger.warn('[Session] Cleanup failed:', err.message)),
+    Math.max(60 * 60 * 1000, config.sessionMaxAge)
+);
+sessionCleanupTimer.unref?.();
 const sessionMiddleware = session({
     secret: config.sessionSecret,
     name: SESSION_COOKIE,
     resave: false,
     saveUninitialized: false,
-    store: new session.MemoryStore(),
+    store: persistentSessionStore,
     cookie: {
         secure: config.httpsEnabled,
         httpOnly: true,
@@ -204,6 +217,7 @@ app.use((req, res, next) => {
         if (raw === 'ux35' || raw === 'classic') uiShell = raw;
     }
     res.locals.uiShell = uiShell;
+    res.locals.supporters = loadSupporters();
     // Inject permission helper for EJS templates (sidebar/button visibility)
     const role = req.session?.user?.role;
     res.locals.hasPermission = (perm) => role ? roleHasPermission(role, perm) : false;
@@ -552,6 +566,24 @@ async function startServer() {
 
         initMeshAshxProxy(server, sessionMiddleware);
 
+        // After Windows rename-swap, BetterDeskServer may still run the old image.
+        // Retry stop→start once the console is back (SYSTEM helper may be available).
+        if (process.platform === 'win32') {
+            setTimeout(() => {
+                try {
+                    const updateService = require('./services/updateService');
+                    const resumed = updateService.resumePendingWindowsServerRestart();
+                    if (resumed && resumed.success) {
+                        logger.info('Resumed pending BetterDeskServer restart after binary swap');
+                    } else if (resumed && resumed.success === false) {
+                        logger.warn(`Pending BetterDeskServer restart still blocked: ${resumed.error || 'unknown'}`);
+                    }
+                } catch (err) {
+                    logger.warn(`Pending server restart resume failed: ${err.message}`);
+                }
+            }, 5000);
+        }
+
         // Initialize real-time device status push (Go event bus → browser)
         initDeviceStatusPush(server, sessionMiddleware, config.betterdeskApiUrl, config.betterdeskApiKey);
         initHelpRequestEmailService(config.betterdeskApiUrl, config.betterdeskApiKey);
@@ -565,33 +597,37 @@ async function startServer() {
             console.warn('[server] mDNS panel discovery disabled:', err.message);
         }
 
-        // Start branded agent installer build worker (Generator Agenta / Phase 2).
-        // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
-        // build toolchain (e.g. small consoles that only proxy to a build node).
-        if (process.env.AGENT_BUILD_WORKER !== 'off') {
-            try {
-                const agentBuildWorker = require('./services/agentBuildWorker');
-                agentBuildWorker.startWorker();
-            } catch (err) {
-                console.warn('[server] agent build worker disabled:', err.message);
+        // Defer build workers until after listen + event-bus WS connect settle
+        // (#353): toolchain/DB work racing native addon init can abort Node 24.
+        setImmediate(() => {
+            // Start branded agent installer build worker (Generator Agenta / Phase 2).
+            // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
+            // build toolchain (e.g. small consoles that only proxy to a build node).
+            if (process.env.AGENT_BUILD_WORKER !== 'off') {
+                try {
+                    const agentBuildWorker = require('./services/agentBuildWorker');
+                    agentBuildWorker.startWorker();
+                } catch (err) {
+                    console.warn('[server] agent build worker disabled:', err.message);
+                }
             }
-        }
-        if (process.env.RDCLIENT_BUILD_WORKER !== 'off') {
-            try {
-                const rdclientBuildWorker = require('./services/rdclientBuildWorker');
-                rdclientBuildWorker.startWorker();
-            } catch (err) {
-                console.warn('[server] rdclient build worker disabled:', err.message);
+            if (process.env.RDCLIENT_BUILD_WORKER !== 'off') {
+                try {
+                    const rdclientBuildWorker = require('./services/rdclientBuildWorker');
+                    rdclientBuildWorker.startWorker();
+                } catch (err) {
+                    console.warn('[server] rdclient build worker disabled:', err.message);
+                }
             }
-        }
-        if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
-            try {
-                const agentClientBuildWorker = require('./services/agentClientBuildWorker');
-                agentClientBuildWorker.startWorker();
-            } catch (err) {
-                console.warn('[server] agent-client build worker disabled:', err.message);
+            if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
+                try {
+                    const agentClientBuildWorker = require('./services/agentClientBuildWorker');
+                    agentClientBuildWorker.startWorker();
+                } catch (err) {
+                    console.warn('[server] agent-client build worker disabled:', err.message);
+                }
             }
-        }
+        });
         
         // ============ RustDesk Client API (WAN :21121 → Go :21114 proxy) ============
         let apiServer = null;

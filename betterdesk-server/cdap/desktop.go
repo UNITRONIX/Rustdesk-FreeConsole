@@ -6,14 +6,18 @@ package cdap
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/unitronix/betterdesk-server/sessiongrant"
 )
 
 // DesktopSession represents an active remote desktop session relaying
@@ -34,13 +38,18 @@ type DesktopSession struct {
 
 // DesktopStartPayload is sent to the device to initiate a desktop session.
 type DesktopStartPayload struct {
-	SessionID  string   `json:"session_id"`
-	Width      int      `json:"width"`
-	Height     int      `json:"height"`
-	Quality    int      `json:"quality"` // JPEG quality 1-100
-	FPS        int      `json:"fps"`     // target frames per second
-	Codecs     []string `json:"codecs,omitempty"`      // codecs the operator can decode
-	VideoCodec string   `json:"video_codec,omitempty"` // operator codec preference ("auto" = let agent choose)
+	SessionID    string   `json:"session_id"`
+	Width        int      `json:"width"`
+	Height       int      `json:"height"`
+	Quality      int      `json:"quality"` // JPEG quality 1-100
+	FPS          int      `json:"fps"`     // target frames per second
+	OperatorName string   `json:"operator_name,omitempty"`
+	Codecs       []string `json:"codecs,omitempty"`      // codecs the operator can decode
+	VideoCodec   string   `json:"video_codec,omitempty"` // operator codec preference ("auto" = let agent choose)
+	// SessionGrant is present only for passive Support Agent targets. It is
+	// signed by the BetterDesk server and verified locally before consent.
+	SessionGrant string   `json:"session_grant,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // DesktopFramePayload is sent from the device to the browser.
@@ -120,6 +129,10 @@ func (g *Gateway) StartDesktopSession(ctx context.Context, browserConn *websocke
 	}
 
 	sessionID := fmt.Sprintf("desk_%s_%d", deviceID, time.Now().UnixNano())
+	grant, capabilities, err := g.issuePassiveDesktopGrant(deviceID, username, sessionID)
+	if err != nil {
+		return nil, err
+	}
 
 	ds := &DesktopSession{
 		ID:         sessionID,
@@ -132,13 +145,16 @@ func (g *Gateway) StartDesktopSession(ctx context.Context, browserConn *websocke
 	}
 
 	startPayload := DesktopStartPayload{
-		SessionID:  sessionID,
-		Width:      width,
-		Height:     height,
-		Quality:    quality,
-		FPS:        fps,
-		Codecs:     codecs,
-		VideoCodec: videoCodec,
+		SessionID:    sessionID,
+		Width:        width,
+		Height:       height,
+		Quality:      quality,
+		FPS:          fps,
+		OperatorName: username,
+		Codecs:       codecs,
+		VideoCodec:   videoCodec,
+		SessionGrant: grant,
+		Capabilities: capabilities,
 	}
 	data, _ := json.Marshal(startPayload)
 	msg := &Message{
@@ -167,6 +183,61 @@ func (g *Gateway) StartDesktopSession(ctx context.Context, browserConn *websocke
 	return ds, nil
 }
 
+func (g *Gateway) issuePassiveDesktopGrant(deviceID, operatorID, sessionID string) (string, []string, error) {
+	peerInfo, err := g.db.GetPeer(deviceID)
+	if err != nil || peerInfo == nil || peerInfo.Banned || peerInfo.Disabled || peerInfo.SoftDeleted ||
+		!isPassiveSupportDevice(peerInfo.DeviceType, peerInfo.Tags) {
+		return "", nil, nil
+	}
+	if g.sessionGrantSigner == nil {
+		return "", nil, fmt.Errorf("passive session grants are not configured")
+	}
+	nonce, err := newDesktopGrantNonce()
+	if err != nil {
+		return "", nil, err
+	}
+	capabilities := []string{"screen_view", "input"}
+	now := time.Now().UTC()
+	grant, err := g.sessionGrantSigner.Issue(sessiongrant.Claims{
+		DeviceID:     deviceID,
+		OperatorID:   operatorID,
+		SessionID:    sessionID,
+		Transport:    "cdap",
+		Initiator:    "operator",
+		Capabilities: capabilities,
+		IssuedAt:     now.Unix(),
+		ExpiresAt:    now.Add(5 * time.Minute).Unix(),
+		Nonce:        nonce,
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf("issue passive session grant: %w", err)
+	}
+	return grant, capabilities, nil
+}
+
+func isPassiveSupportDevice(deviceType, tags string) bool {
+	switch strings.ToLower(strings.TrimSpace(deviceType)) {
+	case "os_agent", "support-agent", "support_agent":
+		return true
+	}
+	for _, tag := range strings.FieldsFunc(strings.ToLower(tags), func(r rune) bool {
+		return r == ',' || r == ';' || r == '|' || r == ' ' || r == '\t' || r == '\n'
+	}) {
+		if tag == "support-agent" || tag == "support_agent" {
+			return true
+		}
+	}
+	return false
+}
+
+func newDesktopGrantNonce() (string, error) {
+	raw := make([]byte, 24)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate passive session nonce: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
 // RelayDesktopInput forwards mouse/keyboard input from browser to device.
 func (g *Gateway) RelayDesktopInput(ctx context.Context, sessionID string, input *DesktopInputPayload) error {
 	val, ok := g.desktopSessions.Load(sessionID)
@@ -186,6 +257,35 @@ func (g *Gateway) RelayDesktopInput(ctx context.Context, sessionID string, input
 		Payload:   payloadData,
 	}
 
+	return ds.deviceConn.WriteMessage(ctx, msg)
+}
+
+// RelayDesktopControl forwards session control messages (lock, restart,
+// privacy mode, block input, clipboard disable, etc.) to the agent.
+func (g *Gateway) RelayDesktopControl(ctx context.Context, sessionID, controlType string, enabled bool, raw json.RawMessage) error {
+	val, ok := g.desktopSessions.Load(sessionID)
+	if !ok {
+		return fmt.Errorf("desktop session %s not found", sessionID)
+	}
+	ds := val.(*DesktopSession)
+	if ds.closed.Load() {
+		return fmt.Errorf("desktop session %s is closed", sessionID)
+	}
+
+	payload := map[string]interface{}{
+		"session_id": sessionID,
+		"control":    controlType,
+		"enabled":    enabled,
+	}
+	if len(raw) > 0 {
+		payload["raw"] = json.RawMessage(raw)
+	}
+	payloadData, _ := json.Marshal(payload)
+	msg := &Message{
+		Type:      "desktop_control",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Payload:   payloadData,
+	}
 	return ds.deviceConn.WriteMessage(ctx, msg)
 }
 

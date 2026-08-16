@@ -4,6 +4,7 @@ package agent
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -11,29 +12,57 @@ import (
 // injectInput injects a keyboard or mouse event on Linux.
 //
 // Strategy:
-//  1. Wayland session → prefer ydotool, because xdotool only reaches XWayland windows.
-//  2. X11 or XWayland fallback → use xdotool.
+//  1. X11 or XWayland → use xdotool.
+//  2. Pure Wayland → require the future RemoteDesktop portal path. An
+//     externally managed ydotool daemon is available only as an explicit
+//     administrator-selected fallback; the agent never starts it or elevates.
 func injectInput(evt *InputEvent) error {
+	switch linuxInputBackendForSession() {
+	case linuxInputBackendX11:
+		return injectInputX11(evt)
+	case linuxInputBackendYdotool:
+		return injectInputWayland(evt)
+	case linuxInputBackendNoWaylandPortal:
+		return fmt.Errorf(
+			"Wayland remote input requires xdg-desktop-portal RemoteDesktop support, which this build does not yet implement; set %s=ydotool only to opt into a separately managed ydotoold fallback",
+			waylandInputFallbackEnv,
+		)
+	default:
+		return fmt.Errorf("no supported input backend found (start the agent in an X11/XWayland desktop session with $DISPLAY set)")
+	}
+}
+
+type linuxInputBackend uint8
+
+const (
+	linuxInputBackendUnavailable linuxInputBackend = iota
+	linuxInputBackendX11
+	linuxInputBackendYdotool
+	linuxInputBackendNoWaylandPortal
+)
+
+const waylandInputFallbackEnv = "BETTERDESK_WAYLAND_INPUT_FALLBACK"
+
+func linuxInputBackendForSession() linuxInputBackend {
 	if isWaylandSession() {
-		if commandExists("ydotool") {
-			if err := injectInputWayland(evt); err == nil {
-				return nil
-			} else if !hasX11Display() {
-				return err
-			}
+		if waylandYdotoolFallbackEnabled() {
+			return linuxInputBackendYdotool
 		}
 		if hasX11Display() {
-			return injectInputX11(evt)
+			// xdotool can control XWayland clients but not native Wayland
+			// surfaces. It remains the least-privileged default available.
+			return linuxInputBackendX11
 		}
-		return fmt.Errorf("Wayland input injection requires ydotool and a running ydotoold daemon")
+		return linuxInputBackendNoWaylandPortal
 	}
 	if hasX11Display() {
-		return injectInputX11(evt)
+		return linuxInputBackendX11
 	}
-	if commandExists("ydotool") {
-		return injectInputWayland(evt)
-	}
-	return fmt.Errorf("no supported input backend found (install xdotool for X11 or ydotool for Wayland)")
+	return linuxInputBackendUnavailable
+}
+
+func waylandYdotoolFallbackEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(waylandInputFallbackEnv)), "ydotool")
 }
 
 // ── X11 / XWayland path (xdotool) ────────────────────────────────────────
@@ -104,14 +133,9 @@ func injectInputX11(evt *InputEvent) error {
 func xdotool(args ...string) error {
 	path, err := exec.LookPath("xdotool")
 	if err != nil {
-		return fmt.Errorf("xdotool not found — install it with: sudo apt install xdotool")
+		return fmt.Errorf("xdotool not found — install it through the local package manager")
 	}
 	return exec.Command(path, args...).Run()
-}
-
-func commandExists(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
 }
 
 // ── Pure-Wayland path (ydotool) ──────────────────────────────────────────
@@ -119,8 +143,8 @@ func commandExists(name string) bool {
 // injectInputWayland uses ydotool for input injection on pure-Wayland sessions.
 //
 // Requirements:
-//   - ydotool installed:       sudo apt install ydotool   (or build from source)
-//   - ydotoold daemon running: sudo ydotoold &
+//   - ydotool installed and its daemon endpoint configured separately
+//   - the process granted access to that endpoint by the local administrator
 //
 // ydotool 1.x command syntax is used here. On Debian/Ubuntu the package may be
 // older (0.x); if commands fail, upgrade or use XWayland instead.
@@ -205,7 +229,7 @@ func ydotool(args ...string) error {
 	path, err := exec.LookPath("ydotool")
 	if err != nil {
 		return fmt.Errorf(
-			"ydotool not found — install it and start ydotoold: sudo apt install ydotool && sudo ydotoold &",
+			"ydotool fallback is selected but ydotool is not installed or not on PATH",
 		)
 	}
 	return exec.Command(path, args...).Run()

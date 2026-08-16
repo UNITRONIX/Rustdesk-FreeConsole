@@ -216,6 +216,41 @@ describe('RDClient file transfer message encoding', () => {
         const decoded = FileAction.decode(FileAction.encode(action).finish()).toJSON();
         expect(decoded.sendConfirm.offsetBlk).toBe(4);
     });
+    it('encodes FileResponse.block with non-empty bytes payload', () => {
+        const payload = Buffer.from('file-block-contents');
+        const msg = Message.fromObject({
+            fileResponse: {
+                block: {
+                    id: 1,
+                    fileNum: 0,
+                    data: payload,
+                    compressed: false,
+                    blkId: 0
+                }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish());
+        expect(Buffer.from(decoded.fileResponse.block.data).toString()).toBe('file-block-contents');
+    });
+
+    it('encodes FileResponse.block empty when data is mistaken base64 string via Uint8Array trap', () => {
+        // Documents the IPC bug: new Uint8Array(base64String) → length 0 → empty remote file.
+        const b64 = Buffer.from('file-block-contents').toString('base64');
+        expect(new Uint8Array(b64).length).toBe(0);
+        const msg = Message.fromObject({
+            fileResponse: {
+                block: {
+                    id: 1,
+                    fileNum: 0,
+                    data: new Uint8Array(b64),
+                    compressed: false,
+                    blkId: 0
+                }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish());
+        expect(decoded.fileResponse.block.data.length).toBe(0);
+    });
 });
 
 describe('RDClient KeyEvent protobuf encoding', () => {
@@ -321,5 +356,78 @@ describe('RDClient SupportedEncoding protobuf encoding', () => {
         })).finish();
         const decoded = Message.decode(buf).toJSON();
         expect(decoded.misc.selectedSid).toBe(2);
+    });
+});
+
+describe('RDClient Cliprdr protobuf encoding', () => {
+    let Message;
+
+    beforeAll(async () => {
+        const root = await protobuf.load([
+            path.join(__dirname, '../protos/message.proto')
+        ]);
+        Message = root.lookupType('hbb.Message');
+    });
+
+    it('encodes FormatDataRequest', () => {
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: { formatDataRequest: { requestedFormatId: 49334 } }
+        })).finish();
+        expect(buf.length).toBeGreaterThan(0);
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.cliprdr.formatDataRequest.requestedFormatId).toBe(49334);
+    });
+
+    it('encodes FileContentsRequest range', () => {
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: {
+                fileContentsRequest: {
+                    streamId: 7,
+                    listIndex: 1,
+                    dwFlags: 2,
+                    nPositionLow: 100,
+                    nPositionHigh: 0,
+                    cbRequested: 65536
+                }
+            }
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.cliprdr.fileContentsRequest.streamId).toBe(7);
+        expect(decoded.cliprdr.fileContentsRequest.listIndex).toBe(1);
+        expect(decoded.cliprdr.fileContentsRequest.dwFlags).toBe(2);
+        expect(decoded.cliprdr.fileContentsRequest.cbRequested).toBe(65536);
+    });
+
+    it('encodes FormatList with file formats', () => {
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: {
+                formatList: {
+                    formats: [
+                        { id: 49334, format: 'FileGroupDescriptorW' },
+                        { id: 49267, format: 'FileContents' }
+                    ]
+                }
+            }
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.cliprdr.formatList.formats).toHaveLength(2);
+        expect(decoded.cliprdr.formatList.formats[0].format).toBe('FileGroupDescriptorW');
+    });
+
+    it('encodes FileContentsResponse with non-empty requestedData', () => {
+        const payload = Buffer.from('cliprdr-file-bytes');
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: {
+                fileContentsResponse: {
+                    msgFlags: 1,
+                    streamId: 9,
+                    requestedData: payload
+                }
+            }
+        })).finish();
+        const decoded = Message.decode(buf);
+        expect(decoded.cliprdr.fileContentsResponse.streamId).toBe(9);
+        expect(Buffer.from(decoded.cliprdr.fileContentsResponse.requestedData).toString())
+            .toBe('cliprdr-file-bytes');
     });
 });

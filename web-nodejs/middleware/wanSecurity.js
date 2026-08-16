@@ -53,10 +53,13 @@ const ALLOWED_PATHS = new Set([
     '/api/strategies',
     '/api/strategies/assign',
     '/api/devices',
-    // Address book
+    // Address book (legacy + Pro shared-AB protocol)
     '/api/ab',
     '/api/ab/personal',
     '/api/ab/tags',
+    '/api/ab/settings',
+    '/api/ab/shared/profiles',
+    '/api/ab/peers',
     // Users & software
     '/api/users',
     '/api/software',
@@ -75,13 +78,22 @@ const ALLOWED_PATHS = new Set([
 
 /**
  * Dynamic path patterns (regex) for endpoints with parameters.
- * Checked when exact match fails.
+ * Checked when exact match fails. methods: allowed HTTP verbs (* = any).
  */
 const ALLOWED_PATH_PATTERNS = [
-    /^\/api\/peer-key\/[a-zA-Z0-9_-]{1,32}$/,
-    /^\/api\/strategies\/[0-9a-f-]{36}$/i,
-    /^\/api\/strategies\/[0-9a-f-]{36}\/status$/i,
-    /^\/api\/devices\/[0-9a-f-]{36}\/assign$/i
+    { re: /^\/api\/peer-key\/[a-zA-Z0-9_-]{1,32}$/, methods: ['GET'] },
+    { re: /^\/api\/strategies\/[0-9a-f-]{36}$/i, methods: ['GET'] },
+    { re: /^\/api\/strategies\/[0-9a-f-]{36}\/status$/i, methods: ['GET'] },
+    { re: /^\/api\/devices\/[0-9a-f-]{36}\/assign$/i, methods: ['GET'] },
+    // Pro shared address book (password auto-connect)
+    { re: /^\/api\/ab\/tags\/[^/]+$/, methods: ['GET', 'POST'] },
+    { re: /^\/api\/ab\/peer\/add\/[^/]+$/, methods: ['POST'] },
+    { re: /^\/api\/ab\/peer\/update\/[^/]+$/, methods: ['PUT'] },
+    { re: /^\/api\/ab\/peer\/[^/]+$/, methods: ['DELETE'] },
+    { re: /^\/api\/ab\/tag\/add\/[^/]+$/, methods: ['POST'] },
+    { re: /^\/api\/ab\/tag\/update\/[^/]+$/, methods: ['PUT'] },
+    { re: /^\/api\/ab\/tag\/rename\/[^/]+$/, methods: ['PUT'] },
+    { re: /^\/api\/ab\/tag\/[^/]+$/, methods: ['DELETE'] },
 ];
 
 const ALLOWED_METHODS = {
@@ -111,6 +123,9 @@ const ALLOWED_METHODS = {
     '/api/ab': '*',
     '/api/ab/personal': '*',
     '/api/ab/tags': 'GET',
+    '/api/ab/settings': '*',
+    '/api/ab/shared/profiles': '*',
+    '/api/ab/peers': '*',
     '/api/users': 'GET',
     '/api/software': 'GET',
     '/api/software/client-download-link': 'GET',
@@ -157,12 +172,17 @@ function pathWhitelist(req, res, next) {
     // Check exact match first
     if (!ALLOWED_PATHS.has(req.path)) {
         // Check regex patterns for parameterized routes
-        const matched = ALLOWED_PATH_PATTERNS.some(pattern => pattern.test(req.path));
-        if (!matched) {
+        let matchedMethods = null;
+        for (const entry of ALLOWED_PATH_PATTERNS) {
+            const re = entry instanceof RegExp ? entry : entry.re;
+            if (!re.test(req.path)) continue;
+            matchedMethods = entry instanceof RegExp ? ['GET'] : (entry.methods || ['GET']);
+            break;
+        }
+        if (!matchedMethods) {
             return res.status(404).end();
         }
-        // Dynamic paths allow GET only
-        if (req.method !== 'GET' && req.method !== 'OPTIONS') {
+        if (req.method !== 'OPTIONS' && !matchedMethods.includes('*') && !matchedMethods.includes(req.method)) {
             return res.status(405).end();
         }
         return next();
@@ -201,7 +221,7 @@ function securityHeaders(req, res, next) {
     res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
 
     // CORS — restrictive (RustDesk desktop client doesn't need CORS)
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Max-Age', '86400');
 
@@ -360,5 +380,8 @@ module.exports = {
     wanGlobalLimiter,
     wanAuditLimiter,
     requestLogger,
-    getWanMiddlewareStack
+    getWanMiddlewareStack,
+    ALLOWED_PATHS,
+    ALLOWED_PATH_PATTERNS,
+    ALLOWED_METHODS,
 };

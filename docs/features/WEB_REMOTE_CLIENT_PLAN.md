@@ -1,4 +1,10 @@
-# BetterDesk Web Remote Client - Phased Implementation Plan
+# BetterDesk Web Remote Client - Historical Phased Implementation Plan
+
+> Provenance notice: this document predates the clean-room compatibility
+> process. It is retained for product history, not as an implementation
+> specification. New compatibility work must follow
+> [`support-agent-provenance.md`](../important/support-agent-provenance.md)
+> and a BetterDesk-owned, versioned wire specification.
 
 > Browser-based remote desktop client integrated into the BetterDesk web panel.  
 > Users click a device in the device list → connect and control it via the browser.
@@ -85,10 +91,12 @@ Establish WebSocket communication with hbbs, implement protobuf serialization, a
 ### Tasks
 
 #### 1.1 Protobuf Generation
-- [ ] Copy `message.proto` and `rendezvous.proto` from `hbb_common/protos/`
+- [ ] Use the canonical BetterDesk-owned schema and reproducible generation
+      pipeline; do not copy external source or generated artifacts.
 - [ ] Set up `protobufjs` build pipeline (pbjs/pbts)
 - [ ] Generate JavaScript message classes + TypeScript definitions
-- [ ] Verify encoding/decoding matches Rust `protobuf` crate output
+- [ ] Verify encoding/decoding against independently authored black-box test
+      vectors
 
 #### 1.2 WebSocket Connection Manager
 - [ ] Create `ConnectionManager` class
@@ -470,7 +478,7 @@ web-nodejs/
 | NaCl encryption mismatch | Blocker | Test with `tweetnacl-js` vs `sodiumoxide` early |
 | WebCodecs not available | High | Fallback to `libvpx-wasm` (slower) or MSE |
 | hbbr WS proxy adds latency | Medium | Move to native hbbr WS (Phase 0 Option A) |
-| Protobuf version mismatch | High | Use exact same .proto files from hbb_common |
+| Protobuf version mismatch | High | Use the versioned BetterDesk compatibility schema and black-box vectors |
 | Browser blocks clipboard | Low | Clipboard requires HTTPS — already implemented |
 | H.265 not supported | Low | Negotiate VP9/H264 instead |
 

@@ -40,6 +40,44 @@ func TestMergeAddressBookJSONEmptyOverlay(t *testing.T) {
 	}
 }
 
+func TestMergeAddressBookJSONPreservesPeerPassword(t *testing.T) {
+	t.Parallel()
+
+	// Org overlay supplies password when personal/legacy peer has none.
+	base := `{"peers":[{"id":"111","alias":"Mine"}],"tags":[]}`
+	overlay := `{"peers":[{"id":"111","alias":"OrgName","password":"org-secret"},{"id":"222","alias":"Shared","password":"shared-secret"}],"tags":[]}`
+
+	got := mergeAddressBookJSON(base, overlay)
+	ab := parseAddressBookMap(got)
+	peers := toPeerSlice(ab["peers"])
+	if len(peers) != 2 {
+		t.Fatalf("peer count = %d, want 2; data=%s", len(peers), got)
+	}
+	byID := map[string]map[string]any{}
+	for _, p := range peers {
+		id, _ := p["id"].(string)
+		byID[id] = p
+	}
+	if byID["111"]["alias"] != "Mine" {
+		t.Fatalf("base alias should win, got %v", byID["111"]["alias"])
+	}
+	if byID["111"]["password"] != "org-secret" {
+		t.Fatalf("empty base password should take overlay, got %v", byID["111"]["password"])
+	}
+	if byID["222"]["password"] != "shared-secret" {
+		t.Fatalf("new overlay peer password missing, got %v", byID["222"]["password"])
+	}
+
+	// Non-empty personal password must not be overwritten by org overlay.
+	baseKeep := `{"peers":[{"id":"111","password":"personal-secret"}],"tags":[]}`
+	overlayOther := `{"peers":[{"id":"111","password":"org-secret"}],"tags":[]}`
+	kept := mergeAddressBookJSON(baseKeep, overlayOther)
+	keptPeer := toPeerSlice(parseAddressBookMap(kept)["peers"])[0]
+	if keptPeer["password"] != "personal-secret" {
+		t.Fatalf("base password should win, got %v", keptPeer["password"])
+	}
+}
+
 func TestOrgSharedAddressBookEnabledFromValue(t *testing.T) {
 	t.Parallel()
 
@@ -96,5 +134,31 @@ func TestFilterAddressBookPeersByVisibleSet(t *testing.T) {
 
 	if unchanged := filterAddressBookPeersByVisibleSet(data, nil, known); unchanged != data {
 		t.Fatalf("nil visible should leave data unchanged")
+	}
+}
+
+func TestFilterAddressBookPeersByVisibleSetEmptyKnownAllowlistOnly(t *testing.T) {
+	t.Parallel()
+
+	// Empty knownPeers used to fail open (keep every AB peer). Must allowlist-only.
+	data := `{"peers":[{"id":"A"},{"id":"B"},{"id":"C"},{"id":"REMOTE"}],"tags":[]}`
+	visible := map[string]bool{"A": true, "B": true}
+	got := filterAddressBookPeersByVisibleSet(data, visible, map[string]*db.Peer{})
+	ab := parseAddressBookMap(got)
+	peers := toPeerSlice(ab["peers"])
+	if len(peers) != 2 {
+		t.Fatalf("peer count = %d, want 2 (A+B only); data=%s", len(peers), got)
+	}
+	ids := map[string]bool{}
+	for _, p := range peers {
+		ids[p["id"].(string)] = true
+	}
+	if !ids["A"] || !ids["B"] || ids["C"] || ids["REMOTE"] {
+		t.Fatalf("empty known must be allowlist-only, got %v", ids)
+	}
+
+	denyAll := filterAddressBookPeersByVisibleSet(data, map[string]bool{}, map[string]*db.Peer{})
+	if len(toPeerSlice(parseAddressBookMap(denyAll)["peers"])) != 0 {
+		t.Fatalf("empty visible + empty known should strip all peers, got %s", denyAll)
 	}
 }

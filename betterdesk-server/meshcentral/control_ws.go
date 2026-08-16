@@ -41,7 +41,7 @@ func (g *Gateway) handleControlWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	conn, err := websocket.Accept(w, r, g.webSocketAcceptOptions())
 	if err != nil {
 		return
 	}

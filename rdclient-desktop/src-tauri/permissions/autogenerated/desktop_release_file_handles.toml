@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-release-file-handles"
+description = "Enables the desktop_release_file_handles command without any pre-configured scope."
+commands.allow = ["desktop_release_file_handles"]
+
+[[permission]]
+identifier = "deny-desktop-release-file-handles"
+description = "Denies the desktop_release_file_handles command without any pre-configured scope."
+commands.deny = ["desktop_release_file_handles"]

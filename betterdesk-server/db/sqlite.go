@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,11 @@ type SQLiteDB struct {
 
 // OpenSQLite opens or creates a SQLite database at the given path.
 func OpenSQLite(path string) (*SQLiteDB, error) {
-	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON", path)
+	q := url.Values{}
+	q.Set("_journal_mode", "WAL")
+	q.Set("_busy_timeout", "5000")
+	q.Set("_foreign_keys", "ON")
+	dsn := sqliteFileURI(path, q)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("db: failed to open SQLite %q: %w", path, err)
@@ -279,6 +284,7 @@ func (s *SQLiteDB) Migrate() error {
 			peer_id TEXT PRIMARY KEY,
 			unattended_enabled INTEGER DEFAULT 0,
 			password_hash TEXT DEFAULT '',
+			passwordless_server_access INTEGER DEFAULT 1,
 			schedule_enabled INTEGER DEFAULT 0,
 			schedule_days TEXT DEFAULT '',
 			schedule_start_time TEXT DEFAULT '',
@@ -504,6 +510,10 @@ func (s *SQLiteDB) Migrate() error {
 		// peers/users: Pro strategy assignment GUIDs
 		{"peers", "guid", `ALTER TABLE peers ADD COLUMN guid TEXT DEFAULT ''`},
 		{"users", "guid", `ALTER TABLE users ADD COLUMN guid TEXT DEFAULT ''`},
+		// access_policies: reversible connect secret for unattended auto-auth
+		{"access_policies", "password_enc", `ALTER TABLE access_policies ADD COLUMN password_enc TEXT DEFAULT ''`},
+		// access_policies: prefer server sealed password over RdClient local vault
+		{"access_policies", "passwordless_server_access", `ALTER TABLE access_policies ADD COLUMN passwordless_server_access INTEGER DEFAULT 1`},
 	}
 
 	for _, m := range columnMigrations {
@@ -2294,13 +2304,15 @@ func (s *SQLiteDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 	defer s.mu.RUnlock()
 
 	row := s.db.QueryRow(
-		`SELECT peer_id, unattended_enabled, password_hash, schedule_enabled,
+		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''),
+				COALESCE(passwordless_server_access, 1), schedule_enabled,
 				schedule_days, schedule_start_time, schedule_end_time, schedule_timezone,
 				allowed_operators, updated_at, updated_by
 		 FROM access_policies WHERE peer_id = ?`, peerID)
 
 	var p AccessPolicy
-	err := row.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.ScheduleEnabled,
+	err := row.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc,
+		&p.PasswordlessServerAccess, &p.ScheduleEnabled,
 		&p.ScheduleDays, &p.ScheduleStartTime, &p.ScheduleEndTime, &p.ScheduleTimezone,
 		&p.AllowedOperators, &p.UpdatedAt, &p.UpdatedBy)
 	if err != nil {
@@ -2310,19 +2322,66 @@ func (s *SQLiteDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 	return &p, nil
 }
 
+// GetAccessPoliciesByPeerIDs returns access policies for the given peer IDs.
+func (s *SQLiteDB) GetAccessPoliciesByPeerIDs(peerIDs []string) (map[string]*AccessPolicy, error) {
+	out := make(map[string]*AccessPolicy)
+	if len(peerIDs) == 0 {
+		return out, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	placeholders := make([]string, len(peerIDs))
+	args := make([]any, len(peerIDs))
+	for i, id := range peerIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''),
+				COALESCE(passwordless_server_access, 1), schedule_enabled,
+				schedule_days, schedule_start_time, schedule_end_time, schedule_timezone,
+				allowed_operators, updated_at, updated_by
+		 FROM access_policies WHERE peer_id IN (%s)`,
+		strings.Join(placeholders, ","))
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetAccessPoliciesByPeerIDs: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p AccessPolicy
+		if err := rows.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc,
+			&p.PasswordlessServerAccess, &p.ScheduleEnabled,
+			&p.ScheduleDays, &p.ScheduleStartTime, &p.ScheduleEndTime, &p.ScheduleTimezone,
+			&p.AllowedOperators, &p.UpdatedAt, &p.UpdatedBy); err != nil {
+			return nil, fmt.Errorf("db: GetAccessPoliciesByPeerIDs scan: %w", err)
+		}
+		p.PasswordSet = p.PasswordHash != ""
+		out[p.PeerID] = &p
+	}
+	return out, rows.Err()
+}
+
 // SaveAccessPolicy creates or updates the access policy for a peer device.
 func (s *SQLiteDB) SaveAccessPolicy(p *AccessPolicy) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	_, err := s.db.Exec(
-		`INSERT INTO access_policies (peer_id, unattended_enabled, password_hash,
+		`INSERT INTO access_policies (peer_id, unattended_enabled, password_hash, password_enc,
+			passwordless_server_access,
 			schedule_enabled, schedule_days, schedule_start_time, schedule_end_time,
 			schedule_timezone, allowed_operators, updated_at, updated_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(peer_id) DO UPDATE SET
 			unattended_enabled = excluded.unattended_enabled,
 			password_hash = CASE WHEN excluded.password_hash = '' THEN access_policies.password_hash WHEN excluded.password_hash = 'CLEAR' THEN '' ELSE excluded.password_hash END,
+			password_enc = CASE WHEN excluded.password_hash = '' THEN access_policies.password_enc WHEN excluded.password_hash = 'CLEAR' THEN '' ELSE excluded.password_enc END,
+			passwordless_server_access = excluded.passwordless_server_access,
 			schedule_enabled = excluded.schedule_enabled,
 			schedule_days = excluded.schedule_days,
 			schedule_start_time = excluded.schedule_start_time,
@@ -2331,7 +2390,8 @@ func (s *SQLiteDB) SaveAccessPolicy(p *AccessPolicy) error {
 			allowed_operators = excluded.allowed_operators,
 			updated_at = excluded.updated_at,
 			updated_by = excluded.updated_by`,
-		p.PeerID, p.UnattendedEnabled, p.PasswordHash,
+		p.PeerID, p.UnattendedEnabled, p.PasswordHash, p.PasswordEnc,
+		p.PasswordlessServerAccess,
 		p.ScheduleEnabled, p.ScheduleDays, p.ScheduleStartTime, p.ScheduleEndTime,
 		p.ScheduleTimezone, p.AllowedOperators, p.UpdatedAt, p.UpdatedBy)
 	return err

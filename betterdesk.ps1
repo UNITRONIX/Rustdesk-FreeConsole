@@ -1,7 +1,7 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v3.5.4 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v3.5.56 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
@@ -102,7 +102,7 @@ param(
 # Configuration
 #===============================================================================
 
-$script:VERSION = "3.5.4"
+$script:VERSION = "3.5.56"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
@@ -1802,7 +1802,124 @@ function Set-ServiceLeastPrivilege {
     Print-Info "Service $ServiceName runs under least-privilege account ($account)"
 }
 
-# Safe in-place patch of NSSM services (TLS API flags, HTTP URLs) without remove+install.
+# Panel updates run as NT SERVICE\BetterDeskConsole and cannot taskkill BetterDeskServer.
+# Install a persistent LocalSystem watcher service that polls console data\service-control
+# (panel only writes request files — no schtasks /Run, which often Access Denied for the console VA).
+function Register-BetterDeskServiceControlTask {
+    $helper = Join-Path $script:CONSOLE_PATH "scripts\windows-service-control.js"
+    if (-not (Test-Path $helper)) {
+        Print-Warning "windows-service-control.js missing — panel cannot force-stop BetterDeskServer during updates"
+        return $false
+    }
+    $node = (Get-Command node -ErrorAction SilentlyContinue).Source
+    if (-not $node) { $node = "node.exe" }
+    $watchDir = Join-Path $script:CONSOLE_PATH "data\service-control"
+    New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
+    # Console VA must write requests; SYSTEM watcher reads/writes results + heartbeat.
+    try {
+        & icacls $watchDir /grant "NT SERVICE\BetterDeskConsole:(OI)(CI)M" /T /C /Q 2>$null | Out-Null
+        & icacls $watchDir /grant "SYSTEM:(OI)(CI)F" /T /C /Q 2>$null | Out-Null
+    } catch { }
+
+    $svcName = "BetterDeskServiceControl"
+    $nssmCmd = Get-Command nssm -ErrorAction SilentlyContinue
+    $nssm = $null
+    if ($nssmCmd) {
+        $nssm = $nssmCmd.Source
+    } else {
+        $nssmLocal = Join-Path $script:ScriptDir "tools\nssm.exe"
+        if (Test-Path $nssmLocal) { $nssm = $nssmLocal }
+    }
+
+    $ok = $false
+    if ($nssm) {
+        try {
+            $existing = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+            if (-not $existing) {
+                & $nssm install $svcName $node | Out-Null
+            }
+            $appParams = "`"$helper`" --watch-loop `"$watchDir`""
+            & $nssm set $svcName AppParameters $appParams | Out-Null
+            & $nssm set $svcName AppDirectory $script:CONSOLE_PATH | Out-Null
+            & $nssm set $svcName DisplayName "BetterDesk Service Control" | Out-Null
+            & $nssm set $svcName Description "LocalSystem helper for panel Go binary updates (stop/deploy BetterDeskServer)" | Out-Null
+            & $nssm set $svcName Start SERVICE_AUTO_START | Out-Null
+            & $nssm set $svcName AppStdout "$script:CONSOLE_PATH\logs\service-control.log" | Out-Null
+            & $nssm set $svcName AppStderr "$script:CONSOLE_PATH\logs\service-control_error.log" | Out-Null
+            & $nssm set $svcName AppRotateFiles 1 | Out-Null
+            & $nssm set $svcName ObjectName LocalSystem | Out-Null
+            & $nssm set $svcName AppExit Default Restart | Out-Null
+            New-Item -ItemType Directory -Path "$script:CONSOLE_PATH\logs" -Force | Out-Null
+            Start-Service -Name $svcName -ErrorAction SilentlyContinue
+            if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' })) {
+                & $nssm start $svcName 2>$null | Out-Null
+            }
+            if ((Get-Service -Name $svcName -ErrorAction SilentlyContinue).Status -eq 'Running') {
+                Print-Success "Registered $svcName (LocalSystem watcher) for panel Go binary updates"
+                $ok = $true
+            } else {
+                Print-Warning "$svcName installed but not running — start it before panel Updates"
+                $ok = $true
+            }
+        } catch {
+            Print-Warning "Could not register $svcName NSSM service: $($_.Exception.Message)"
+        }
+    } else {
+        Print-Warning "nssm not found — falling back to scheduled task for $svcName"
+    }
+
+    # Legacy fallback: on-demand schtasks (panel prefers watcher heartbeat when present).
+    try {
+        $tr = "`"$node`" `"$helper`" --watch-dir `"$watchDir`""
+        & schtasks /Create /TN $svcName /TR $tr /SC ONCE /ST 23:59 /SD 01/01/2099 /RU SYSTEM /RL HIGHEST /F 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0 -and -not $ok) {
+            Print-Success "Registered $svcName scheduled task (legacy) for panel Go binary updates"
+            $ok = $true
+        }
+    } catch {
+        if (-not $ok) {
+            Print-Warning "Could not register $svcName scheduled task: $($_.Exception.Message)"
+        }
+    }
+
+    return $ok
+}
+
+# Grant the console virtual account SCM start/stop/query on BetterDeskServer.
+function Grant-ConsoleControlOfServer {
+    $server = $script:SERVER_SERVICE
+    $console = $script:CONSOLE_SERVICE
+    if (-not (Get-Service -Name $server -ErrorAction SilentlyContinue)) { return }
+    if (-not (Get-Service -Name $console -ErrorAction SilentlyContinue)) { return }
+    try {
+        $sid = (New-Object System.Security.Principal.NTAccount("NT SERVICE\$console")).Translate(
+            [System.Security.Principal.SecurityIdentifier]
+        ).Value
+        $sd = (& sc.exe sdshow $server 2>$null | Out-String).Trim()
+        if (-not $sd) { return }
+        if ($sd -match [regex]::Escape($sid)) {
+            Print-Info "Console already has SCM rights on $server"
+            return
+        }
+        # RP=START WP=STOP LC=QUERY_STATUS CC=QUERY_CONFIG RC=READ_CONTROL
+        $ace = "(A;;RPWPLCCCRC;;;$sid)"
+        if ($sd -match '^(D:)') {
+            $newSd = $sd -replace '^(D:)', "`$1$ace"
+        } else {
+            $newSd = "D:$ace$sd"
+        }
+        & sc.exe sdset $server $newSd 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Print-Success "Granted $console start/stop rights on $server"
+        } else {
+            Print-Warning "sc sdset $server failed (exit $LASTEXITCODE) — SYSTEM task still handles force-stop"
+        }
+    } catch {
+        Print-Warning "Grant-ConsoleControlOfServer: $($_.Exception.Message)"
+    }
+}
+
+# Safe in-place patch of NSSM services (TLS API flags, HTTP URLs, AUTH_DB_PATH) without remove+install.
 function Patch-ServiceDefinitions {
     $nssm = Get-Command nssm -ErrorAction SilentlyContinue
     if (-not $nssm) {
@@ -1827,14 +1944,33 @@ function Patch-ServiceDefinitions {
                 }
             }
             $envRaw = (& $nssmExe get $svc AppEnvironmentExtra 2>$null)
-            if ($envRaw) {
-                $cleanEnv = $envRaw `
-                    -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost' `
-                    -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
-                if ($cleanEnv -ne $envRaw) {
-                    & $nssmExe set $svc AppEnvironmentExtra $cleanEnv | Out-Null
+            if ($null -eq $envRaw) { $envRaw = "" }
+            $envText = "$envRaw".Replace("`r`n", "`n").TrimEnd()
+            $cleanEnv = $envText `
+                -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost' `
+                -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
+            if ($svc -eq $script:SERVER_SERVICE) {
+                $authDbPath = Join-Path $script:CONSOLE_PATH "data\auth.db"
+                if ($cleanEnv -notmatch '(?m)^AUTH_DB_PATH=') {
+                    if ($cleanEnv) {
+                        $cleanEnv = $cleanEnv + "`nAUTH_DB_PATH=$authDbPath"
+                    } else {
+                        $cleanEnv = "AUTH_DB_PATH=$authDbPath"
+                    }
+                    Print-Info "Patched $svc AppEnvironmentExtra (AUTH_DB_PATH for panel ACL)"
+                }
+                $consoleDataDir = Join-Path $script:CONSOLE_PATH "data"
+                if (Test-Path $consoleDataDir) {
+                    try {
+                        & icacls "$consoleDataDir" /grant "NT SERVICE\${svc}:(OI)(CI)R" /T /C /Q 2>$null | Out-Null
+                    } catch { }
+                }
+            }
+            if ($cleanEnv -ne $envText) {
+                & $nssmExe set $svc AppEnvironmentExtra $cleanEnv | Out-Null
+                $changed = $true
+                if ($envText -match 'https://localhost' -and $cleanEnv -notmatch 'https://localhost') {
                     Print-Info "Patched $svc AppEnvironmentExtra (Go API URLs stay HTTP)"
-                    $changed = $true
                 }
             }
         } catch { }
@@ -1842,6 +1978,8 @@ function Patch-ServiceDefinitions {
     if ($changed) {
         Print-Success "Service definitions patched (custom NSSM settings preserved)"
     }
+    Grant-ConsoleControlOfServer
+    Register-BetterDeskServiceControlTask | Out-Null
 }
 
 # During UPDATE: create missing services; patch existing; optional full recreate.
@@ -2064,10 +2202,18 @@ function Setup-Services {
     # queued for operator approval. Existing installs are left untouched.
     if ($script:FRESH_INSTALL) { $serverEnvExtra += "ENROLLMENT_MODE=managed" }
     $serverEnvExtra += "MESH_ENABLED=Y"
+    # Panel device groups / folders / ACL live in console auth.db (SQLite) or the
+    # shared PostgreSQL DB. Windows NSSM must set AUTH_DB_PATH so SQLite Go builds
+    # can scope stock RustDesk address books (Linux systemd already sets this).
+    $authDbPath = Join-Path $script:CONSOLE_PATH "data\auth.db"
+    $serverEnvExtra += "AUTH_DB_PATH=$authDbPath"
+    $serverEnvExtra += "CONSOLE_PATH=$script:CONSOLE_PATH"
     & $nssm set $script:SERVER_SERVICE AppEnvironmentExtra $serverEnvExtra
     
     # Privilege separation: drop the Go server to its low-privilege virtual account.
-    Set-ServiceLeastPrivilege -ServiceName $script:SERVER_SERVICE -NssmPath $nssm -Paths @($script:RUSTDESK_PATH)
+    # Include console data/ so AUTH_DB_PATH (auth.db) is readable for device ACL.
+    $consoleDataDir = Join-Path $script:CONSOLE_PATH "data"
+    Set-ServiceLeastPrivilege -ServiceName $script:SERVER_SERVICE -NssmPath $nssm -Paths @($script:RUSTDESK_PATH, $consoleDataDir)
     
     Print-Success "Created BetterDesk Go Server service"
     
@@ -2082,6 +2228,9 @@ function Setup-Services {
         & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Node.js)"
         & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Node.js"
         & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
+        # Panel updates exit the Node process; NSSM must restart it (default is Restart,
+        # but make it explicit so interactive/legacy installs recover after process.exit).
+        & $nssm set $script:CONSOLE_SERVICE AppExit Default Restart
         $envExtra = @(
             "NODE_ENV=production",
             "RUSTDESK_DIR=$script:RUSTDESK_PATH",
@@ -2094,6 +2243,7 @@ function Setup-Services {
             "HBBS_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
             "BETTERDESK_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
             "SERVER_BACKEND=betterdesk",
+            "BETTERDESK_SERVICE=1",
             "PORT=5000",
             "HOST=0.0.0.0",
             "API_HOST=0.0.0.0"
@@ -2131,6 +2281,9 @@ function Setup-Services {
     # Create logs directories
     New-Item -ItemType Directory -Path "$script:RUSTDESK_PATH\logs" -Force | Out-Null
     New-Item -ItemType Directory -Path "$script:CONSOLE_PATH\logs" -Force | Out-Null
+
+    Grant-ConsoleControlOfServer
+    Register-BetterDeskServiceControlTask | Out-Null
     
     Print-Success "Windows services configured"
     Print-Info "Services: $script:SERVER_SERVICE, $script:CONSOLE_SERVICE"
@@ -2993,7 +3146,7 @@ function Do-Install {
 #===============================================================================
 
 # GitHub repository configuration for online updates
-$script:UPDATE_GITHUB_OWNER = if ($env:UPDATE_GITHUB_OWNER) { $env:UPDATE_GITHUB_OWNER } else { "UNITRONIX" }
+$script:UPDATE_GITHUB_OWNER = if ($env:UPDATE_GITHUB_OWNER) { $env:UPDATE_GITHUB_OWNER } else { "Chesster1981" }
 $script:UPDATE_GITHUB_REPO = if ($env:UPDATE_GITHUB_REPO) { $env:UPDATE_GITHUB_REPO } else { "BetterDesk" }
 $script:UPDATE_GITHUB_BRANCH = if ($env:UPDATE_GITHUB_BRANCH) { $env:UPDATE_GITHUB_BRANCH } else { "main" }
 

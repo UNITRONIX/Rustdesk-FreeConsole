@@ -32,6 +32,15 @@
         return { className: 'offline', label: _('status.offline'), title: '' };
     }
 
+    /** i18n with English fallback when the key is missing ('_' returns the key). */
+    function dt(key, fallback) {
+        if (typeof _ === 'function') {
+            const val = _(key);
+            if (val && val !== key) return val;
+        }
+        return fallback !== undefined ? fallback : key;
+    }
+
     // Map device_type to Material Icons
     function getDeviceTypeIcon(type) {
         switch ((type || '').toLowerCase()) {
@@ -64,12 +73,18 @@
     let currentFilter = 'all';
     let currentFolder = 'all';
     let currentGroup = 'all';
-    let currentSort = { field: 'last_online', order: 'desc' };
+    // Online first, then hostname A–Z (display name). Column clicks still apply as secondary sort.
+    let currentSort = { field: 'hostname', order: 'asc' };
     let currentPage = 1;
     let perPage = 20;
     let searchQuery = '';
     let showDeleted = false;
     let draggedDeviceId = null;
+    let lastDragClientY = null;
+    let dragScrollRafId = null;
+    const DRAG_SCROLL_EDGE_PX = 56;
+    const DRAG_SCROLL_MIN_SPEED = 4;
+    const DRAG_SCROLL_MAX_SPEED = 20;
     const STORAGE_PER_PAGE = 'bd_devices_per_page';
     const STORAGE_SHOW_DELETED = 'bd_devices_show_deleted';
     const PER_PAGE_OPTIONS = [10, 20, 50, 100];
@@ -840,34 +855,55 @@
         updateEmptyState();
     }
     
+    /** Name shown in the hostname column — used for alphabetical sort. */
+    function deviceSortName(device) {
+        return String(device.display_name || device.hostname || device.note || device.id || '').toLowerCase();
+    }
+
     /**
-     * Sort devices
+     * Sort devices: online first, then current column (default hostname A–Z).
      */
     function sortDevices() {
         const { field, order } = currentSort;
         
         filteredDevices.sort((a, b) => {
-            let valA = a[field];
-            let valB = b[field];
-            
-            // Handle nulls
-            if (valA === null || valA === undefined) valA = '';
-            if (valB === null || valB === undefined) valB = '';
-            
-            // String comparison
-            if (typeof valA === 'string') {
-                valA = valA.toLowerCase();
-                valB = valB.toLowerCase();
-            }
-            
-            // Date comparison
-            if (field === 'last_online') {
-                valA = new Date(valA || 0).getTime();
-                valB = new Date(valB || 0).getTime();
+            // Primary: Online before Offline / No signal / Banned
+            const onlineA = a.online ? 0 : 1;
+            const onlineB = b.online ? 0 : 1;
+            if (onlineA !== onlineB) return onlineA - onlineB;
+
+            let valA;
+            let valB;
+
+            if (field === 'hostname') {
+                valA = deviceSortName(a);
+                valB = deviceSortName(b);
+            } else {
+                valA = a[field];
+                valB = b[field];
+
+                if (valA === null || valA === undefined) valA = '';
+                if (valB === null || valB === undefined) valB = '';
+
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase();
+                    valB = typeof valB === 'string' ? valB.toLowerCase() : String(valB || '').toLowerCase();
+                }
+
+                if (field === 'last_online') {
+                    valA = new Date(valA || 0).getTime();
+                    valB = new Date(valB || 0).getTime();
+                }
             }
             
             if (valA < valB) return order === 'asc' ? -1 : 1;
             if (valA > valB) return order === 'asc' ? 1 : -1;
+
+            // Stable tie-break by id so refresh does not reshuffle equals
+            const idA = String(a.id || '');
+            const idB = String(b.id || '');
+            if (idA < idB) return -1;
+            if (idA > idB) return 1;
             return 0;
         });
     }
@@ -1002,6 +1038,21 @@
         });
     }
     
+    function _remoteViewerUrl(deviceId) {
+        let url = `/remote/${encodeURIComponent(deviceId)}`;
+        try {
+            const device = (typeof devices !== 'undefined' && devices)
+                ? devices.find((d) => String(d.id) === String(deviceId) || String(d.device_id) === String(deviceId))
+                : null;
+            const dtype = String((device && (device.device_type || device.type)) || '').toLowerCase();
+            // Support Agent / CDAP peers must use CDAP for clipboard + file transfer.
+            if (dtype === 'os_agent' || dtype === 'cdap' || (device && device.cdap_connected)) {
+                url += '?transport=cdap';
+            }
+        } catch (_) { /* ignore */ }
+        return url;
+    }
+
     /**
      * Handle device actions
      */
@@ -1023,7 +1074,7 @@
         }
 
         if (typeof BroadcastChannel === 'undefined') {
-            window.open(`/remote/${encodeURIComponent(deviceId)}`, '_blank');
+            window.open(_remoteViewerUrl(deviceId), '_blank');
             return;
         }
 
@@ -1054,7 +1105,7 @@
         setTimeout(() => {
             if (!handled) {
                 bc.close();
-                window.open(`/remote/${encodeURIComponent(deviceId)}`, '_blank');
+                window.open(_remoteViewerUrl(deviceId), '_blank');
             }
         }, 300);
     }
@@ -1213,7 +1264,7 @@
                 <div class="form-group">
                     <label>${_('devices.group_allowed_users') || 'Allowed users'}</label>
                     <input type="text" id="dg-users" class="form-input" placeholder="operator1, operator2" value="${Utils.escapeHtml(allowedUsersValue)}">
-                    <p class="form-hint">${_('devices.group_allowed_users_hint') || 'Leave empty to keep the group visible to everyone with device permissions.'}</p>
+                    <p class="form-hint">${_('devices.group_allowed_users_hint') || 'Assign allowed users and/or user groups. Leave empty to hide the group from non-admins.'}</p>
                 </div>
                 <div class="form-group">
                     <div class="form-label-row">
@@ -1629,12 +1680,24 @@
                             <input type="checkbox" id="ap-unattended" ${policy.unattended_enabled ? 'checked' : ''}>
                             <span>${_('devices.enable_unattended') || 'Enable unattended access'}</span>
                         </label>
+                        <label class="toggle-row">
+                            <input type="checkbox" id="ap-passwordless-server" ${policy.passwordless_server_access !== false ? 'checked' : ''}>
+                            <span>${_('devices.passwordless_server_access') || 'Passwordless server access'}</span>
+                        </label>
+                        <p class="form-hint">${dt('devices.passwordless_server_access_hint', 'When enabled, RdClient uses the Access Password from the server before any password remembered on this device. When disabled, the locally remembered password is tried first.')}</p>
                     </div>
                     <div class="form-section">
                         <h4><span class="material-icons">lock</span> ${_('devices.access_password') || 'Access Password'}</h4>
-                        <p class="form-hint">${policy.password_set ? '<span class="badge badge-success">✓ ' + (_('devices.password_configured') || 'Password set') + '</span>' : '<span class="badge badge-warning">' + (_('devices.no_password') || 'No password') + '</span>'}</p>
+                        <p class="form-hint">${!policy.connect_secret_codec
+                            ? '<span class="badge badge-warning">' + dt('devices.password_codec_unavailable', 'Server cannot seal passwords yet — update/restart betterdesk-server (look for “connect-secret codec ready” in logs)') + '</span>'
+                            : (policy.password_set
+                                ? (policy.connect_secret_ready
+                                    ? '<span class="badge badge-success">✓ ' + dt('devices.password_auto_auth_ready', 'Password set — auto-connect ready') + '</span>'
+                                    : '<span class="badge badge-warning">' + dt('devices.password_needs_reseal', 'Password set but not sealed — enter it again below and Save') + '</span>')
+                                : '<span class="badge badge-warning">' + dt('devices.no_password', 'No password') + '</span>')}</p>
+                        <p class="form-hint">${dt('devices.password_auto_auth_hint', 'For unattended auto-connect, type the device password and Save (required once after this update). After changing it here, wait up to ~30 seconds (or restart Support Agent) so the device applies the new password before connecting.')}</p>
                         <div class="form-row">
-                            <input type="password" id="ap-password" class="form-input" placeholder="${_('devices.new_password') || 'New password (leave empty to keep current)'}">
+                            <input type="password" id="ap-password" class="form-input" placeholder="${_('devices.new_password') || 'New password (leave empty to keep current)'}" autocomplete="new-password">
                         </div>
                         <label class="toggle-row">
                             <input type="checkbox" id="ap-clear-password">
@@ -1688,11 +1751,23 @@
                     {
                         label: _('actions.save'), class: 'btn-primary', onClick: async () => {
                             const scheduleCheckbox = document.getElementById('ap-schedule');
+                            const unattended = document.getElementById('ap-unattended').checked;
+                            const password = document.getElementById('ap-password').value;
+                            const clearPw = document.getElementById('ap-clear-password').checked;
+                            if (unattended && !clearPw && !password && !policy.connect_secret_ready) {
+                                Notifications.error(dt('devices.password_required_for_unattended',
+                                    'Enter the access password to enable unattended auto-connect'));
+                                document.getElementById('ap-password').focus();
+                                return;
+                            }
                             const selectedDays = Array.from(document.querySelectorAll('input[name="schedule_day"]:checked')).map(cb => cb.value);
                             const payload = {
-                                unattended_enabled: document.getElementById('ap-unattended').checked,
-                                password: document.getElementById('ap-password').value,
-                                clear_password: document.getElementById('ap-clear-password').checked,
+                                unattended_enabled: unattended,
+                                password: password,
+                                clear_password: clearPw,
+                                passwordless_server_access: document.getElementById('ap-passwordless-server')
+                                    ? document.getElementById('ap-passwordless-server').checked
+                                    : true,
                                 schedule_enabled: scheduleCheckbox ? scheduleCheckbox.checked : false,
                                 schedule_days: selectedDays.join(','),
                                 schedule_start_time: document.getElementById('ap-start-time') ? document.getElementById('ap-start-time').value : '',
@@ -1702,12 +1777,17 @@
                             };
 
                             try {
-                                await Utils.api(`/api/devices/${deviceId}/access-policy`, {
+                                const saved = await Utils.api(`/api/devices/${deviceId}/access-policy`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify(payload)
                                 });
-                                Notifications.success(_('devices.access_policy_saved') || 'Access policy saved');
+                                // Defense: some proxies return HTTP 200 with {success:false}.
+                                if (saved && saved.success === false) {
+                                    throw new Error(saved.error || 'Failed to save access policy');
+                                }
+                                Notifications.success(dt('devices.access_policy_saved_reseal',
+                                    'Access policy saved. If using Support Agent, wait ~2 min or restart the agent so it picks up the password.'));
                                 Modal.close();
                             } catch (err) {
                                 Notifications.error(err.message || 'Failed to save access policy');
@@ -2126,6 +2206,13 @@
     function initSearch() {
         const searchInput = document.getElementById('search-input');
         if (!searchInput) return;
+
+        // Honor ?search= from Enrollment Requests "View device" links (#351).
+        const urlSearch = new URLSearchParams(window.location.search).get('search');
+        if (urlSearch) {
+            searchQuery = urlSearch.trim();
+            searchInput.value = searchQuery;
+        }
         
         searchInput.addEventListener('input', Utils.debounce((e) => {
             searchQuery = e.target.value.trim();
@@ -3187,11 +3274,64 @@
     }
     
     // ==================== Drag & Drop ====================
+
+    function stopDragAutoScroll() {
+        if (dragScrollRafId != null) {
+            cancelAnimationFrame(dragScrollRafId);
+            dragScrollRafId = null;
+        }
+        lastDragClientY = null;
+    }
+
+    function dragScrollSpeed(depthPx) {
+        const t = Math.min(1, Math.max(0, depthPx / DRAG_SCROLL_EDGE_PX));
+        return DRAG_SCROLL_MIN_SPEED + t * (DRAG_SCROLL_MAX_SPEED - DRAG_SCROLL_MIN_SPEED);
+    }
+
+    function tickDragAutoScroll() {
+        dragScrollRafId = null;
+        if (!draggedDeviceId || lastDragClientY == null) return;
+
+        const mainContent = document.querySelector('.main-content');
+        if (!mainContent || mainContent.scrollHeight <= mainContent.clientHeight) {
+            dragScrollRafId = requestAnimationFrame(tickDragAutoScroll);
+            return;
+        }
+
+        const rect = mainContent.getBoundingClientRect();
+        const y = lastDragClientY;
+        let delta = 0;
+
+        if (y < rect.top + DRAG_SCROLL_EDGE_PX) {
+            delta = -dragScrollSpeed(rect.top + DRAG_SCROLL_EDGE_PX - y);
+        } else if (y > rect.bottom - DRAG_SCROLL_EDGE_PX) {
+            delta = dragScrollSpeed(y - (rect.bottom - DRAG_SCROLL_EDGE_PX));
+        }
+
+        if (delta !== 0) {
+            mainContent.scrollTop += delta;
+        }
+
+        dragScrollRafId = requestAnimationFrame(tickDragAutoScroll);
+    }
+
+    function startDragAutoScroll() {
+        if (dragScrollRafId != null) return;
+        dragScrollRafId = requestAnimationFrame(tickDragAutoScroll);
+    }
+
+    function onDocumentDragOver(e) {
+        if (!draggedDeviceId) return;
+        lastDragClientY = e.clientY;
+    }
     
     /**
      * Initialize drag & drop - row drag events only (called once)
      */
     function initDragDrop() {
+        // Track pointer Y during HTML5 drag (mousemove is unreliable while dragging)
+        document.addEventListener('dragover', onDocumentDragOver, true);
+
         // Handle drag start on rows
         tableBody?.addEventListener('dragstart', (e) => {
             const row = e.target.closest('tr');
@@ -3201,15 +3341,21 @@
             row.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', draggedDeviceId);
+            lastDragClientY = e.clientY;
+            startDragAutoScroll();
         });
         
         tableBody?.addEventListener('dragend', (e) => {
             const row = e.target.closest('tr');
             if (row) row.classList.remove('dragging');
             draggedDeviceId = null;
+            stopDragAutoScroll();
             
             // Remove drop indicators
             document.querySelectorAll('.folder-chip.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            document.querySelectorAll('.group-chip.drag-over').forEach(el => {
                 el.classList.remove('drag-over');
             });
         });

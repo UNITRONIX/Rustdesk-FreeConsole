@@ -220,10 +220,21 @@
                 return true;
             });
             filtered.sort(function (a, b) {
-                if (a.online !== b.online) return a.online ? -1 : 1;
-                var ta = a.last_online ? new Date(a.last_online).getTime() : 0;
-                var tb = b.last_online ? new Date(b.last_online).getTime() : 0;
-                return tb - ta;
+                // Primary: Online before Offline / No signal / Banned
+                var onlineA = a.online ? 0 : 1;
+                var onlineB = b.online ? 0 : 1;
+                if (onlineA !== onlineB) return onlineA - onlineB;
+                // Secondary: alphabetically by display name / hostname
+                var nameA = String(displayName(a)).toLowerCase();
+                var nameB = String(displayName(b)).toLowerCase();
+                if (nameA < nameB) return -1;
+                if (nameA > nameB) return 1;
+                // Stable tie-break by id
+                var idA = String(a.id || '');
+                var idB = String(b.id || '');
+                if (idA < idB) return -1;
+                if (idA > idB) return 1;
+                return 0;
             });
         }
 

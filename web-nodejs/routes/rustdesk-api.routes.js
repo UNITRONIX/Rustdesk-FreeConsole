@@ -43,7 +43,7 @@ const betterdeskApi = require('../services/betterdeskApi');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const config = require('../config/config');
-const { roleHasPermission } = require('../middleware/auth');
+const { roleHasPermission, isSuperAdminRole } = require('../middleware/auth');
 
 // After the API-port consolidation the RustDesk clients report audit events to
 // the Go server (port 21121). When Node's own client API listener is disabled
@@ -189,6 +189,36 @@ function canSyncDeviceTags(user) {
     return user && user.role !== 'pro' && roleHasPermission(user.role, 'device.edit');
 }
 
+function isUnscopedAdminUser(user) {
+    return !!(user && (isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin'));
+}
+
+/**
+ * Apply device-group ACL to address-book JSON. On scope errors, non-admins get
+ * an empty peer list (fail closed) instead of the unfiltered book.
+ */
+async function applyDeviceScopeToAddressBookData(user, dataStr) {
+    try {
+        const allDevices = await serverBackend.getAllDevices({});
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, allDevices);
+        if (!scope) {
+            return typeof dataStr === 'string' ? dataStr : JSON.stringify(dataStr || {});
+        }
+        return addressBookSync.filterAddressBookPeersByScope(dataStr, {
+            visibleIds: scope,
+            knownDeviceIds: (allDevices || []).map(d => d && d.id)
+        });
+    } catch (err) {
+        console.warn(`[API:AB] Failed to apply device scope to address book for ${user && user.username}:`, err.message);
+        if (isUnscopedAdminUser(user)) {
+            return typeof dataStr === 'string' ? dataStr : JSON.stringify(dataStr || {});
+        }
+        const ab = addressBookSync.parseAddressBookData(dataStr);
+        ab.peers = [];
+        return JSON.stringify(ab);
+    }
+}
+
 function isReachableRustDeskDevice(device) {
     if (!device || device.banned || device.disabled) return false;
     if (device.online === true || device.live_online === true || device.cdap_connected === true) return true;
@@ -328,6 +358,10 @@ async function filterDevicesForRustDeskUser(user, devices) {
         );
     } catch (err) {
         console.warn(`[API:PEERS] Failed to apply device group scope for ${user && user.username}:`, err.message);
+        // Fail closed: never return the full fleet to non-admins on scope errors.
+        if (!isUnscopedAdminUser(user)) {
+            scoped = [];
+        }
     }
 
     if (canBrowseDeviceInventory(user)) return scoped;
@@ -393,10 +427,10 @@ async function getConsoleDeviceContext(user) {
 async function buildSyncedAddressBook(user, abType) {
     const abRecord = await db.getAddressBook(user.id, abType);
     const abData = (abRecord && abRecord.data) ? String(abRecord.data) : '{}';
-    if (user.role === 'pro') {
-        return abData;
-    }
-    const context = await getConsoleDeviceContext(user);
+    // Pro is scoped like operators (no raw AB bypass). Admins still get full merges below.
+    const context = user.role === 'pro'
+        ? { devices: [], folders: [], assignments: {} }
+        : await getConsoleDeviceContext(user);
 
     // Issue #138 (2.1): Do NOT auto-include all server devices into the AB.
     // Previously this was true for admin/operator users, causing "ghost" entries
@@ -408,18 +442,7 @@ async function buildSyncedAddressBook(user, abType) {
     });
 
     // Strip org/stale peers outside device-group ACL (same scope as peer list).
-    try {
-        const allDevices = await serverBackend.getAllDevices({});
-        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, allDevices);
-        if (scope) {
-            merged = addressBookSync.filterAddressBookPeersByScope(merged, {
-                visibleIds: scope,
-                knownDeviceIds: (allDevices || []).map(d => d && d.id)
-            });
-        }
-    } catch (err) {
-        console.warn(`[API:AB] Failed to apply device scope to address book for ${user && user.username}:`, err.message);
-    }
+    merged = await applyDeviceScopeToAddressBookData(user, merged);
 
     return merged;
 }
@@ -475,7 +498,7 @@ async function getRustDeskDeviceGroups(user) {
     try {
         const rawGroups = (await db.getAllDeviceGroups())
             .filter(group => folderIdFromGroupGuid(group.guid) === null)
-            .filter(group => deviceGroupService.groupAllowedForUser(group, accessUser));
+            .filter(group => deviceGroupService.groupAllowedForUser(group, accessUser, { strict: true }));
         const deviceGroups = await deviceGroupService.enrichGroups(db, rawGroups, devices);
         for (const group of deviceGroups) {
             const peerIds = await deviceGroupService.getGroupPeerIds(db, group, devices);
@@ -500,7 +523,7 @@ async function getRustDeskDeviceGroups(user) {
             } catch (_) { /* non-critical */ }
             const allowedUsers = mirrorGroup && Array.isArray(mirrorGroup.allowed_users) ? mirrorGroup.allowed_users : [];
             const allowedGroups = mirrorGroup && Array.isArray(mirrorGroup.allowed_groups) ? mirrorGroup.allowed_groups : [];
-            if (!deviceGroupService.groupAllowedForUser({ allowed_users: allowedUsers, allowed_groups: allowedGroups }, accessUser)) continue;
+            if (!deviceGroupService.groupAllowedForUser({ allowed_users: allowedUsers, allowed_groups: allowedGroups }, accessUser, { strict: true })) continue;
 
             // Collect peer IDs assigned to this folder
             const folderPeerIds = [];
@@ -579,7 +602,7 @@ async function getRustDeskPeerList(user, params = {}) {
                 group = (allGroups || []).find(item => String(item.name || '').trim().toLowerCase() === normalizedGroup) || null;
             }
         } catch (_) { /* non-critical */ }
-        if (group && deviceGroupService.groupAllowedForUser(group, accessUser)) {
+        if (group && deviceGroupService.groupAllowedForUser(group, accessUser, { strict: true })) {
             const groupPeerIds = await deviceGroupService.getGroupPeerIds(db, group, devices);
             devices = devices.filter(device => groupPeerIds.has(String(device.id)));
         } else if (!group && normalizedGroup) {
@@ -622,29 +645,36 @@ async function getRustDeskPeerList(user, params = {}) {
         const sysinfo = sysinfoMap[device.id] || {};
         const tags = addressBookSync.normalizeTags(device.tags);
         const folderId = getDeviceFolderId(device);
-        const deviceGroupName = folderId
-            ? (folderNames.get(folderId) || '')
-            : (manualGroupNameByPeer.get(String(device.id)) || '');
+        const manualName = manualGroupNameByPeer.get(String(device.id)) || '';
+        // Device-group membership wins over folder (matches Go rustDeskPeerDeviceGroupName).
+        const deviceGroupName = manualName
+            || (folderId ? (folderNames.get(folderId) || '') : '');
         const hostname = sysinfo.hostname || device.hostname || '';
         const username = sysinfo.username || device.username || device.user || '';
         const platform = sysinfo.platform || device.platform || device.os || '';
-        const displayName = device.display_name || '';
-        const alias = displayName || device.note || hostname || String(device.id || '');
+        const displayName = String(device.display_name || '').trim();
+        const deviceNote = String(device.note || '').trim();
+        // Match Go rustDeskCardFields: panel display name / note → alias (bold title).
+        // Do not fall back to hostname (that belongs on the secondary line).
+        const alias = displayName || deviceNote;
+        const note = deviceNote && deviceNote !== alias ? deviceNote : '';
+        const infoHostname = alias ? '' : hostname;
+        const infoUsername = alias ? '' : username;
         const reachable = isReachableRustDeskDevice(device);
 
         // Match Go server PeerPayload format — info as nested map, status as int
         return {
             id: device.id,
             info: {
-                device_name: hostname,
+                device_name: infoHostname,
                 os: platform,
-                username: username,
+                username: infoUsername,
                 version: sysinfo.version || ''
             },
             status: 1,
-            user: username,
-            user_name: username,
-            note: device.note || '',
+            user: infoUsername,
+            user_name: infoUsername,
+            note,
             device_group_name: deviceGroupName,
             tags,
             online: reachable,
@@ -970,8 +1000,9 @@ router.post('/api/ab', async (req, res) => {
     }
     const { data } = req.body || {};
     if (data !== undefined) {
-        const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+        let dataStr = typeof data === 'string' ? data : JSON.stringify(data);
         try {
+            dataStr = await applyDeviceScopeToAddressBookData(user, dataStr);
             await db.saveAddressBook(user.id, dataStr, 'legacy');
             await syncAddressBookTagsToConsole(user, dataStr, 'legacy');
             console.log(`[API:AB] Saved legacy address book for user ${user.username} (${dataStr.length} bytes)`);
@@ -1062,12 +1093,28 @@ router.post('/api/ab/personal', async (req, res) => {
     }
     const { data } = req.body || {};
     const hasData = data !== undefined && data !== null && data !== '';
-    // RustDesk 1.4.7 probes with an empty POST body; legacy servers return 404.
+    // Pro shared-AB probe: empty POST expects {"guid": "..."} (not 404).
     if (!hasData) {
-        return res.status(404).end();
+        const crypto = require('crypto');
+        const ns = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex');
+        const name = Buffer.from('betterdesk-personal:' + String(user.username || '').trim().toLowerCase());
+        // UUID v5 (SHA-1) matching Go personalABGUID
+        const hash = crypto.createHash('sha1').update(ns).update(name).digest();
+        hash[6] = (hash[6] & 0x0f) | 0x50;
+        hash[8] = (hash[8] & 0x3f) | 0x80;
+        const hex = hash.toString('hex');
+        const guid = [
+            hex.slice(0, 8),
+            hex.slice(8, 12),
+            hex.slice(12, 16),
+            hex.slice(16, 20),
+            hex.slice(20, 32)
+        ].join('-');
+        return res.json({ guid });
     }
-    const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+    const dataStrRaw = typeof data === 'string' ? data : JSON.stringify(data);
     try {
+        const dataStr = await applyDeviceScopeToAddressBookData(user, dataStrRaw);
         await db.saveAddressBook(user.id, dataStr, 'personal');
         await syncAddressBookTagsToConsole(user, dataStr, 'personal');
         console.log(`[API:AB] Saved personal address book for user ${user.username} (${dataStr.length} bytes)`);
@@ -1338,6 +1385,27 @@ router.post('/api/login', async (req, res) => {
 
         // Support both field names: tfaCode (our API) and verificationCode (RustDesk client)
         const totpCode = tfaCode || verificationCode;
+
+        // Block stock Windows RustDesk; allow branded Windows + Android/iOS.
+        const { rejectWindowsClientAppName } = require('../lib/clientAppNameGate');
+        const deviceOs = deviceInfo && typeof deviceInfo === 'object' ? deviceInfo.os : '';
+        const deviceAppName =
+            deviceInfo && typeof deviceInfo === 'object'
+                ? deviceInfo.app_name || deviceInfo.appName || ''
+                : '';
+        const appNameReject = rejectWindowsClientAppName(deviceOs, deviceAppName);
+        if (appNameReject) {
+            console.log(
+                `[API:LOGIN] Rejected Windows client from ${ip}: os=${deviceOs} app_name=${deviceAppName}`
+            );
+            await db.logAction(
+                null,
+                'api_login_rejected_client',
+                `OS: ${deviceOs}, app_name: ${deviceAppName}, User: ${username}`,
+                ip
+            );
+            return res.status(403).json({ error: appNameReject });
+        }
 
         // ── TFA verification step ──
         if (totpCode && tfaSecret) {

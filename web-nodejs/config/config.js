@@ -65,7 +65,8 @@ const KEYS_PATH = resolveKeysPath();
 const RUSTDESK_DIR = KEYS_PATH;
 
 // Warn if KEYS_PATH was auto-detected and looks wrong
-if (!process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK_PATH) {
+if (process.env.NODE_ENV !== 'test'
+    && !process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK_PATH) {
     const apiKeyFile = path.join(KEYS_PATH, '.api_key');
     const keyFile = path.join(KEYS_PATH, 'id_ed25519');
     if (!fs.existsSync(apiKeyFile) && !fs.existsSync(keyFile)) {
@@ -76,6 +77,9 @@ if (!process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK
 
 // Database path
 const DB_PATH = process.env.DB_PATH || path.join(RUSTDESK_DIR, 'db_v2.sqlite3');
+// Legacy SQLite panel store. Existing installations retain this file until the
+// versioned consolidation has completed; new installs never create it.
+const AUTH_DB_PATH = process.env.AUTH_DB_PATH || path.join(DATA_DIR, 'auth.db');
 
 // Key paths
 const PUB_KEY_PATH = process.env.PUB_KEY_PATH || path.join(KEYS_PATH, 'id_ed25519.pub');
@@ -171,8 +175,20 @@ module.exports = {
     // bypass is ignored and TOTP is enforced normally on :21121.
     rustdeskApiDisableTotpAck: (process.env.RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED || 'false').toLowerCase() === 'true',
 
+    // Block stock Windows RustDesk account login; allow branded app_name + Android/iOS.
+    // Go API reads the same env vars directly. Default gate on when unset.
+    windowsClientAppNameGate: (() => {
+        const v = String(process.env.BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE || '').trim().toLowerCase();
+        if (!v) return true;
+        return v === 'true' || v === '1' || v === 'yes' || v === 'y';
+    })(),
+    allowedWindowsAppNames: (process.env.BETTERDESK_ALLOWED_WINDOWS_APP_NAMES || 'DCS-Norway-RD')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+
     // Device visibility for non-admin roles: open (legacy overlay ACL) or restricted (default-deny).
-    deviceScopeDefault: (process.env.DEVICE_SCOPE_DEFAULT || 'open').toLowerCase(),
+    deviceScopeDefault: (process.env.DEVICE_SCOPE_DEFAULT || 'restricted').toLowerCase(),
 
     // HTTPS / SSL
     httpsEnabled: (process.env.HTTPS_ENABLED || 'false').toLowerCase() === 'true',
@@ -181,12 +197,16 @@ module.exports = {
     sslKeyPath: process.env.SSL_KEY_PATH || '',
     sslCaPath: process.env.SSL_CA_PATH || '',
     httpRedirect: (process.env.HTTP_REDIRECT_HTTPS || 'true').toLowerCase() === 'true',
+    // Optional SHA-256 certificate pin embedded in signed Support Agent
+    // bundles. This is public verifier material, never a private key.
+    agentServerCertPin: String(process.env.BETTERDESK_AGENT_SERVER_CERT_PIN || '').trim(),
 
     // Paths
     dataDir: DATA_DIR,
     keysPath: KEYS_PATH,
     rustdeskDir: RUSTDESK_DIR,
     dbPath: DB_PATH,
+    authDbPath: AUTH_DB_PATH,
     pubKeyPath: PUB_KEY_PATH,
     apiKeyPath: API_KEY_PATH,
 

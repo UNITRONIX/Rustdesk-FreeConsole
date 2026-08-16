@@ -214,8 +214,9 @@
             const userId = cell.dataset.userId;
             if (!userId) return;
             try {
+                // Utils.api already unwraps { success, data } → data
                 const resp = await Utils.api(`/api/users/${userId}/effective-scope`);
-                const count = resp.data?.count ?? 0;
+                const count = resp?.count ?? 0;
                 cell.textContent = _('users.effective_scope_count', { count }) || `${count} devices`;
             } catch (_) {
                 cell.textContent = '—';

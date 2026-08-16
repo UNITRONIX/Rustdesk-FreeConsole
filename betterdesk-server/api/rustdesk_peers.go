@@ -92,6 +92,7 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 	}
 
 	visiblePeer := s.rustDeskVisiblePeerSet(user, role, peerByID)
+	visiblePeer = s.coerceNonAdminVisibleSet(user, role, peerByID, visiblePeer)
 	if !canBrowseRustDeskInventory(role) {
 		filtered := make(map[string]*db.Peer, len(allowedIDs))
 		for id := range allowedIDs {
@@ -120,9 +121,17 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 
 	abPeerMap := s.loadAddressBookPeerMap(username)
 
+	peerIDs := make([]string, 0, len(peerByID))
+	for id := range peerByID {
+		peerIDs = append(peerIDs, id)
+	}
+	// Accessible Devices (Groups): inject Access Policy passwords so the
+	// BetterDesk client can connect without prompting when passwordless.
+	accessPasswords := s.resolveAccessPasswordsForPeers(username, peerIDs)
+
 	result := make([]map[string]any, 0, len(peerByID))
 	for _, p := range peerByID {
-		result = append(result, rustDeskPeerPayload(s, p, folderAssignments, folderNames, manualGroupNames, sysinfoMap, abPeerMap))
+		result = append(result, rustDeskPeerPayload(s, p, folderAssignments, folderNames, manualGroupNames, sysinfoMap, abPeerMap, accessPasswords))
 	}
 
 	total := len(result)
@@ -149,6 +158,65 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 
 func canBrowseRustDeskInventory(role string) bool {
 	return role != auth.RolePro && auth.RoleHasPermission(role, auth.PermDeviceView)
+}
+
+// UserMayConnectToPeer reports whether a logged-in panel user may initiate a
+// RustDesk session to targetID. Privileged roles may connect to any non-empty
+// target; other roles must pass the same device-scope ACL as /api/peers.
+func (s *Server) UserMayConnectToPeer(userID int64, username, role, targetID string) bool {
+	targetID = strings.TrimSpace(targetID)
+	if targetID == "" {
+		return false
+	}
+	username = strings.TrimSpace(username)
+	role = strings.TrimSpace(role)
+	if role == auth.RolePro || !auth.RoleHasPermission(role, auth.PermDeviceView) {
+		return false
+	}
+	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
+		return true
+	}
+
+	user := &db.User{ID: userID, Username: username, Role: role}
+	if userID > 0 && s.db != nil {
+		if u, err := s.db.GetUserByID(userID); err == nil && u != nil {
+			user = u
+			if role == "" {
+				role = u.Role
+			}
+			if username == "" {
+				username = u.Username
+			}
+		}
+	}
+	// Remap to auth.db user id so device-group / user-group ACL matches the panel
+	// (signal PunchHole passes Go users.id from client_sessions).
+	if s.panelStore != nil && user.Username != "" {
+		if authID, err := s.panelStore.GetUserIDByUsername(user.Username); err == nil && authID > 0 {
+			user.ID = authID
+		}
+	}
+
+	peerByID, allowedIDs := s.loadRustDeskPeerByID(username, role)
+	if !canBrowseRustDeskInventory(role) {
+		if len(allowedIDs) == 0 || !allowedIDs[targetID] {
+			return false
+		}
+	}
+	if _, ok := peerByID[targetID]; !ok {
+		// Target may still be connectable if present in inventory but filtered
+		// earlier — reload single peer for ACL membership checks.
+		if s.db != nil {
+			if p, err := s.db.GetPeer(targetID); err == nil && p != nil && !p.Banned && !p.SoftDeleted && !p.Disabled {
+				peerByID[targetID] = p
+			}
+		}
+	}
+	visible := s.coerceNonAdminVisibleSet(user, role, peerByID, s.rustDeskVisiblePeerSet(user, role, peerByID))
+	if visible == nil {
+		return true
+	}
+	return visible[targetID]
 }
 
 func (s *Server) addressBookPeerIDs(username string) map[string]bool {
@@ -376,6 +444,78 @@ func peerHasAllTagsLower(p *db.Peer, expected []string) bool {
 	return true
 }
 
+// rustDeskPanelAlias is the operator-facing label from the panel (display name,
+// then note). Stock RustDesk cards use peer.alias as the bold title when set.
+func rustDeskPanelAlias(p *db.Peer) string {
+	if p == nil {
+		return ""
+	}
+	if s := strings.TrimSpace(p.DisplayName); s != "" {
+		return s
+	}
+	return strings.TrimSpace(p.Note)
+}
+
+// rustDeskCardFields maps BetterDesk peer metadata onto RustDesk card slots:
+//   - alias → bold primary title when the client maps it (Address Book does;
+//     stock Group PeerPayload.toPeer drops alias — see rustDeskPeerPayload)
+//   - note → secondary line (prefer unique panel/AB note; otherwise the peer ID)
+//   - device_name → mirrored to the managed title when set, so Group cards still
+//     show Display Name on the hostname line (toPeer maps info.device_name only)
+//
+// Title preference: panel display_name → panel note → AB alias → AB note → hostname.
+func rustDeskCardFields(p *db.Peer, abAlias, abNote, deviceName, username string) (alias, note, outDevice, outUser string) {
+	abAlias = strings.TrimSpace(abAlias)
+	abNote = strings.TrimSpace(abNote)
+	deviceName = strings.TrimSpace(deviceName)
+	username = strings.TrimSpace(username)
+	displayName := ""
+	peerNote := ""
+	peerID := ""
+	if p != nil {
+		displayName = strings.TrimSpace(p.DisplayName)
+		peerNote = strings.TrimSpace(p.Note)
+		peerID = strings.TrimSpace(p.ID)
+	}
+
+	alias = ""
+	switch {
+	case displayName != "":
+		alias = displayName
+	case peerNote != "":
+		alias = peerNote
+	case abAlias != "":
+		alias = abAlias
+	case abNote != "":
+		alias = abNote
+	case deviceName != "":
+		// Prefer computer name over a bare ID title when no managed label exists.
+		alias = deviceName
+	}
+
+	note = peerNote
+	if note == "" {
+		note = abNote
+	}
+	if alias != "" && note == alias {
+		note = ""
+	}
+	if alias != "" && note == "" && peerID != "" {
+		note = peerID
+	}
+
+	outDevice, outUser = deviceName, username
+	if alias != "" {
+		// Stock Group UI ignores top-level alias; keep the label in device_name
+		// so the card's hostname / "name" row shows Display Name. Clear username
+		// so it does not render as user@label. Address Book clears hostname
+		// separately after enrichment (it does map alias → bold title).
+		outDevice = alias
+		outUser = ""
+	}
+	return alias, note, outDevice, outUser
+}
+
 func rustDeskPeerPayload(
 	s *Server,
 	p *db.Peer,
@@ -384,6 +524,7 @@ func rustDeskPeerPayload(
 	manualGroupNames map[string]string,
 	sysinfo map[string]db.ConsolePeerSysinfo,
 	abPeer map[string]map[string]any,
+	accessPasswords map[string]string,
 ) map[string]any {
 	statusInt := 1
 	if p.Disabled {
@@ -408,36 +549,70 @@ func rustDeskPeerPayload(
 			version = si.Version
 		}
 	}
-	if deviceName == "" {
-		deviceName = p.ID
-	}
 
 	tags := splitPeerTags(p.Tags)
 	deviceGroupName := rustDeskPeerDeviceGroupName(p.ID, assignments, folderNames, manualGroupNames)
 
-	alias := p.Note
+	abAlias := ""
+	abNote := ""
 	if abPeer != nil {
 		if ab, ok := abPeer[p.ID]; ok {
-			if a, ok := ab["alias"].(string); ok && a != "" {
-				alias = a
+			if a, ok := ab["alias"].(string); ok {
+				abAlias = a
+			}
+			if n, ok := ab["note"].(string); ok {
+				abNote = n
 			}
 		}
 	}
 
+	alias, note, deviceName, username := rustDeskCardFields(p, abAlias, abNote, deviceName, username)
+	// Stock Group PeerPayload.toPeer drops alias, so the bold title is always
+	// formatID(peer.id). Never put the peer ID (or any note) on the secondary
+	// row when we already surface Display Name via device_name — user wants
+	// only the alias under the bold ID.
+	if strings.TrimSpace(alias) != "" {
+		note = ""
+	} else {
+		note = rustDeskGroupSecondaryNote(note, p.ID)
+	}
+	// When no panel/AB title is set, keep a non-empty device_name fallback for
+	// clients that still surface hostname in secondary UI chrome.
+	if alias == "" && deviceName == "" {
+		deviceName = p.ID
+	}
+
 	online := s.peers.IsOnline(p.ID, config.RegTimeout)
 
-	return map[string]any{
+	out := map[string]any{
 		"id":     p.ID,
 		"info":   map[string]any{"device_name": deviceName, "os": platform, "username": username, "version": version},
 		"status": statusInt,
 		"user":   username, "user_name": username,
-		"note":              p.Note,
+		"note":              note,
 		"device_group_name": deviceGroupName,
 		"tags":              tags,
 		"online":            online,
 		"alias":             alias,
 		"hash":              "",
 	}
+	if accessPasswords != nil {
+		if plain := strings.TrimSpace(accessPasswords[p.ID]); plain != "" {
+			out["password"] = plain
+		}
+	}
+	return out
+}
+
+// rustDeskGroupSecondaryNote clears a note that only repeats the peer ID.
+// Group cards already show the formatted ID as the primary title.
+func rustDeskGroupSecondaryNote(note, peerID string) string {
+	note = strings.TrimSpace(note)
+	peerID = strings.TrimSpace(peerID)
+	if peerID != "" && note == peerID {
+		return ""
+	}
+	return note
 }
 
 func splitPeerTags(raw string) []string {

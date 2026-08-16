@@ -41,6 +41,23 @@ func TestCDAPWebSocketURLWithHTTPS(t *testing.T) {
 	}
 }
 
+func TestCDAPWebSocketURLWithHTTP(t *testing.T) {
+	b := Branding{
+		ServerAddress: "http://203.0.113.10:5443",
+		UseHTTPS:      false,
+		Server: &ServerBranding{
+			CDAPURL: "ws://203.0.113.10:21122/cdap",
+		},
+	}.normalize()
+	got := b.CDAPWebSocketURL()
+	if got != "ws://203.0.113.10:21122/cdap" {
+		t.Fatalf("got %q", got)
+	}
+	if b.useTLS() {
+		t.Fatal("HTTP profile must not force TLS")
+	}
+}
+
 func TestHostFromAddr(t *testing.T) {
 	if got := hostFromAddr("https://78.31.94.73:21114"); got != "78.31.94.73" {
 		t.Fatalf("host: %q", got)

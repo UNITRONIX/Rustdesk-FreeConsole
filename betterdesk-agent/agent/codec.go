@@ -38,6 +38,7 @@ import (
 
 // Codec identifiers used on the wire (desktop_meta.format) and in config.
 const (
+	CodecNone  = "none"
 	CodecMJPEG = "mjpeg"
 	CodecWebP  = "webp"
 	CodecH264  = "h264"
@@ -50,11 +51,11 @@ const (
 const (
 	HwAuto         = "auto"
 	HwNone         = "none"
-	HwVAAPI        = "vaapi"         // Intel/AMD on Linux
-	HwNVENC        = "nvenc"         // NVIDIA, all OS
-	HwQSV          = "qsv"           // Intel QuickSync
-	HwAMF          = "amf"           // AMD on Windows
-	HwVideoToolbox = "videotoolbox"  // Apple
+	HwVAAPI        = "vaapi"        // Intel/AMD on Linux
+	HwNVENC        = "nvenc"        // NVIDIA, all OS
+	HwQSV          = "qsv"          // Intel QuickSync
+	HwAMF          = "amf"          // AMD on Windows
+	HwVideoToolbox = "videotoolbox" // Apple
 )
 
 // frameMode describes how the encoded output is delimited on the wire.
@@ -91,10 +92,10 @@ type encoderPlan struct {
 // encoder names to try, hardware first. The first candidate that ffmpeg both
 // lists and (for hardware) survives a 1-frame validation encode is used.
 var encoderCandidates = map[string][]string{
-	CodecH264: {"h264_nvenc", "h264_qsv", "h264_vaapi", "h264_amf", "h264_videotoolbox", "libx264"},
-	CodecVP9:  {"vp9_vaapi", "vp9_qsv", "libvpx-vp9"},
-	CodecAV1:  {"av1_nvenc", "av1_qsv", "av1_vaapi", "av1_amf", "libsvtav1", "libaom-av1"},
-	CodecWebP: {"libwebp"},
+	CodecH264:  {"h264_nvenc", "h264_qsv", "h264_vaapi", "h264_amf", "h264_videotoolbox", "libx264"},
+	CodecVP9:   {"vp9_vaapi", "vp9_qsv", "libvpx-vp9"},
+	CodecAV1:   {"av1_nvenc", "av1_qsv", "av1_vaapi", "av1_amf", "libsvtav1", "libaom-av1"},
+	CodecWebP:  {"libwebp"},
 	CodecMJPEG: {"mjpeg"},
 }
 
@@ -158,7 +159,9 @@ func (p *encoderProbe) load() {
 		p.ffmpeg = ffmpeg
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
-		out, err := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-encoders").Output()
+		encCmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-encoders")
+		hideConsole(encCmd)
+		out, err := encCmd.Output()
 		if err != nil {
 			return
 		}
@@ -215,6 +218,7 @@ func (p *encoderProbe) testEncode(name string) bool {
 	args = append(args, "-c:v", name, "-f", "null", "-")
 
 	cmd := exec.CommandContext(ctx, p.ffmpeg, args...)
+	hideConsole(cmd)
 	return cmd.Run() == nil
 }
 

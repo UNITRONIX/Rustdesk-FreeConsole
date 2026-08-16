@@ -7,6 +7,7 @@ import (
 	cryptoRand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -26,6 +27,7 @@ import (
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/exewatch"
 	"github.com/unitronix/betterdesk-server/internal/productversion"
 	"github.com/unitronix/betterdesk-server/logging"
 	"github.com/unitronix/betterdesk-server/meshcentral"
@@ -41,6 +43,12 @@ import (
 var (
 	Version   = "dev"
 	BuildDate = "unknown"
+	GitCommit = ""
+
+	runSQLiteAuthConsolidation       bool
+	sqliteAuthConsolidationDryRun    bool
+	sqliteAuthConsolidationBackupDir string
+	sqliteAuthConsolidationRollback  string
 )
 
 func init() {
@@ -58,9 +66,37 @@ func main() {
 	logCleanup := logging.Setup(cfg.LogFormat, cfg.LogLevel)
 	defer logCleanup()
 
+	if sqliteAuthConsolidationRollback != "" {
+		if err := db.RollbackSQLiteAuth(cfg.DBPath, sqliteAuthConsolidationRollback); err != nil {
+			log.Fatalf("SQLite auth consolidation rollback failed: %v", err)
+		}
+		log.Printf("SQLite auth consolidation rollback completed")
+		return
+	}
+	if runSQLiteAuthConsolidation {
+		report, err := db.ConsolidateSQLiteAuth(db.SQLiteAuthConsolidationOptions{
+			DBPath:     cfg.DBPath,
+			AuthDBPath: cfg.AuthDBPath,
+			BackupDir:  sqliteAuthConsolidationBackupDir,
+			DryRun:     sqliteAuthConsolidationDryRun,
+		})
+		if err != nil {
+			log.Fatalf("SQLite auth consolidation failed: %v", err)
+		}
+		encoded, err := json.Marshal(report)
+		if err != nil {
+			log.Fatalf("Encode SQLite auth consolidation report: %v", err)
+		}
+		fmt.Println(string(encoded))
+		return
+	}
+
 	log.Printf("========================================")
 	log.Printf("  BetterDesk Server %s", Version)
 	log.Printf("  Build: %s", BuildDate)
+	if GitCommit != "" {
+		log.Printf("  Commit:   %s", GitCommit)
+	}
 	log.Printf("========================================")
 	log.Printf("  Mode:       %s", cfg.Mode)
 	log.Printf("  Signal:     :%d (UDP+TCP)", cfg.SignalPort)
@@ -199,6 +235,8 @@ func main() {
 		jwtExpiry = 24
 	}
 	jwtManager := auth.NewJWTManager(jwtSecret, time.Duration(jwtExpiry)*time.Hour)
+	// Keep cfg in sync so api.New / other consumers see the resolved secret.
+	cfg.JWTSecret = jwtSecret
 
 	// Create initial admin user if no users exist
 	userCount, _ := database.UserCount()
@@ -241,7 +279,7 @@ func main() {
 		log.Printf("========================================")
 	}
 
-    // Initialize per-IP relay connection limiter
+	// Initialize per-IP relay connection limiter
 	var connLimiter *ratelimit.ConnLimiter
 	if cfg.RelayMaxConnsIP > 0 {
 		connLimiter = ratelimit.NewConnLimiterFromInt(cfg.RelayMaxConnsIP)
@@ -288,13 +326,17 @@ func main() {
 	})
 
 	// Initialize admin TCP interface
-	adminSrv := admin.New(cfg, database, nil, Version) // peer map set per mode
+	adminSrv := admin.New(cfg, database, nil, apiVersionString()) // peer map set per mode
 	adminSrv.SetBlocklist(blocklist)
 	adminSrv.SetReloadFunc(reloadHandler.Execute)
 
 	// Context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// After Windows panel rename-swap, the new exe is on disk while this process
+	// still runs the old image. Exit when the on-disk file changes so NSSM restarts.
+	go exewatch.WatchExecutable(ctx, 3*time.Second)
 
 	// Time sync + billing (commercialization module)
 	timeSyncSvc := timesync.NewService(database, timesync.Config{
@@ -364,8 +406,9 @@ func main() {
 		}
 		defer relaySrv.Stop()
 
-		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, Version)
-		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
+		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, apiVersionString())
+		defer attachPanelSync(apiSrv, billingSvc, database, cfg.DBPath, cfg.AuthDBPath)()
+		sig.SetTargetAccessChecker(apiSrv.UserMayConnectToPeer)
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -388,6 +431,9 @@ func main() {
 			cdapGw.SetBlocklist(blocklist)
 			cdapGw.SetAuditLogger(auditLogger)
 			cdapGw.SetJWTManager(jwtManager)
+			if err := cdapGw.SetSessionGrantPrivateKey(kp.PrivateKey); err != nil {
+				log.Fatalf("Failed to configure CDAP session grant signer: %v", err)
+			}
 			cdapGw.SetVersion(Version)
 			apiSrv.SetCDAPGateway(cdapGw)
 		}
@@ -463,8 +509,9 @@ func main() {
 		}
 		defer sig.Stop()
 
-		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, Version)
-		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
+		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, apiVersionString())
+		defer attachPanelSync(apiSrv, billingSvc, database, cfg.DBPath, cfg.AuthDBPath)()
+		sig.SetTargetAccessChecker(apiSrv.UserMayConnectToPeer)
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -708,8 +755,9 @@ func resolveAuthDBPath(explicit, dbPath string) string {
 	return explicit
 }
 
-// attachPanelSync wires RustDesk group/folder sync to PostgreSQL or legacy auth.db.
-func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database db.Database, authDBPath string) func() {
+// attachPanelSync wires RustDesk group/folder sync to PostgreSQL, the
+// consolidated SQLite store, or a legacy auth.db during the migration window.
+func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database db.Database, primaryDBPath, authDBPath string) func() {
 	if pg, ok := database.(*db.PostgresDB); ok {
 		apiSrv.SetPanelStore(pg)
 		if billingSvc != nil {
@@ -718,13 +766,22 @@ func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database d
 		log.Printf("RustDesk panel sync: PostgreSQL (device groups, folders, ACL)")
 		return func() {}
 	}
+	if _, ok := database.(*db.SQLiteDB); ok {
+		consolidated, err := db.SQLiteAuthConsolidated(primaryDBPath)
+		if err != nil {
+			log.Printf("WARN: cannot determine SQLite consolidation state: %v", err)
+		} else if consolidated {
+			authDBPath = primaryDBPath
+			log.Printf("RustDesk panel sync: consolidated SQLite database")
+		}
+	}
 	if strings.TrimSpace(authDBPath) == "" {
-		log.Printf("WARN: no panel sync source — device groups/folders unavailable to RustDesk client")
+		log.Printf("WARN: no panel sync source — device groups/folders unavailable (set AUTH_DB_PATH to console data/auth.db, or use PostgreSQL DB_URL)")
 		return func() {}
 	}
 	consoleAuth, err := db.OpenConsoleAuth(authDBPath)
 	if err != nil {
-		log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", authDBPath, err)
+		log.Printf("WARN: console auth.db not opened (%s): %v — scoped RustDesk clients get deny-all until AUTH_DB_PATH is readable", authDBPath, err)
 		return func() {}
 	}
 	apiSrv.SetPanelStore(consoleAuth)
@@ -733,6 +790,18 @@ func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database d
 	}
 	log.Printf("RustDesk panel sync: legacy auth.db at %s", authDBPath)
 	return func() { _ = consoleAuth.Close() }
+}
+
+func apiVersionString() string {
+	v := Version
+	if GitCommit != "" {
+		short := GitCommit
+		if len(short) > 7 {
+			short = short[:7]
+		}
+		v = v + "+" + short
+	}
+	return v
 }
 
 func parseFlags() *config.Config {
@@ -757,6 +826,10 @@ func parseFlags() *config.Config {
 	flag.IntVar(&cfg.AdminPort, "admin-port", cfg.AdminPort, "TCP admin interface port (0 = disabled)")
 	flag.StringVar(&cfg.JWTSecret, "jwt-secret", cfg.JWTSecret, "JWT signing secret (auto-generated if empty)")
 	flag.IntVar(&cfg.JWTExpiry, "jwt-expiry", cfg.JWTExpiry, "JWT token expiry in hours (default 24)")
+	flag.BoolVar(&runSQLiteAuthConsolidation, "migrate-sqlite-auth", false, "Safely consolidate legacy auth.db into the selected SQLite DB, then exit")
+	flag.BoolVar(&sqliteAuthConsolidationDryRun, "migrate-sqlite-auth-dry-run", false, "Validate legacy auth.db consolidation without modifying databases")
+	flag.StringVar(&sqliteAuthConsolidationBackupDir, "migrate-sqlite-auth-backup-dir", "", "Directory for SQLite auth consolidation backups")
+	flag.StringVar(&sqliteAuthConsolidationRollback, "rollback-sqlite-auth", "", "Restore the selected SQLite DB from a consolidation snapshot, then exit")
 	flag.StringVar(&cfg.AdminPassword, "admin-password", cfg.AdminPassword, "Password for admin TCP interface")
 	flag.BoolVar(&cfg.ForceHTTPS, "force-https", cfg.ForceHTTPS, "Reject non-TLS API requests")
 	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "Trust X-Forwarded-For/X-Real-IP headers from reverse proxy (requires --trusted-proxies)")
@@ -785,7 +858,7 @@ func parseFlags() *config.Config {
 
 	// Override with environment variables
 	cfg.LoadEnv()
-	cfg.AuthDBPath = resolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
+	cfg.AuthDBPath = config.ResolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
 
 	// CLI --trusted-proxies overrides env when set (LoadEnv already applied TRUSTED_PROXIES).
 	if *trustedProxiesFlag != "" {

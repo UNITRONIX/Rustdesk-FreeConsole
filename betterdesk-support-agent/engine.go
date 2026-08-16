@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -11,16 +12,19 @@ import (
 	bdagent "github.com/unitronix/betterdesk-agent/agent"
 )
 
+var errRemoteAccessDisabled = errors.New("remote access is disabled by local policy")
+
 // Engine wraps the shared betterdesk-agent remote-desktop engine.
 type Engine struct {
-	mu       sync.Mutex
-	agent    *bdagent.Agent
-	running  bool
-	version  string
-	onConsent func(sessionID, operator string) bool
-	onSessionStart func(sessionID, operator, mode string)
-	onSessionEnd   func(sessionID string)
-	onChat         func(from, text string)
+	mu                sync.Mutex
+	agent             *bdagent.Agent
+	running           bool
+	version           string
+	onConsent         func(sessionID, operator string) bool
+	onSessionStart    func(sessionID, operator, mode string)
+	onSessionEnd      func(sessionID string)
+	onChat            func(from, text string)
+	sessionAuthorizer *passiveSessionAuthorizer
 }
 
 // NewEngine creates an engine wrapper.
@@ -48,15 +52,22 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 	if !st.IsEnrolled() {
 		return nil, fmt.Errorf("device not enrolled")
 	}
+	policy := accessPolicyFor(b, st)
+	if policy.mode == AccessDisabled {
+		// Do not keep a CDAP registration alive merely to reject individual
+		// requests. AccessDisabled is an explicit local opt-out for both
+		// incoming transports.
+		return nil, errRemoteAccessDisabled
+	}
 
-	_, _, _, _ = st.Snapshot()
 	st.mu.Lock()
 	token := st.DeviceToken
 	deviceID := st.DeviceID
 	st.mu.Unlock()
 
 	cfg := bdagent.DefaultConfig()
-	cfg.Server = b.CDAPWebSocketURL()
+	cdapWS, _ := PickWorkingCDAP(b, st)
+	cfg.Server = cdapWS
 	cfg.AuthMethod = "device_token"
 	cfg.DeviceToken = token
 	cfg.DeviceID = deviceID
@@ -75,43 +86,54 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 		cfg.Tags = append(cfg.Tags, "bundle:"+b.BundleID)
 	}
 
-	cfg.Screenshot = true
-	cfg.Terminal = true
-	cfg.Clipboard = true
-	cfg.FileBrowser = true
+	caps := policy.capabilities
+	cfg.Screenshot = caps.Desktop
+	cfg.Terminal = caps.Terminal
+	cfg.Clipboard = caps.Clipboard
+	cfg.FileBrowser = caps.Files
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		cfg.FileRoot = home
 	}
 
-	_, mode, _, _ := st.Snapshot()
-	switch mode {
-	case AccessUnattended:
-		cfg.RequireConsent = false
-	case AccessDisabled:
-		cfg.RequireConsent = true
-		cfg.Screenshot = false
-		cfg.Terminal = false
-		cfg.FileBrowser = false
-	default:
-		cfg.RequireConsent = true
-	}
+	cfg.RequireConsent = policy.requiresConsent()
 
 	if strings.HasPrefix(strings.TrimSpace(b.ServerAddress), "https://") || b.useTLS() {
 		cfg.EnforceTLS = true
+	}
+	if b.Server != nil {
+		cfg.ServerCertPin = strings.TrimSpace(b.Server.CertPin)
 	}
 	if tlsInsecureEnabled() && cfg.ServerCertPin == "" {
 		cfg.TLSInsecureSkipVerify = true
 	}
 
 	if handlers != nil {
+		authorizer := handlers.sessionAuthorizer
 		if handlers.onConsent != nil {
-			cfg.ConsentHandler = handlers.onConsent
+			cfg.ConsentHandler = func(sessionID, operator string) bool {
+				granted := handlers.onConsent(sessionID, operator)
+				if authorizer != nil {
+					authorizer.ResolveConsent(sessionID, granted)
+				}
+				return granted
+			}
+		}
+		if authorizer != nil {
+			requireConsent := policy.requiresConsent()
+			cfg.SessionAuthorizeHandler = func(sessionID, operator, transport string, capabilities []string, grant string) error {
+				return authorizer.Authorize(sessionID, operator, transport, capabilities, grant, requireConsent)
+			}
 		}
 		if handlers.onSessionStart != nil {
 			cfg.SessionStartHandler = handlers.onSessionStart
 		}
 		if handlers.onSessionEnd != nil {
-			cfg.SessionEndHandler = handlers.onSessionEnd
+			cfg.SessionEndHandler = func(sessionID string) {
+				if authorizer != nil {
+					authorizer.End(sessionID)
+				}
+				handlers.onSessionEnd(sessionID)
+			}
 		}
 		if handlers.onChat != nil {
 			cfg.ChatMessageHandler = handlers.onChat
@@ -138,6 +160,13 @@ func (e *Engine) Start(st *AppState) error {
 	}
 	if !st.IsEnrolled() {
 		return fmt.Errorf("enrollment required before starting engine")
+	}
+	if e.sessionAuthorizer == nil {
+		authorizer, err := newPassiveSessionAuthorizer(GetBranding(), st)
+		if err != nil {
+			return err
+		}
+		e.sessionAuthorizer = authorizer
 	}
 
 	cfg, err := buildConfig(GetBranding(), st, e.version, e)
@@ -168,6 +197,36 @@ func (e *Engine) Stop() {
 	if a != nil {
 		a.Stop()
 	}
+	// A local disconnect is an authorization boundary, not merely a transport
+	// pause. Drop the prior session arbiter so a later reconnect must obtain
+	// and validate a fresh server grant.
+	e.mu.Lock()
+	if e.agent == a {
+		e.agent = nil
+		e.running = false
+		e.sessionAuthorizer = nil
+	}
+	e.mu.Unlock()
+}
+
+// Restart applies a changed local access policy after the active agent exits.
+// Waiting for the old Run loop avoids racing a fresh configuration against an
+// agent that is still connected with the previous permissions.
+func (e *Engine) Restart(st *AppState) error {
+	e.Stop()
+
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for e.Running() {
+		select {
+		case <-deadline.C:
+			return fmt.Errorf("remote engine did not stop after access policy change")
+		case <-ticker.C:
+		}
+	}
+	return e.Start(st)
 }
 
 // Running reports whether the engine goroutine is active.

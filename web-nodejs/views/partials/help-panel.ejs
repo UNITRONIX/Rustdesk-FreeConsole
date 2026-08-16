@@ -1,0 +1,101 @@
+<%
+    var _s = (typeof supporters !== 'undefined' && supporters) ? supporters : { honorary: [], individuals: [], links: {} };
+    var _links = _s.links || {};
+    var _honorary = Array.isArray(_s.honorary) ? _s.honorary : [];
+    var _individuals = Array.isArray(_s.individuals) ? _s.individuals : [];
+%>
+<div class="bd-help-overlay" id="bd-help-overlay" hidden></div>
+<aside class="bd-help-panel" id="bd-help-panel" aria-hidden="true" aria-labelledby="bd-help-panel-title">
+    <div class="bd-help-panel-header">
+        <h2 class="bd-help-panel-title" id="bd-help-panel-title">
+            <span class="material-icons" aria-hidden="true">favorite</span>
+            <span><%= _('help.panel.title') || 'Help & Supporters' %></span>
+        </h2>
+        <button type="button" class="bd-help-panel-close" id="bd-help-panel-close" title="<%= _('help.panel.close') || 'Close' %>" aria-label="<%= _('help.panel.close') || 'Close' %>">
+            <span class="material-icons">close</span>
+        </button>
+    </div>
+    <div class="bd-help-panel-body">
+        <p class="bd-help-panel-thanks"><%= _('help.panel.thanks') || 'BetterDesk is free and open source thanks to people and organizations who believe in self-hostable remote management. Thank you.' %></p>
+
+        <% if (_honorary.length) { %>
+        <section class="bd-help-section">
+            <h3 class="bd-help-section-title"><%= _('help.panel.honorary') || 'Honorary Supporters' %></h3>
+            <ul class="bd-help-list">
+                <% _honorary.forEach(function (item) { %>
+                <li class="bd-help-card bd-help-card--honorary">
+                    <% if (item.logo) { %>
+                    <a class="bd-help-logo-link" href="<%= item.url || '#' %>" target="_blank" rel="noopener noreferrer">
+                        <img class="bd-help-logo" src="<%= item.logo %>" alt="<%= item.name %>" width="160" height="auto" loading="lazy">
+                    </a>
+                    <% } %>
+                    <div class="bd-help-card-text">
+                        <% if (item.url) { %>
+                        <a class="bd-help-name" href="<%= item.url %>" target="_blank" rel="noopener noreferrer"><%= item.name %></a>
+                        <% } else { %>
+                        <span class="bd-help-name"><%= item.name %></span>
+                        <% } %>
+                        <% if (item.role) { %><div class="bd-help-meta"><%= item.role %></div><% } %>
+                        <% if (item.blurb) { %><p class="bd-help-blurb"><%= item.blurb %></p><% } %>
+                    </div>
+                </li>
+                <% }); %>
+            </ul>
+        </section>
+        <% } %>
+
+        <% if (_individuals.length) { %>
+        <section class="bd-help-section">
+            <h3 class="bd-help-section-title"><%= _('help.panel.backers') || 'Individual Backers' %></h3>
+            <ul class="bd-help-list bd-help-list--compact">
+                <% _individuals.forEach(function (item) { %>
+                <li class="bd-help-card bd-help-card--person">
+                    <span class="material-icons bd-help-person-icon" aria-hidden="true">person</span>
+                    <div class="bd-help-card-text">
+                        <span class="bd-help-name"><%= item.name %></span>
+                        <% if (item.githubUrl) { %>
+                        <a class="bd-help-meta" href="<%= item.githubUrl %>" target="_blank" rel="noopener noreferrer">@<%= item.github || item.name %></a>
+                        <% } else if (item.github) { %>
+                        <span class="bd-help-meta">@<%= item.github %></span>
+                        <% } %>
+                    </div>
+                </li>
+                <% }); %>
+            </ul>
+        </section>
+        <% } %>
+
+        <section class="bd-help-section">
+            <h3 class="bd-help-section-title"><%= _('help.panel.sponsor_cta') || 'Support the project' %></h3>
+            <div class="bd-help-cta-row">
+                <% if (_links.sponsors) { %>
+                <a class="bd-help-cta" href="<%= _links.sponsors %>" target="_blank" rel="noopener noreferrer">
+                    <span class="material-icons" aria-hidden="true">volunteer_activism</span>
+                    <%= _('help.panel.link_sponsors') || 'GitHub Sponsors' %>
+                </a>
+                <% } %>
+                <% if (_links.buyMeACoffee) { %>
+                <a class="bd-help-cta" href="<%= _links.buyMeACoffee %>" target="_blank" rel="noopener noreferrer">
+                    <span class="material-icons" aria-hidden="true">local_cafe</span>
+                    <%= _('help.panel.link_bmc') || 'Buy Me a Coffee' %>
+                </a>
+                <% } %>
+            </div>
+        </section>
+
+        <section class="bd-help-section">
+            <h3 class="bd-help-section-title"><%= _('help.panel.links') || 'Useful links' %></h3>
+            <ul class="bd-help-links">
+                <% if (_links.repo) { %>
+                <li><a href="<%= _links.repo %>" target="_blank" rel="noopener noreferrer"><span class="material-icons" aria-hidden="true">code</span><%= _('help.panel.link_repo') || 'GitHub repository' %></a></li>
+                <% } %>
+                <% if (_links.issues) { %>
+                <li><a href="<%= _links.issues %>" target="_blank" rel="noopener noreferrer"><span class="material-icons" aria-hidden="true">bug_report</span><%= _('help.panel.link_issues') || 'Issues & feedback' %></a></li>
+                <% } %>
+                <% if (_links.sponsorsMd) { %>
+                <li><a href="<%= _links.sponsorsMd %>" target="_blank" rel="noopener noreferrer"><span class="material-icons" aria-hidden="true">menu_book</span><%= _('help.panel.link_sponsors_md') || 'Full sponsors list' %></a></li>
+                <% } %>
+            </ul>
+        </section>
+    </div>
+</aside>

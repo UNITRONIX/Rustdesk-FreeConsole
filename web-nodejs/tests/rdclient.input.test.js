@@ -26,13 +26,14 @@ function makeDocument() {
     const documentListeners = {
         keydown: [],
         keyup: [],
+        paste: [],
         pointerlockchange: [],
         visibilitychange: [],
     };
     return {
         activeElement: null,
         visibilityState: 'visible',
-        addEventListener(type, fn) {
+        addEventListener(type, fn, options) {
             if (documentListeners[type]) documentListeners[type].push(fn);
         },
         removeEventListener(type, fn) {
@@ -61,6 +62,8 @@ function makeInputHarness(extraGlobals) {
         _dispatch(type, event) {
             for (const fn of windowListeners[type] || []) fn(event);
         },
+        setTimeout,
+        clearTimeout,
     };
 
     const sandbox = loadBrowserScripts([
@@ -70,6 +73,8 @@ function makeInputHarness(extraGlobals) {
     ], {
         document,
         window: win,
+        setTimeout,
+        clearTimeout,
         RDProtocol: {},
         ...extraGlobals,
     });
@@ -261,6 +266,57 @@ describe('RDKeyboardEncoder parity', () => {
         });
         expect(evt.mode).toBe('Legacy');
         expect(evt.chr).toBe('ą'.codePointAt(0));
+    });
+
+    it('Legacy Norwegian symbol keys use e.key not US LEGACY_CHAR_MAP', () => {
+        // Physical Slash produces '-' on Norwegian QWERTY; map would wrongly send '/'.
+        const hyphen = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Slash',
+            key: '-',
+            down: true,
+            press: false,
+            e: { key: '-', code: 'Slash', shiftKey: false },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(hyphen.mode).toBe('Legacy');
+        expect(hyphen.chr).toBe('-'.codePointAt(0));
+
+        // Physical Minus produces '+' on Norwegian; map would wrongly send '-'.
+        const plus = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Minus',
+            key: '+',
+            down: true,
+            press: false,
+            e: { key: '+', code: 'Minus', shiftKey: false },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(plus.chr).toBe('+'.codePointAt(0));
+
+        // Physical Equal often produces '\\' on Norwegian; map would send '='.
+        const backslash = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Equal',
+            key: '\\',
+            down: true,
+            press: false,
+            e: { key: '\\', code: 'Equal', shiftKey: false },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(backslash.chr).toBe('\\'.codePointAt(0));
+
+        // Shift+, → ';' on Norwegian (and US); must not force unshifted ','.
+        const semicolon = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Comma',
+            key: ';',
+            down: true,
+            press: false,
+            e: { key: ';', code: 'Comma', shiftKey: true },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(['ShiftLeft']),
+        });
+        expect(semicolon.chr).toBe(';'.codePointAt(0));
     });
 
     it('Legacy Caps+A → uppercase chr when Caps Lock is on', () => {
@@ -616,5 +672,89 @@ describe('RDInput keyboard parity (RustDesk contract)', () => {
         const codeToScancode = sc.RDKeyboardScancode.codeToScancode;
         expect(codeToScancode('Delete', 'Linux')).toBe(111);
         expect(codeToScancode('Pause', 'Linux')).toBe(119);
+    });
+});
+
+describe('RDInput browser paste (Ctrl+V)', () => {
+    let makeInput;
+    let document;
+
+    beforeEach(() => {
+        const harness = makeInputHarness();
+        makeInput = harness.makeInput;
+        document = harness.document;
+    });
+
+    function pasteEvt(text, files) {
+        return {
+            clipboardData: {
+                files: files || { length: 0 },
+                getData(type) {
+                    return type === 'text/plain' ? (text || '') : '';
+                },
+            },
+            preventDefault: jest.fn(),
+            stopPropagation: jest.fn(),
+        };
+    }
+
+    it('does not preventDefault on Ctrl+V so the paste event can fire', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.start();
+        const prevented = { value: false };
+        const evt = keyEvt({
+            code: 'KeyV',
+            key: 'v',
+            ctrlKey: true,
+            preventDefault() { prevented.value = true; },
+        });
+        input._handleKeyDown(evt);
+        expect(prevented.value).toBe(false);
+        expect(sent.some((m) => m.keyEvent && m.keyEvent.chr !== undefined)).toBe(false);
+        expect(input._awaitingBrowserPaste).toBe(true);
+    });
+
+    it('on paste: calls onLocalPaste then synthesizes KeyV down/up', async () => {
+        jest.useFakeTimers();
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.start();
+        const pasteTexts = [];
+        input.onLocalPaste = async (text) => {
+            pasteTexts.push(text);
+            await Promise.resolve();
+        };
+
+        input._handleKeyDown(keyEvt({ code: 'ControlLeft', key: 'Control', ctrlKey: true }));
+        sent.length = 0;
+        input._handleKeyDown(keyEvt({ code: 'KeyV', key: 'v', ctrlKey: true }));
+        input._handlePaste(pasteEvt('hello from local'));
+
+        await Promise.resolve();
+        await Promise.resolve();
+        jest.runAllTimers();
+        await Promise.resolve();
+
+        expect(pasteTexts).toEqual(['hello from local']);
+        const keyMsgs = sent.filter((m) => m.keyEvent);
+        expect(keyMsgs.length).toBeGreaterThanOrEqual(2);
+        jest.useRealTimers();
+    });
+
+    it('routes clipboard files to onLocalPasteFiles without KeyV', async () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.start();
+        const gotFiles = [];
+        input.onLocalPaste = jest.fn();
+        input.onLocalPasteFiles = (files) => { gotFiles.push(files); };
+
+        const fakeFiles = { length: 1, 0: { name: 'a.txt' } };
+        input._handlePaste(pasteEvt('', fakeFiles));
+
+        expect(gotFiles).toHaveLength(1);
+        expect(input.onLocalPaste).not.toHaveBeenCalled();
+        expect(sent.filter((m) => m.keyEvent)).toHaveLength(0);
     });
 });

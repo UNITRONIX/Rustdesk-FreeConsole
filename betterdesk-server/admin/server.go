@@ -61,13 +61,15 @@ func (s *Server) SetReloadFunc(fn func() error) {
 }
 
 // SetAdminPassword sets the password required for admin TCP connections.
-// If empty, no password is required (not recommended in production).
 func (s *Server) SetAdminPassword(pw string) {
 	s.adminPassword = pw
 }
 
 // Start launches the admin TCP listener.
 func (s *Server) Start(ctx context.Context) error {
+	if err := s.cfg.ValidateAdminInterface(); err != nil {
+		return fmt.Errorf("admin: %w", err)
+	}
 	if s.cfg.AdminPort == 0 {
 		return nil // Admin interface disabled
 	}

@@ -6,7 +6,6 @@
  * LOG_LEVEL: error | warn | info | debug (default: warn in production, info otherwise)
  */
 
-const config = require('../config/config');
 const { sanitizeLogValue, redactUsernameForLog } = require('./logRedact');
 
 const LEVEL_RANK = { error: 0, warn: 1, info: 2, debug: 3 };
@@ -16,7 +15,7 @@ function resolveLogLevel() {
     if (raw && Object.prototype.hasOwnProperty.call(LEVEL_RANK, raw)) {
         return raw;
     }
-    return config.isProduction ? 'warn' : 'info';
+    return process.env.NODE_ENV === 'production' ? 'warn' : 'info';
 }
 
 const activeLevel = resolveLogLevel();

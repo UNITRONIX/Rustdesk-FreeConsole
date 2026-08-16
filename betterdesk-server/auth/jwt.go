@@ -45,6 +45,14 @@ func NewJWTManager(secret string, expiry time.Duration) *JWTManager {
 	}
 }
 
+// Secret returns the signing secret (also used to seal access-policy connect secrets).
+func (m *JWTManager) Secret() string {
+	if m == nil {
+		return ""
+	}
+	return string(m.secret)
+}
+
 // Generate creates a new signed JWT token for the given subject and role.
 func (m *JWTManager) Generate(subject, role string) (string, error) {
 	return m.GenerateWithTTL(subject, role, m.expiry)

@@ -1,0 +1,303 @@
+/**
+ * BetterDesk Help panel — supporters & project links
+ * UX 3.5: docked beside main when shell has .ux35-help-open (desktop)
+ * Classic / narrow / Desktop: fixed right slide-over + overlay
+ */
+
+.bd-help-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--ux35-motion, 150ms) ease;
+}
+
+.bd-help-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.bd-help-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 46;
+    width: min(var(--ux35-help-panel-width, 300px), 100vw);
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--ux35-card-bg, var(--bg-secondary, #161b22));
+    color: var(--ux35-text, var(--text-primary, #e6edf3));
+    border-left: 1px solid var(--ux35-border, var(--border-primary, #30363d));
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.25);
+    transform: translateX(100%);
+    transition: transform var(--ux35-motion, 150ms) ease;
+    font-family: var(--ux35-font-chrome, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+}
+
+.bd-help-panel.is-open {
+    transform: translateX(0);
+}
+
+.bd-help-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 12px 12px 12px 16px;
+    border-bottom: 1px solid var(--ux35-border, var(--border-primary, #30363d));
+    min-height: var(--ux35-topbar-height, 48px);
+}
+
+.bd-help-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.bd-help-panel-title .material-icons {
+    font-size: 20px;
+    color: var(--ux35-primary, var(--accent-blue, #58a6ff));
+}
+
+.bd-help-panel-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: var(--ux35-radius-sm, 6px);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.bd-help-panel-close:hover {
+    background: var(--ux35-hover, var(--bg-hover, rgba(255, 255, 255, 0.06)));
+}
+
+.bd-help-panel :focus-visible {
+    outline: 2px solid var(--ux35-focus-ring, var(--ux35-primary, var(--accent-blue)));
+    outline-offset: 2px;
+}
+
+.bd-help-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.bd-help-panel-thanks {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ux35-muted, var(--text-secondary, #8b949e));
+}
+
+.bd-help-section-title {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ux35-muted, var(--text-secondary, #8b949e));
+}
+
+.bd-help-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.bd-help-list--compact {
+    gap: 8px;
+}
+
+.bd-help-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--ux35-border-light, var(--border-secondary, #21262d));
+    border-radius: var(--ux35-radius, 8px);
+    background: var(--ux35-bg, var(--bg-primary, #0d1117));
+}
+
+.bd-help-card--person {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.bd-help-person-icon {
+    font-size: 20px;
+    color: var(--ux35-muted, var(--text-secondary, #8b949e));
+    flex-shrink: 0;
+}
+
+.bd-help-logo-link {
+    display: block;
+}
+
+.bd-help-logo {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: 48px;
+    object-fit: contain;
+}
+
+.bd-help-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ux35-text, var(--text-primary, #e6edf3));
+    text-decoration: none;
+}
+
+a.bd-help-name:hover {
+    color: var(--ux35-primary, var(--accent-blue, #58a6ff));
+}
+
+.bd-help-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--ux35-muted, var(--text-secondary, #8b949e));
+    text-decoration: none;
+}
+
+a.bd-help-meta:hover {
+    color: var(--ux35-primary, var(--accent-blue, #58a6ff));
+}
+
+.bd-help-blurb {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--ux35-muted, var(--text-secondary, #8b949e));
+}
+
+.bd-help-cta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bd-help-cta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--ux35-radius, 8px);
+    border: 1px solid var(--ux35-border, var(--border-primary, #30363d));
+    background: var(--ux35-active-bg, var(--accent-blue-muted, rgba(56, 139, 253, 0.12)));
+    color: var(--ux35-text, var(--text-primary, #e6edf3));
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.bd-help-cta:hover {
+    border-color: var(--ux35-primary, var(--accent-blue, #58a6ff));
+}
+
+.bd-help-cta .material-icons {
+    font-size: 18px;
+    color: var(--ux35-primary, var(--accent-blue, #58a6ff));
+}
+
+.bd-help-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bd-help-links a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 4px;
+    font-size: 13px;
+    color: var(--ux35-text, var(--text-primary, #e6edf3));
+    text-decoration: none;
+    border-radius: var(--ux35-radius-sm, 6px);
+}
+
+.bd-help-links a:hover {
+    background: var(--ux35-hover, var(--bg-hover, rgba(255, 255, 255, 0.06)));
+    color: var(--ux35-primary, var(--accent-blue, #58a6ff));
+}
+
+.bd-help-links .material-icons {
+    font-size: 18px;
+    color: var(--ux35-muted, var(--text-secondary, #8b949e));
+}
+
+/* UX 3.5 desktop: dock panel in shell body (no overlay) */
+@media (min-width: 1100px) {
+    .ux35-page .bd-help-overlay {
+        display: none !important;
+    }
+
+    .ux35-page .ux35-body {
+        position: relative;
+    }
+
+    .ux35-page .bd-help-panel {
+        position: relative;
+        top: auto;
+        right: auto;
+        z-index: 2;
+        height: auto;
+        align-self: stretch;
+        width: 0;
+        min-width: 0;
+        overflow: hidden;
+        border-left-width: 0;
+        box-shadow: none;
+        transform: none;
+        transition: width var(--ux35-motion, 150ms) ease, min-width var(--ux35-motion, 150ms) ease, border-left-width var(--ux35-motion, 150ms) ease;
+        pointer-events: none;
+        visibility: hidden;
+    }
+
+    .ux35-page .ux35-shell.ux35-help-open .bd-help-panel,
+    .ux35-page.ux35-help-open .bd-help-panel {
+        width: var(--ux35-help-panel-width, 300px);
+        min-width: var(--ux35-help-panel-width, 300px);
+        border-left-width: 1px;
+        pointer-events: auto;
+        visibility: visible;
+        overflow: hidden;
+    }
+
+    .ux35-page .bd-help-panel.is-open {
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bd-help-overlay,
+    .bd-help-panel {
+        transition: none;
+    }
+}

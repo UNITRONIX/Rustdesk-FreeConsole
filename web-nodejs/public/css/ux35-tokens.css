@@ -22,8 +22,12 @@
     --ux35-sidebar-width: 220px;
     --ux35-sidebar-width-min: 200px;
     --ux35-sidebar-width-max: 320px;
+    --ux35-help-panel-width: 300px;
     --ux35-radius: 8px;
     --ux35-radius-sm: 6px;
+    --ux35-control-size: 36px;
+    --ux35-control-size-touch: 44px;
+    --ux35-nav-item-min-height: 36px;
     --ux35-motion: 150ms;
     --ux35-motion-fast: 120ms;
 
@@ -32,7 +36,11 @@
 
     /* Solid surfaces (performance: no glass aliases) */
     --ux35-bg: var(--bg-primary);
-    --ux35-topbar-bg: var(--bg-elevated, var(--bg-secondary));
+    /* Topbar chrome is theme-invariant (always dark) — light/dark only flip shell surfaces */
+    --ux35-topbar-bg: #161b22;
+    --ux35-topbar-fg: #e6edf3;
+    --ux35-topbar-fg-muted: #8b949e;
+    --ux35-topbar-border: #30363d;
     --ux35-sidebar-bg: var(--bg-secondary);
     --ux35-card-bg: var(--bg-secondary);
     --ux35-border: var(--border-primary);
@@ -42,17 +50,13 @@
     --ux35-hover: var(--bg-hover);
     --ux35-active-bg: var(--accent-blue-muted);
     --ux35-primary: var(--accent-blue);
-    --ux35-topbar-fg: var(--text-primary);
-    --ux35-topbar-fg-muted: var(--text-secondary);
+    --ux35-focus-ring: var(--accent-blue);
     --ux35-glass-blur: 0px;
     --ux35-glass-saturate: 1;
 }
 
-/* Light: ISP-style blue topbar + light shell; body/sidebar text from branding palette */
+/* Light: light shell surfaces; topbar stays dark chrome from :root */
 [data-theme="light"] {
-    --ux35-topbar-bg: var(--accent-blue, #0969da);
-    --ux35-topbar-fg: #ffffff;
-    --ux35-topbar-fg-muted: rgba(255, 255, 255, 0.78);
     --ux35-sidebar-bg: var(--bg-secondary, #ffffff);
     --ux35-card-bg: var(--bg-secondary, #ffffff);
     --ux35-bg: var(--bg-primary, #f0f2f5);
@@ -63,12 +67,6 @@
     --ux35-hover: var(--bg-hover, rgba(0, 0, 0, 0.04));
     --ux35-active-bg: var(--accent-blue-muted, rgba(9, 105, 218, 0.1));
     --ux35-primary: var(--accent-blue, #0969da);
-}
-
-[data-theme="dark"] {
-    --ux35-topbar-bg: var(--bg-elevated, var(--bg-secondary, #161b22));
-    --ux35-topbar-fg: var(--text-primary, #e6edf3);
-    --ux35-topbar-fg-muted: var(--text-secondary, #8b949e);
 }
 
 @media (prefers-reduced-motion: reduce) {

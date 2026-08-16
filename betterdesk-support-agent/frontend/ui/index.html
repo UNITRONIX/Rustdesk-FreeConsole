@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterDesk Support</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="header">
+      <div class="brand-row">
+        <img id="logo" class="logo" alt="" hidden />
+        <div>
+          <div class="product" id="product">BetterDesk Support</div>
+          <div class="tagline" id="tagline"></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="status" id="status-row">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">…</span>
+      </div>
+
+      <section class="card">
+        <div class="card-label" data-i18n="your_id">Your ID</div>
+        <div class="card-row">
+          <div class="card-value mono" id="device-id">—</div>
+          <button type="button" class="icon-btn" id="copy-id" title="Copy">⧉</button>
+        </div>
+      </section>
+
+      <section class="card" id="password-card">
+        <div class="card-label" data-i18n="access_password">Access password</div>
+        <div class="card-row">
+          <div class="card-value mono" id="password">—</div>
+          <button type="button" class="icon-btn" id="copy-pw" title="Copy">⧉</button>
+        </div>
+      </section>
+
+      <button type="button" class="btn secondary" id="btn-help" data-i18n="request_help">Request help</button>
+      <button type="button" class="btn primary" id="btn-chat" data-i18n="chat_with_support">Chat with support</button>
+    </main>
+
+    <footer class="footer">
+      <button type="button" class="icon-btn" id="btn-settings" title="Settings">⚙</button>
+      <span class="version" id="version"></span>
+      <button type="button" class="icon-btn" id="btn-quit" title="Quit">✕</button>
+    </footer>
+  </div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card">
+      <h2 id="modal-title"></h2>
+      <div id="modal-body"></div>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <div class="session-bar" id="session-bar" hidden>
+    <span id="session-text"></span>
+    <button type="button" class="btn danger" id="btn-disconnect" data-i18n="disconnect">Disconnect</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

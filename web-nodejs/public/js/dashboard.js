@@ -44,8 +44,7 @@
         'dashboard.tip_2fa',
         'dashboard.tip_bulk_actions',
         'dashboard.tip_theme',
-        'dashboard.tip_cdap',
-        'dashboard.tip_tutorials'
+        'dashboard.tip_cdap'
     ];
     
     function init(root) {

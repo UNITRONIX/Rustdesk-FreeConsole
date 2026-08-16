@@ -1,0 +1,42 @@
+---
+description: Day-to-day git remote is Chesster1981/BetterDesk; never PR/merge/push to UNITRONIX unless Ole explicitly asks
+alwaysApply: true
+---
+
+# Chesster1981 fork — default remote / branch
+
+## Default (always)
+
+| Item | Value |
+|------|--------|
+| Remote | **`origin`** → `https://github.com/Chesster1981/BetterDesk.git` |
+| Working branch | **`dev`** (operator’s fork) |
+| Push / PR target | **Chesster1981/BetterDesk** only |
+
+1. Before commit/push/PR: confirm `git remote -v` shows **Chesster1981**, and `git branch --show-current` is **`dev`** (or a feature branch off that fork’s `dev`).
+2. **Never** open PRs, merges, or push attempts against **UNITRONIX/BetterDesk** unless Ole **explicitly** asks in that session.
+3. **Never** create “upstream” PRs to UNITRONIX as a side effect of a fix (e.g. Cliprdr). Improve **Chesster1981/BetterDesk** only; close mistaken UNITRONIX PRs with a short note when asked.
+4. Do **not** treat UNITRONIX issues/PRs as merge targets for this workspace — Ole closes/ignores those himself unless he orders otherwise.
+5. Day-to-day commits land on **`origin/dev`** (Chesster1981). Feature branches, if used, push to Chesster1981 and stay off UNITRONIX.
+
+## Panel Updates (Settings → Updates)
+
+`web-nodejs/services/updateService.js` reads:
+
+| Env | Default | Fork value |
+|-----|---------|------------|
+| `UPDATE_GITHUB_OWNER` | `UNITRONIX` | **`Chesster1981`** |
+| `UPDATE_GITHUB_REPO` | `BetterDesk` | `BetterDesk` |
+| `UPDATE_GITHUB_BRANCH` | `main` (Stable) | **`dev`** for Development channel |
+
+Settings → Updates only switches **channel** (branch: `main` ↔ `dev`) via `setUpdateChannel` / `UPDATE_GITHUB_BRANCH`. **Owner is not in the UI** — set `UPDATE_GITHUB_OWNER=Chesster1981` in the console `.env` (and restart the console service) so Updates pull fork commits. Leaving the default `UNITRONIX` explains why Chesster-only fixes “did nothing” on Apply.
+
+- **Do not** invent or blindly overwrite production `.env` secrets — only append/change when Ole asks (`envMerge` / `upsertEnvKey` patterns).
+
+## Release exception (UNITRONIX)
+
+When Ole **explicitly** asks for an upstream / production release to UNITRONIX, follow [`betterdesk-release-workflow.mdc`](betterdesk-release-workflow.mdc). Default remains Chesster-only; severity or “critical” does **not** authorize UNITRONIX targeting.
+
+## Commit + push after panel-relevant rule/doc changes
+
+Follow [`panel-update-commit-push.mdc`](panel-update-commit-push.mdc): push target is **`origin/dev` on Chesster1981**, never UNITRONIX.

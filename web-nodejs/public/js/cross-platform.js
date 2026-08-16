@@ -5,26 +5,27 @@
     'use strict';
 
     // ── Static data ─────────────────────────────────────────────────
-    const PLATFORMS = ['windows', 'linux_x86', 'linux_arm', 'macos', 'android', 'ios', 'web', 'chromeos'];
+    // Supported client builds: Windows, Linux, Android (+ web/ChromeOS notes). No Apple.
+    const PLATFORMS = ['windows', 'linux_x86', 'linux_arm', 'android', 'web', 'chromeos'];
 
     // full = ✔ fully supported, partial = ◐ limited, none = ✖ not available, planned = ◎ planned
     const MATRIX = [
-        { feature: 'cross_platform.feat_desktop_client',    vals: ['full','full','full','full','planned','planned','partial','partial'] },
-        { feature: 'cross_platform.feat_background_agent',  vals: ['full','full','full','partial','partial','none','none','partial'] },
-        { feature: 'cross_platform.feat_remote_target',     vals: ['full','full','partial','partial','partial','none','partial','partial'] },
-        { feature: 'cross_platform.feat_screen_capture',    vals: ['full','full','full','partial','partial','none','partial','partial'] },
-        { feature: 'cross_platform.feat_input_injection',   vals: ['full','full','full','partial','partial','none','partial','none'] },
-        { feature: 'cross_platform.feat_file_transfer',     vals: ['full','full','full','full','partial','none','partial','partial'] },
-        { feature: 'cross_platform.feat_clipboard_sync',    vals: ['full','full','full','full','partial','none','partial','partial'] },
-        { feature: 'cross_platform.feat_audio_streaming',   vals: ['full','full','partial','partial','none','none','partial','none'] },
-        { feature: 'cross_platform.feat_chat',              vals: ['full','full','full','full','full','full','full','full'] },
-        { feature: 'cross_platform.feat_session_recording', vals: ['full','full','full','partial','none','none','partial','none'] },
-        { feature: 'cross_platform.feat_multi_monitor',     vals: ['full','full','full','full','partial','none','partial','none'] },
-        { feature: 'cross_platform.feat_unattended_access', vals: ['full','full','full','partial','partial','none','none','none'] },
-        { feature: 'cross_platform.feat_h264',              vals: ['full','full','full','full','full','none','partial','full'] },
-        { feature: 'cross_platform.feat_vp9',               vals: ['full','full','full','full','partial','none','partial','partial'] },
-        { feature: 'cross_platform.feat_av1',               vals: ['partial','partial','none','partial','none','none','partial','none'] },
-        { feature: 'cross_platform.feat_cdap_agent',        vals: ['full','full','full','partial','none','none','none','none'] },
+        { feature: 'cross_platform.feat_desktop_client',    vals: ['full','full','full','planned','partial','partial'] },
+        { feature: 'cross_platform.feat_background_agent',  vals: ['full','full','full','partial','none','partial'] },
+        { feature: 'cross_platform.feat_remote_target',     vals: ['full','full','partial','partial','partial','partial'] },
+        { feature: 'cross_platform.feat_screen_capture',    vals: ['full','full','full','partial','partial','partial'] },
+        { feature: 'cross_platform.feat_input_injection',   vals: ['full','full','full','partial','partial','none'] },
+        { feature: 'cross_platform.feat_file_transfer',     vals: ['full','full','full','partial','partial','partial'] },
+        { feature: 'cross_platform.feat_clipboard_sync',    vals: ['full','full','full','partial','partial','partial'] },
+        { feature: 'cross_platform.feat_audio_streaming',   vals: ['full','full','partial','none','partial','none'] },
+        { feature: 'cross_platform.feat_chat',              vals: ['full','full','full','full','full','full'] },
+        { feature: 'cross_platform.feat_session_recording', vals: ['full','full','full','none','partial','none'] },
+        { feature: 'cross_platform.feat_multi_monitor',     vals: ['full','full','full','partial','partial','none'] },
+        { feature: 'cross_platform.feat_unattended_access', vals: ['full','full','full','partial','none','none'] },
+        { feature: 'cross_platform.feat_h264',              vals: ['full','full','full','full','partial','full'] },
+        { feature: 'cross_platform.feat_vp9',               vals: ['full','full','full','partial','partial','partial'] },
+        { feature: 'cross_platform.feat_av1',               vals: ['partial','partial','none','none','partial','none'] },
+        { feature: 'cross_platform.feat_cdap_agent',        vals: ['full','full','full','none','none','none'] },
     ];
 
     const LIMITATIONS = [
@@ -40,20 +41,10 @@
             'cross_platform.limit_linux_arm',
             'cross_platform.limit_linux_unprivileged'
         ]},
-        { platform: 'macos', icon: 'laptop_mac', status: 'testing', items: [
-            'cross_platform.limit_mac_screen',
-            'cross_platform.limit_mac_signing',
-            'cross_platform.limit_mac_notarize'
-        ]},
         { platform: 'android', icon: 'phone_android', status: 'planned', items: [
             'cross_platform.limit_android_projection',
             'cross_platform.limit_android_accessibility',
             'cross_platform.limit_android_battery'
-        ]},
-        { platform: 'ios', icon: 'phone_iphone', status: 'limited', items: [
-            'cross_platform.limit_ios_capture',
-            'cross_platform.limit_ios_input',
-            'cross_platform.limit_ios_appstore'
         ]},
         { platform: 'web', icon: 'language', status: 'production', items: [
             'cross_platform.limit_web_https',
@@ -67,7 +58,7 @@
         ]},
     ];
 
-    const BAR_COLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#a371f7','#f0883e','#79c0ff','#56d364'];
+    const BAR_COLORS = ['#58a6ff','#3fb950','#d29922','#a371f7','#79c0ff','#56d364'];
 
     // ── Helpers ──────────────────────────────────────────────────────
     function _(key) { return (typeof window._ === 'function') ? window._(key) : key.split('.').pop(); }

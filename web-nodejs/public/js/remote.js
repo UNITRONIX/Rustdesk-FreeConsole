@@ -109,7 +109,11 @@
         const toast = document.createElement('div');
         toast.className = 'rd-toast rd-toast-' + (type || 'info');
         toast.textContent = message;
-        document.body.appendChild(toast);
+        // Prefer the fullscreen / viewer shell host — body children are invisible in FS.
+        const host = document.fullscreenElement
+            || document.getElementById('rd-viewer-shell')
+            || document.body;
+        host.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('show'));
         setTimeout(() => {
             toast.classList.remove('show');
@@ -502,26 +506,229 @@
     // The browser cannot observe clipboard changes, but it can read the
     // clipboard once the tab regains focus (with transient activation), so we
     // push the current local clipboard to the active streaming session then.
+    //
+    // Never run this on right/middle-click: Desktop Cliprdr sync + FormatData
+    // share a cache lock with remote Explorer context-menu probes. Awaiting
+    // sync on button 2 is what made right-click take 20+ seconds when the
+    // local clipboard held files.
+    //
+    // Focus/left-click must also stay fire-and-forget: Tauri used to run
+    // desktop_clipboard_sync on the WebView UI thread, so OpenClipboard after a
+    // local file Copy self-deadlocked (~30s) and froze click/menu delivery.
+    //
+    // Even after spawn_blocking, remote Explorer still probes FormatData on
+    // every context menu when file formats are advertised. That reply must not
+    // wait on sync IPC — see RDCliprdr cached PDU + input-priority pause.
+    function _clipDebug() {
+        if (window.BetterDesk && window.BetterDesk.debugRelay) {
+            console.log.apply(console, ['[ClipboardSync]'].concat(Array.prototype.slice.call(arguments)));
+        }
+    }
     let _lastSyncedClipboard = '';
-    async function syncLocalClipboardToRemote() {
+    let _clipSyncTimer = null;
+    let _clipSyncQueued = false;
+    async function syncLocalClipboardToRemote(ev) {
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
+            && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            _clipDebug('skip: non-left mouse button (keep remote context menu responsive)');
+            return;
+        }
         const session = getActiveSession();
-        if (!session || !session.client || session.state !== 'streaming') return;
-        if (session.client.viewOnly) return;
-        if (!navigator.clipboard || !navigator.clipboard.readText) return;
+        if (!session || !session.client || session.state !== 'streaming') {
+            _clipDebug('skip: no active streaming session', session && session.state);
+            return;
+        }
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.isInputPriority === 'function'
+            && RDCliprdr.isInputPriority(session.client)) {
+            _clipDebug('skip: input priority (clicks/context menu in progress)');
+            return;
+        }
+        if (session.client.viewOnly) {
+            _clipDebug('skip: view-only session');
+            return;
+        }
+        if (session.client._lastSyncedClipboardHint) {
+            _lastSyncedClipboard = session.client._lastSyncedClipboardHint;
+        }
+        let hasFiles = false;
+        if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            _clipDebug('desktop bridge detected → syncCliprdrFiles()');
+            try {
+                // Intentionally not blocking input: invoke runs off the UI thread
+                // (async Rust command). Stacking is gated inside RDCliprdr.syncPaths.
+                const sync = await session.client.syncCliprdrFiles();
+                hasFiles = !!(sync && sync.hasFiles);
+                if (sync && sync.busy) {
+                    _clipDebug('Cliprdr sync busy (clipboard locked / in-flight) — skipping text push');
+                    return;
+                }
+            } catch (err) {
+                _clipDebug('syncCliprdrFiles failed:', err && err.message ? err.message : err);
+            }
+        } else if (window.__BETTERDESK_RDCLIENT_DESKTOP__) {
+            _clipDebug('desktop flag set but RDCliprdr.isSupported() is false — check window.__TAURI__.core.invoke');
+        }
+        // Explorer file copies often also expose a path as CF_UNICODETEXT. Sending
+        // that text Clipboard message after Cliprdr FormatList clears file formats
+        // on the peer — skip text when local CF_HDROP is present.
+        // Also never flushPendingLocalClipboard (writeText) before Cliprdr sync:
+        // that wipes CF_HDROP and can leave remote Explorer stuck on a half-applied
+        // FormatList from the previous click.
+        if (hasFiles) {
+            _clipDebug('skip text clipboard: local file clipboard (CF_HDROP) present');
+            return;
+        }
+        // Remote→local writes often fail without a gesture; retry on focus/click
+        // only when we are not holding a local file clipboard.
+        if (typeof session.client.flushPendingLocalClipboard === 'function') {
+            try {
+                await session.client.flushPendingLocalClipboard();
+            } catch (_) { /* ignore */ }
+        }
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            _clipDebug('skip: navigator.clipboard.readText unavailable in this webview');
+            return;
+        }
         try {
             const text = await navigator.clipboard.readText();
+            _clipDebug('readText() ok, length=', text ? text.length : 0);
             if (text && text !== _lastSyncedClipboard) {
                 _lastSyncedClipboard = text;
                 session.client.sendClipboard(text);
+                _clipDebug('sendClipboard() called');
             }
-        } catch {
+        } catch (err) {
+            _clipDebug('readText() FAILED:', err && err.message ? err.message : err);
             // Permission denied or not focused — ignore, the manual paste
             // button remains available as a fallback.
         }
     }
-    window.addEventListener('focus', syncLocalClipboardToRemote);
+    function scheduleLocalClipboardSync(ev) {
+        const session = getActiveSession();
+        // Right/middle-click must not *await* Cliprdr on the input path (menu lag),
+        // but must still queue FormatList so remote Paste becomes enabled.
+        // Cancelling sync here was why Copy → right-click → Paste stayed grey.
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
+            && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            if (session && session.client) {
+                session.client._cliprdrSyncQueued = true;
+            }
+            _clipDebug('right/middle-click: queue Cliprdr sync (do not run on click path)');
+            return;
+        }
+        if (session && session.client
+            && typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.isInputPriority === 'function'
+            && RDCliprdr.isInputPriority(session.client)) {
+            session.client._cliprdrSyncQueued = true;
+            _clipDebug('defer left-click sync: input priority (queued)');
+            return;
+        }
+        // Debounce left-click storms so we do not stack Cliprdr IPC on every
+        // mousedown while a prior assess/materialize is still running.
+        _clipSyncQueued = true;
+        if (_clipSyncTimer) return;
+        _clipSyncTimer = setTimeout(function () {
+            _clipSyncTimer = null;
+            if (!_clipSyncQueued) return;
+            _clipSyncQueued = false;
+            const s = getActiveSession();
+            if (s && s.client
+                && typeof RDCliprdr !== 'undefined'
+                && typeof RDCliprdr.isInputPriority === 'function'
+                && RDCliprdr.isInputPriority(s.client)) {
+                s.client._cliprdrSyncQueued = true;
+                _clipDebug('left-click sync still in priority window — queued for flush');
+                return;
+            }
+            void syncLocalClipboardToRemote({ button: 0 });
+        }, 200);
+    }
+    let _focusClipSyncTimer = null;
+    window.addEventListener('focus', function () {
+        // Debounce + yield to clicks: focus often fires around window activation
+        // right before the operator right-clicks into Explorer.
+        if (_focusClipSyncTimer) clearTimeout(_focusClipSyncTimer);
+        _focusClipSyncTimer = setTimeout(function () {
+            _focusClipSyncTimer = null;
+            const session = getActiveSession();
+            if (session && session.client
+                && typeof RDCliprdr !== 'undefined'
+                && typeof RDCliprdr.isInputPriority === 'function'
+                && RDCliprdr.isInputPriority(session.client)) {
+                session.client._cliprdrSyncQueued = true;
+                _clipDebug('focus sync deferred: input priority (queued for flush)');
+                return;
+            }
+            void syncLocalClipboardToRemote(null);
+        }, 350);
+    });
     if (viewerContainer) {
-        viewerContainer.addEventListener('mousedown', syncLocalClipboardToRemote);
+        // Capture phase: mark input priority before RDInput / Cliprdr handlers run.
+        viewerContainer.addEventListener('mousedown', function (ev) {
+            const session = getActiveSession();
+            if (session && session.client
+                && typeof RDCliprdr !== 'undefined'
+                && typeof RDCliprdr.noteUserInput === 'function') {
+                RDCliprdr.noteUserInput(session.client, ev);
+            }
+        }, true);
+        viewerContainer.addEventListener('mousedown', scheduleLocalClipboardSync);
+
+        // Browser HTML5 drag-and-drop onto the session surface → file transfer upload
+        viewerContainer.addEventListener('dragover', (e) => {
+            if (!e.dataTransfer || !e.dataTransfer.types) return;
+            const hasFiles = Array.from(e.dataTransfer.types).includes('Files');
+            if (!hasFiles) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+        viewerContainer.addEventListener('drop', (e) => {
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (!files || !files.length) return;
+            e.preventDefault();
+            const session = getActiveSession();
+            if (!session || !session.client || !session.client.fileTransfer) return;
+            if (session.client.viewOnly) return;
+            if (!window.__fileTransferModal) return;
+            if (!window.__fileTransferModal.isOpen()) {
+                window.__fileTransferModal.open(session);
+            }
+            if (typeof window.__fileTransferModal._uploadFiles === 'function') {
+                window.__fileTransferModal._uploadFiles(files);
+            }
+        });
+    }
+
+    if (window.__BETTERDESK_RDCLIENT_DESKTOP__
+        && typeof RDDesktopDnd !== 'undefined'
+        && RDDesktopDnd.isSupported()) {
+        RDDesktopDnd.ensureNativeDropListener();
+        RDDesktopDnd.bind({
+            // Session surface: Cliprdr paste into whatever is under the drop point.
+            // Do NOT auto-open the file-transfer modal — that race wiped the paste UX.
+            onCliprdrSync(paths, position) {
+                if (window.__fileTransferModal && window.__fileTransferModal.isOpen()) {
+                    return;
+                }
+                const session = getActiveSession();
+                if (!session || !session.client || session.state !== 'streaming') return;
+                if (session.client.viewOnly) return;
+                session.client.syncCliprdrPaths(paths, position || null);
+            },
+            // File-transfer modal only: upload into the current remote folder.
+            onUploadPaths(paths) {
+                if (!window.__fileTransferModal || !window.__fileTransferModal.isOpen()) {
+                    return;
+                }
+                const session = getActiveSession();
+                if (!session) return;
+                window.__fileTransferModal.uploadNativePaths(paths);
+            }
+        });
     }
 
 
@@ -859,19 +1066,122 @@
 
         c.on('password_required', () => {
             session.connectionOverlay.style.display = 'none';
-            session.passwordOverlay.style.display = 'flex';
             session.loginError.style.display = 'none';
             session.passwordInput.value = '';
-            if (window.RdClientSecureStore && session.deviceId) {
-                window.RdClientSecureStore.loadPeerPassword(session.deviceId).then(function (saved) {
+            session._authPreferServer = true;
+            session._authFromServer = false;
+
+            const tryAuth = (pw, remember, fromServer) => {
+                if (!pw || !session.client) return false;
+                session.passwordOverlay.style.display = 'none';
+                session.passwordInput.value = pw;
+                session._authFromServer = !!fromServer;
+                if (session.rememberPeerCheckbox) {
+                    // Passwordless mode: never persist/reuse local vault copies.
+                    session.rememberPeerCheckbox.checked = !!(remember && !fromServer);
+                }
+                session.client.authenticate(pw);
+                return true;
+            };
+
+            const showPasswordPrompt = (hint) => {
+                session.passwordOverlay.style.display = 'flex';
+                if (hint) {
+                    session.loginError.textContent = hint;
+                    session.loginError.style.display = 'block';
+                }
+                if (isActive(session)) session.passwordInput.focus();
+                if (isActive(session)) setToolbarChromeVisible(false);
+            };
+
+            const clearLocalVault = () => {
+                if (window.RdClientSecureStore && session.deviceId) {
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                }
+            };
+
+            // 1) Console unattended connect-secret (Access Policy)
+            // 2) Local remembered peer password (auto-submit) — skipped when passwordless
+            // 3) Manual prompt (with reason when secret fetch fails)
+            // Priority is controlled by Access Policy "Passwordless server access".
+            const fetchSecret = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/connect-secret', {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            }).then(async (r) => {
+                let body = null;
+                try { body = await r.json(); } catch (_) { /* ignore */ }
+                if (!r.ok) {
+                    return {
+                        ok: false,
+                        error: (body && (body.error || (body.data && body.data.error))) || ('HTTP ' + r.status),
+                        preferServer: body && (typeof body.passwordless_server_access === 'boolean'
+                            ? body.passwordless_server_access
+                            : (body.data && body.data.passwordless_server_access)),
+                    };
+                }
+                return {
+                    ok: true,
+                    password: (body && (body.password || (body.data && body.data.password))) || '',
+                    preferServer: body && (typeof body.passwordless_server_access === 'boolean'
+                        ? body.passwordless_server_access
+                        : (body.data && body.data.passwordless_server_access)),
+                };
+            }).catch((e) => ({ ok: false, error: e.message || 'connect-secret failed' }));
+
+            const fetchVault = (window.RdClientSecureStore && session.deviceId)
+                ? window.RdClientSecureStore.loadPeerPassword(session.deviceId).catch(() => null)
+                : Promise.resolve(null);
+
+            const fetchPolicy = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/access-policy', {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            }).then(async (r) => {
+                if (!r.ok) return null;
+                try { return await r.json(); } catch (_) { return null; }
+            }).catch(() => null);
+
+            Promise.all([fetchSecret, fetchVault, fetchPolicy]).then(([secretResp, saved, policyResp]) => {
+                const policy = (policyResp && (policyResp.data || policyResp)) || {};
+                // Default true = prefer sealed server password.
+                let preferServer = true;
+                if (typeof secretResp.preferServer === 'boolean') {
+                    preferServer = secretResp.preferServer;
+                } else if (typeof policy.passwordless_server_access === 'boolean') {
+                    preferServer = policy.passwordless_server_access;
+                }
+                session._authPreferServer = preferServer;
+
+                if (session.rememberPeerCheckbox) {
+                    const row = session.rememberPeerCheckbox.closest('.session-remember-peer');
+                    if (row) row.style.display = preferServer ? 'none' : '';
+                    if (preferServer) session.rememberPeerCheckbox.checked = false;
+                }
+
+                const secretPw = secretResp && secretResp.ok && secretResp.password;
+                const tryServer = () => !!(secretPw && tryAuth(secretPw, false, true));
+                const tryClient = () => !!(saved && tryAuth(saved, true, false));
+
+                if (preferServer) {
+                    // Drop stale local copies so they cannot override a console password change.
+                    clearLocalVault();
+                    if (tryServer()) return;
+                    // Do not fall back to vault — prompt so the operator can type the live device password.
+                } else {
+                    if (tryClient()) return;
+                    if (tryServer()) return;
                     if (saved) {
                         session.passwordInput.value = saved;
                         if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
                     }
-                }).catch(function () { /* ignore */ });
-            }
-            if (isActive(session)) session.passwordInput.focus();
-            if (isActive(session)) setToolbarChromeVisible(false);
+                }
+
+                let hint = '';
+                if (secretResp && !secretResp.ok && secretResp.error) {
+                    hint = secretResp.error;
+                    console.warn('[Remote] connect-secret:', secretResp.error);
+                }
+                showPasswordPrompt(hint);
+            }).catch(() => showPasswordPrompt(''));
         });
 
         c.on('login_error', (error) => {
@@ -882,10 +1192,21 @@
                 if (isActive(session)) session.tfaInput.focus();
                 return;
             }
+            // Stale vault / failed auto-auth — never keep a rejected password around in passwordless mode.
+            if (session._authPreferServer || session._authFromServer) {
+                if (window.RdClientSecureStore && session.deviceId) {
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                }
+                if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = false;
+            }
+            session._authFromServer = false;
+            // Auto-auth may have hidden the overlay — show it again on failure
+            session.passwordOverlay.style.display = 'flex';
             session.loginError.textContent = error;
             session.loginError.style.display = 'block';
             session.passwordInput.value = '';
             if (isActive(session)) session.passwordInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('2fa_error', (error) => {
@@ -911,14 +1232,19 @@
             session.passwordOverlay.style.display = 'none';
             session.tfaOverlay.style.display = 'none';
             session.passwordInput.blur();
-            if (window.RdClientSecureStore && session.rememberPeerCheckbox) {
+            if (window.RdClientSecureStore && session.deviceId) {
+                var preferServer = !!session._authPreferServer || !!session._authFromServer;
                 var pw = session.passwordInput.value;
-                if (session.rememberPeerCheckbox.checked && pw) {
+                if (preferServer) {
+                    // Passwordless: never keep a local copy that can go stale after console changes.
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                } else if (session.rememberPeerCheckbox && session.rememberPeerCheckbox.checked && pw) {
                     window.RdClientSecureStore.savePeerPassword(session.deviceId, pw).catch(function () { /* ignore */ });
-                } else if (!session.rememberPeerCheckbox.checked) {
+                } else if (session.rememberPeerCheckbox && !session.rememberPeerCheckbox.checked) {
                     window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
                 }
             }
+            session._authFromServer = false;
         });
 
         c.on('session_start', () => {
@@ -952,6 +1278,19 @@
         c.on('latency', (rtt) => { session.latency = rtt; });
 
         c.on('chat', (text) => addChatMessage(session, text, 'received'));
+
+        // Browser file paste (Explorer → Ctrl+V) — no CF_HDROP; use File Transfer upload.
+        c.on('local-paste-files', (files) => {
+            if (!isActive(session) || session.client.viewOnly) return;
+            if (!files || !files.length) return;
+            if (!window.__fileTransferModal) return;
+            if (!window.__fileTransferModal.isOpen()) {
+                window.__fileTransferModal.open(session);
+            }
+            if (typeof window.__fileTransferModal._uploadFiles === 'function') {
+                window.__fileTransferModal._uploadFiles(files);
+            }
+        });
 
         // CDAP transport: agent emits `monitors` after `monitor_list`. Show
         // the toolbar dropdown on multi-display agents and refresh contents.
@@ -988,6 +1327,17 @@
             console.warn('[Remote] Signature warning:', msg);
             showSecurityWarning(session, msg, 'warning');
         });
+        c.on('cliprdr_too_large', (info) => {
+            const sig = (info && info.signature) || '';
+            if (sig && session._cliprdrTooLargeToastSig === sig) return;
+            if (sig) session._cliprdrTooLargeToastSig = sig;
+            showToast(
+                _('remote.cliprdr_use_file_transfer')
+                || 'This folder is too large for clipboard paste. Use File transfer to avoid freezing the remote desktop.',
+                'warning'
+            );
+        });
+
         c.on('encryption_warning', (msg) => {
             console.warn('[Remote] Encryption warning:', msg);
             showSecurityWarning(session, msg, 'error');
@@ -1254,10 +1604,10 @@
     function applyTransportCapabilities() {
         const fileBtn = document.getElementById('btn-file-transfer');
         if (fileBtn && getTransportName() === 'cdap') {
-            fileBtn.disabled = true;
-            fileBtn.classList.add('disabled');
-            fileBtn.title = t('remote.file_transfer_unavailable_cdap',
-                'File transfer is not available for CDAP snapshot sessions.');
+            // CDAP uses CDAPFileTransfer over /api/cdap/devices/:id/files
+            fileBtn.disabled = false;
+            fileBtn.classList.remove('disabled');
+            fileBtn.removeAttribute('title');
         }
         applyGuestUiLockdown();
     }
@@ -1655,19 +2005,70 @@
         if (!isOpen && session.chatInput) session.chatInput.focus();
     });
 
-    // File transfer modal toggle
-    document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
-        const session = getActiveSession();
-        if (!session || !session.client?.fileTransfer) return;
-        if (getTransportName() === 'cdap') return;
-        const modal = window.__fileTransferModal;
-        if (!modal) return;
-        if (modal.isOpen()) {
-            modal.close();
-        } else {
-            modal.open(session);
+    // File transfer modal toggle (RustDesk RDFileTransfer or CDAPFileTransfer)
+    function ensureFileTransferModal() {
+        if (window.__fileTransferModal && typeof window.__fileTransferModal.open === 'function') {
+            return window.__fileTransferModal;
         }
-    });
+        if (typeof window.FileTransferModal === 'function') {
+            try {
+                window.__fileTransferModal = new window.FileTransferModal();
+                return window.__fileTransferModal;
+            } catch (err) {
+                console.error('[Remote] FileTransferModal re-init failed:', err);
+                window.__fileTransferModal = null;
+            }
+        }
+        return null;
+    }
+
+    function toggleFileTransferModal(ev) {
+        if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+        }
+        const unavailable = t('remote.file_transfer_unavailable',
+            'File transfer is not available for this session.');
+        try {
+            const session = getActiveSession();
+            const modal = ensureFileTransferModal();
+            if (!modal) {
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (modal.isOpen()) {
+                modal.close();
+                return;
+            }
+            if (!session || !session.client) {
+                // Still open the shell so the operator sees a dialog, not a dead click.
+                modal.open(null);
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (!session.client.fileTransfer && typeof session.client.ensureFileConnection === 'function') {
+                // RD path: object exists from ctor; Mesh may create it in connect().
+            }
+            if (!session.client.fileTransfer) {
+                modal.open(session);
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (typeof modal._ensureMountedInHost === 'function') {
+                modal._ensureMountedInHost();
+            }
+            modal.open(session);
+            // Expand drawer so the active state on the folder button is visible.
+            if (!toolbar?.classList.contains('expanded') && !toolbarPinned) {
+                expandToolbar();
+            }
+        } catch (err) {
+            console.error('[Remote] File transfer toggle failed:', err);
+            showToast(unavailable, 'error');
+        }
+    }
+
+    document.getElementById('btn-file-transfer')?.addEventListener('click', toggleFileTransferModal);
 
     // Recording
     document.getElementById('btn-record')?.addEventListener('click', function () {
@@ -1779,6 +2180,11 @@
         const fsIcon = document.fullscreenElement ? 'fullscreen_exit' : 'fullscreen';
         const handleIcon = document.getElementById('btn-handle-fullscreen')?.querySelector('.material-icons');
         if (handleIcon) handleIcon.textContent = fsIcon;
+        // Notch is only for streaming sessions — re-sync after FS layout swap.
+        syncToolbarChrome(getActiveSession());
+        if (window.__fileTransferModal && typeof window.__fileTransferModal._ensureMountedInHost === 'function') {
+            window.__fileTransferModal._ensureMountedInHost();
+        }
         setTimeout(() => {
             const session = getActiveSession();
             if (session && session.client && session.client.renderer) session.client.renderer.resize();

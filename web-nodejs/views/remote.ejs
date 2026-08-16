@@ -27,180 +27,183 @@
         <span class="material-icons">arrow_back</span>
     </button>
     <div class="session-tabs" id="session-tabs"></div>
-    <div class="toolbar-notch-slot toolbar-chrome-hidden" id="toolbar-notch-slot">
-        <div class="viewer-toolbar" id="viewer-toolbar">
-            <div class="toolbar-drawer" id="toolbar-drawer">
-            <div class="toolbar-expanded" id="toolbar-expanded">
-                <div class="toolbar-left">
-                    <span class="toolbar-device-info">
-                        <span class="toolbar-device-id" id="toolbar-device-id"></span>
-                        <span class="toolbar-separator toolbar-status-sep">|</span>
-                        <span class="toolbar-status" id="toolbar-status">${_('remote.connecting')}</span>
-                    </span>
-                </div>
-                <div class="toolbar-monitor-strip" id="toolbar-monitor-strip" hidden></div>
-                <div class="toolbar-right">
-                    <div class="toolbar-dropdown">
-                        <button class="toolbar-btn" id="btn-actions" title="${_('remote.actions')}">
-                            <span class="material-icons">flash_on</span>
-                        </button>
-                        <div class="toolbar-dropdown-menu" id="actions-menu">
-                            <button class="dropdown-item" id="btn-cad">
-                                <span class="material-icons">security</span> Ctrl+Alt+Del
-                            </button>
-                            <button class="dropdown-item" id="btn-lock">
-                                <span class="material-icons">lock</span> ${_('remote.lock_screen')}
-                            </button>
-                            <button class="dropdown-item" id="btn-restart-remote">
-                                <span class="material-icons">restart_alt</span> ${_('remote.restart_remote')}
-                            </button>
-                            <div class="dropdown-separator"></div>
-                            <button class="dropdown-item" id="btn-refresh-screen">
-                                <span class="material-icons">refresh</span> ${_('remote.refresh_screen')}
-                            </button>
-                            <button class="dropdown-item" id="btn-clipboard-paste">
-                                <span class="material-icons">content_paste</span> ${_('remote.clipboard_paste')}
-                            </button>
-                            <button class="dropdown-item" id="btn-reset-keyboard">
-                                <span class="material-icons">keyboard</span> ${_('remote.reset_keyboard')}
-                            </button>
-                            <div class="dropdown-separator"></div>
-                            <button class="dropdown-item toggle-item" id="btn-block-input" data-active="false">
-                                <span class="material-icons">block</span> ${_('remote.block_input')}
-                            </button>
-                        </div>
-                    </div>
-                    <div class="toolbar-dropdown">
-                        <button class="toolbar-btn" id="btn-display" title="${_('remote.display_settings')}">
-                            <span class="material-icons">tune</span>
-                        </button>
-                        <div class="toolbar-dropdown-menu toolbar-dropdown-wide" id="display-menu">
-                            <div class="display-menu-grid">
-                                <section class="display-menu-section">
-                                    <div class="dropdown-label">${_('remote.image_quality')}</div>
-                                    <button class="dropdown-item quality-item active" data-quality="Best">
-                                        <span class="material-icons">hd</span> ${_('remote.quality_best')}
-                                    </button>
-                                    <button class="dropdown-item quality-item" data-quality="Balanced">
-                                        <span class="material-icons">tune</span> ${_('remote.quality_balanced')}
-                                    </button>
-                                    <button class="dropdown-item quality-item" data-quality="Low">
-                                        <span class="material-icons">speed</span> ${_('remote.quality_low')}
-                                    </button>
-                                </section>
-                                <section class="display-menu-section">
-                                    <div class="dropdown-label">${_('remote.codec')}</div>
-                                    <button class="dropdown-item codec-item active" data-codec="Auto">
-                                        <span class="material-icons">auto_awesome</span> ${_('remote.codec_auto')}
-                                    </button>
-                                    <button class="dropdown-item codec-item" data-codec="VP9">
-                                        <span class="material-icons">memory</span> VP9
-                                    </button>
-                                    <button class="dropdown-item codec-item" data-codec="AV1">
-                                        <span class="material-icons">memory</span> AV1
-                                    </button>
-                                    <button class="dropdown-item codec-item" data-codec="H264">
-                                        <span class="material-icons">memory</span> H264
-                                    </button>
-                                    <button class="dropdown-item codec-item" data-codec="VP8">
-                                        <span class="material-icons">memory</span> VP8
-                                    </button>
-                                    <button class="dropdown-item codec-item" data-codec="H265">
-                                        <span class="material-icons">memory</span> H265
-                                    </button>
-                                </section>
-                                <section class="display-menu-section">
-                                    <div class="dropdown-label">${_('remote.keyboard_mode')}</div>
-                                    <button class="dropdown-item keyboard-mode-item active" data-keyboard-mode="Auto">
-                                        <span class="material-icons">auto_awesome</span> ${_('remote.keyboard_mode_auto')}
-                                    </button>
-                                    <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Legacy">
-                                        <span class="material-icons">translate</span> ${_('remote.keyboard_mode_legacy')}
-                                    </button>
-                                    <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Map">
-                                        <span class="material-icons">keyboard</span> ${_('remote.keyboard_mode_map')}
-                                    </button>
-                                </section>
-                                <section class="display-menu-section">
-                                    <div class="dropdown-label">${_('remote.scale_mode')}</div>
-                                    <button class="dropdown-item scale-item active" data-scale="fit">
-                                        <span class="material-icons">fit_screen</span> ${_('remote.scale_fit')}
-                                    </button>
-                                    <button class="dropdown-item scale-item" data-scale="fill">
-                                        <span class="material-icons">crop_free</span> ${_('remote.scale_fill')}
-                                    </button>
-                                    <button class="dropdown-item scale-item" data-scale="1:1">
-                                        <span class="material-icons">filter_1</span> ${_('remote.scale_original')}
-                                    </button>
-                                    <button class="dropdown-item scale-item" data-scale="stretch">
-                                        <span class="material-icons">open_in_full</span> ${_('remote.scale_stretch')}
-                                    </button>
-                                </section>
-                                <section class="display-menu-section display-menu-section--full">
-                                    <button class="dropdown-item toggle-item" id="btn-show-cursor" data-active="true">
-                                        <span class="material-icons">mouse</span> ${_('remote.show_cursor')}
-                                    </button>
-                                    <button class="dropdown-item toggle-item" id="btn-lock-session" data-active="false">
-                                        <span class="material-icons">lock_clock</span> ${_('remote.lock_after_session')}
-                                    </button>
-                                    <button class="dropdown-item toggle-item" id="btn-privacy-mode" data-active="false">
-                                        <span class="material-icons">visibility_off</span> ${_('remote.privacy_mode')}
-                                    </button>
-                                    <button class="dropdown-item toggle-item" id="btn-disable-clipboard" data-active="false">
-                                        <span class="material-icons">content_paste_off</span> ${_('remote.disable_clipboard')}
-                                    </button>
-                                </section>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="toolbar-btn" id="btn-audio" title="${_('remote.toggle_audio')}">
-                        <span class="material-icons">volume_up</span>
-                    </button>
-                    <div class="toolbar-dropdown">
-                        <button class="toolbar-btn" id="btn-monitors" title="${_('remote.monitors') || 'Monitors'}" style="display:none">
-                            <span class="material-icons">desktop_windows</span>
-                        </button>
-                        <div class="toolbar-dropdown-menu" id="monitors-menu">
-                            <div class="dropdown-label">${_('remote.select_monitor') || 'Select Monitor'}</div>
-                        </div>
-                    </div>
-                    <button class="toolbar-btn" id="btn-chat" title="${_('remote.chat')}">
-                        <span class="material-icons">chat</span>
-                    </button>
-                    <button class="toolbar-btn" id="btn-file-transfer" title="${_('remote.file_transfer') || 'File Transfer'}">
-                        <span class="material-icons">folder_open</span>
-                    </button>
-                    <button class="toolbar-btn" id="btn-record" title="${_('remote.record')}">
-                        <span class="material-icons">fiber_manual_record</span>
-                    </button>
-                    <button class="toolbar-btn" id="btn-viewonly" title="${_('remote.view_only')}">
-                        <span class="material-icons">visibility</span>
-                    </button>
-                    <button class="toolbar-btn" id="btn-pin" title="${_('remote.pin_toolbar')}">
-                        <span class="material-icons">push_pin</span>
-                    </button>
-                    <button class="toolbar-btn toolbar-btn-danger" id="btn-disconnect" title="${_('remote.disconnect')}">
-                        <span class="material-icons">power_settings_new</span>
-                    </button>
-                </div>
-            </div>
-            <div class="toolbar-handle" id="toolbar-handle" role="button" tabindex="0" aria-expanded="false" aria-controls="toolbar-drawer" title="${_('remote.toggle_menu')}">
-                <button type="button" class="handle-btn" id="btn-handle-fullscreen" title="${_('remote.fullscreen')}">
-                    <span class="material-icons">fullscreen</span>
-                </button>
-                <span class="toolbar-handle-grip" aria-hidden="true">
-                    <span class="material-icons">expand_less</span>
-                </span>
-                <button type="button" class="handle-btn handle-expand" id="btn-toolbar-expand" title="${_('remote.toggle_menu')}">
-                    <span class="material-icons">expand_more</span>
-                </button>
-            </div>
-            </div>
-        </div>
-    </div>
     <button type="button" class="tab-bar-add" id="btn-add-session" title="${_('remote.new_connection') || 'New Connection'}">
         <span class="material-icons">add</span>
     </button>
+</div>
+
+<!-- Toolbar notch lives outside the drag tab-bar so WebView2/Tauri delivers button clicks
+     (nested -webkit-app-region:no-drag under drag often swallows pointer events). -->
+<div class="toolbar-notch-slot toolbar-chrome-hidden" id="toolbar-notch-slot">
+    <div class="viewer-toolbar" id="viewer-toolbar">
+        <div class="toolbar-drawer" id="toolbar-drawer">
+        <div class="toolbar-expanded" id="toolbar-expanded">
+            <div class="toolbar-left">
+                <span class="toolbar-device-info">
+                    <span class="toolbar-device-id" id="toolbar-device-id"></span>
+                    <span class="toolbar-separator toolbar-status-sep">|</span>
+                    <span class="toolbar-status" id="toolbar-status">${_('remote.connecting')}</span>
+                </span>
+            </div>
+            <div class="toolbar-monitor-strip" id="toolbar-monitor-strip" hidden></div>
+            <div class="toolbar-right">
+                <div class="toolbar-dropdown">
+                    <button type="button" class="toolbar-btn" id="btn-actions" title="${_('remote.actions')}">
+                        <span class="material-icons">flash_on</span>
+                    </button>
+                    <div class="toolbar-dropdown-menu" id="actions-menu">
+                        <button type="button" class="dropdown-item" id="btn-cad">
+                            <span class="material-icons">security</span> Ctrl+Alt+Del
+                        </button>
+                        <button type="button" class="dropdown-item" id="btn-lock">
+                            <span class="material-icons">lock</span> ${_('remote.lock_screen')}
+                        </button>
+                        <button type="button" class="dropdown-item" id="btn-restart-remote">
+                            <span class="material-icons">restart_alt</span> ${_('remote.restart_remote')}
+                        </button>
+                        <div class="dropdown-separator"></div>
+                        <button type="button" class="dropdown-item" id="btn-refresh-screen">
+                            <span class="material-icons">refresh</span> ${_('remote.refresh_screen')}
+                        </button>
+                        <button type="button" class="dropdown-item" id="btn-clipboard-paste">
+                            <span class="material-icons">content_paste</span> ${_('remote.clipboard_paste')}
+                        </button>
+                        <button type="button" class="dropdown-item" id="btn-reset-keyboard">
+                            <span class="material-icons">keyboard</span> ${_('remote.reset_keyboard')}
+                        </button>
+                        <div class="dropdown-separator"></div>
+                        <button type="button" class="dropdown-item toggle-item" id="btn-block-input" data-active="false">
+                            <span class="material-icons">block</span> ${_('remote.block_input')}
+                        </button>
+                    </div>
+                </div>
+                <div class="toolbar-dropdown">
+                    <button type="button" class="toolbar-btn" id="btn-display" title="${_('remote.display_settings')}">
+                        <span class="material-icons">tune</span>
+                    </button>
+                    <div class="toolbar-dropdown-menu toolbar-dropdown-wide" id="display-menu">
+                        <div class="display-menu-grid">
+                            <section class="display-menu-section">
+                                <div class="dropdown-label">${_('remote.image_quality')}</div>
+                                <button type="button" class="dropdown-item quality-item active" data-quality="Best">
+                                    <span class="material-icons">hd</span> ${_('remote.quality_best')}
+                                </button>
+                                <button type="button" class="dropdown-item quality-item" data-quality="Balanced">
+                                    <span class="material-icons">tune</span> ${_('remote.quality_balanced')}
+                                </button>
+                                <button type="button" class="dropdown-item quality-item" data-quality="Low">
+                                    <span class="material-icons">speed</span> ${_('remote.quality_low')}
+                                </button>
+                            </section>
+                            <section class="display-menu-section">
+                                <div class="dropdown-label">${_('remote.codec')}</div>
+                                <button type="button" class="dropdown-item codec-item active" data-codec="Auto">
+                                    <span class="material-icons">auto_awesome</span> ${_('remote.codec_auto')}
+                                </button>
+                                <button type="button" class="dropdown-item codec-item" data-codec="VP9">
+                                    <span class="material-icons">memory</span> VP9
+                                </button>
+                                <button type="button" class="dropdown-item codec-item" data-codec="AV1">
+                                    <span class="material-icons">memory</span> AV1
+                                </button>
+                                <button type="button" class="dropdown-item codec-item" data-codec="H264">
+                                    <span class="material-icons">memory</span> H264
+                                </button>
+                                <button type="button" class="dropdown-item codec-item" data-codec="VP8">
+                                    <span class="material-icons">memory</span> VP8
+                                </button>
+                                <button type="button" class="dropdown-item codec-item" data-codec="H265">
+                                    <span class="material-icons">memory</span> H265
+                                </button>
+                            </section>
+                            <section class="display-menu-section">
+                                <div class="dropdown-label">${_('remote.keyboard_mode')}</div>
+                                <button type="button" class="dropdown-item keyboard-mode-item active" data-keyboard-mode="Auto">
+                                    <span class="material-icons">auto_awesome</span> ${_('remote.keyboard_mode_auto')}
+                                </button>
+                                <button type="button" class="dropdown-item keyboard-mode-item" data-keyboard-mode="Legacy">
+                                    <span class="material-icons">translate</span> ${_('remote.keyboard_mode_legacy')}
+                                </button>
+                                <button type="button" class="dropdown-item keyboard-mode-item" data-keyboard-mode="Map">
+                                    <span class="material-icons">keyboard</span> ${_('remote.keyboard_mode_map')}
+                                </button>
+                            </section>
+                            <section class="display-menu-section">
+                                <div class="dropdown-label">${_('remote.scale_mode')}</div>
+                                <button type="button" class="dropdown-item scale-item active" data-scale="fit">
+                                    <span class="material-icons">fit_screen</span> ${_('remote.scale_fit')}
+                                </button>
+                                <button type="button" class="dropdown-item scale-item" data-scale="fill">
+                                    <span class="material-icons">crop_free</span> ${_('remote.scale_fill')}
+                                </button>
+                                <button type="button" class="dropdown-item scale-item" data-scale="1:1">
+                                    <span class="material-icons">filter_1</span> ${_('remote.scale_original')}
+                                </button>
+                                <button type="button" class="dropdown-item scale-item" data-scale="stretch">
+                                    <span class="material-icons">open_in_full</span> ${_('remote.scale_stretch')}
+                                </button>
+                            </section>
+                            <section class="display-menu-section display-menu-section--full">
+                                <button type="button" class="dropdown-item toggle-item" id="btn-show-cursor" data-active="true">
+                                    <span class="material-icons">mouse</span> ${_('remote.show_cursor')}
+                                </button>
+                                <button type="button" class="dropdown-item toggle-item" id="btn-lock-session" data-active="false">
+                                    <span class="material-icons">lock_clock</span> ${_('remote.lock_after_session')}
+                                </button>
+                                <button type="button" class="dropdown-item toggle-item" id="btn-privacy-mode" data-active="false">
+                                    <span class="material-icons">visibility_off</span> ${_('remote.privacy_mode')}
+                                </button>
+                                <button type="button" class="dropdown-item toggle-item" id="btn-disable-clipboard" data-active="false">
+                                    <span class="material-icons">content_paste_off</span> ${_('remote.disable_clipboard')}
+                                </button>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="toolbar-btn" id="btn-audio" title="${_('remote.toggle_audio')}">
+                    <span class="material-icons">volume_up</span>
+                </button>
+                <div class="toolbar-dropdown">
+                    <button type="button" class="toolbar-btn" id="btn-monitors" title="${_('remote.monitors') || 'Monitors'}" style="display:none">
+                        <span class="material-icons">desktop_windows</span>
+                    </button>
+                    <div class="toolbar-dropdown-menu" id="monitors-menu">
+                        <div class="dropdown-label">${_('remote.select_monitor') || 'Select Monitor'}</div>
+                    </div>
+                </div>
+                <button type="button" class="toolbar-btn" id="btn-chat" title="${_('remote.chat')}">
+                    <span class="material-icons">chat</span>
+                </button>
+                <button type="button" class="toolbar-btn" id="btn-file-transfer" title="${_('remote.file_transfer') || 'File Transfer'}">
+                    <span class="material-icons">folder_open</span>
+                </button>
+                <button type="button" class="toolbar-btn" id="btn-record" title="${_('remote.record')}">
+                    <span class="material-icons">fiber_manual_record</span>
+                </button>
+                <button type="button" class="toolbar-btn" id="btn-viewonly" title="${_('remote.view_only')}">
+                    <span class="material-icons">visibility</span>
+                </button>
+                <button type="button" class="toolbar-btn" id="btn-pin" title="${_('remote.pin_toolbar')}">
+                    <span class="material-icons">push_pin</span>
+                </button>
+                <button type="button" class="toolbar-btn toolbar-btn-danger" id="btn-disconnect" title="${_('remote.disconnect')}">
+                    <span class="material-icons">power_settings_new</span>
+                </button>
+            </div>
+        </div>
+        <div class="toolbar-handle" id="toolbar-handle" role="button" tabindex="0" aria-expanded="false" aria-controls="toolbar-drawer" title="${_('remote.toggle_menu')}">
+            <button type="button" class="handle-btn" id="btn-handle-fullscreen" title="${_('remote.fullscreen')}">
+                <span class="material-icons">fullscreen</span>
+            </button>
+            <span class="toolbar-handle-grip" aria-hidden="true">
+                <span class="material-icons">expand_less</span>
+            </span>
+            <button type="button" class="handle-btn handle-expand" id="btn-toolbar-expand" title="${_('remote.toggle_menu')}">
+                <span class="material-icons">expand_more</span>
+            </button>
+        </div>
+        </div>
+    </div>
 </div>
 
 <!-- Session picker (address book overlay) -->

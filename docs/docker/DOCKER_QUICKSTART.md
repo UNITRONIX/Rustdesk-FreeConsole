@@ -55,7 +55,7 @@ docker compose up -d
 docker compose exec betterdesk betterdesk-show-admin-credentials
 ```
 
-**Done!** Open http://localhost:5000 and log in with `admin` / (password from step 3).
+**Done!** Open **http://localhost:5000** (plain HTTP — not `https://`) and log in with `admin` / (password from step 3). The default image does not terminate TLS on port 5000; using `https://…:5000` often yields Firefox `SSL_ERROR_RX_RECORD_TOO_LONG` — see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-browser-shows-ssl_error_rx_record_too_long-or-chrome-err_ssl_protocol_error).
 
 If `cat /opt/rustdesk/.admin_credentials` returns **Permission denied**, use `betterdesk-show-admin-credentials` above (or `docker compose exec -u betterdesk betterdesk …`) — see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-permission-denied-reading-admin_credentials).
 
@@ -164,6 +164,8 @@ volumes:
 ```
 
 ### SSL/TLS
+
+By default the web panel is **HTTP on port 5000**. Do not open `https://…:5000` unless you have enabled panel HTTPS or put a reverse proxy in front — otherwise browsers report `SSL_ERROR_RX_RECORD_TOO_LONG` / `ERR_SSL_PROTOCOL_ERROR` ([troubleshooting](DOCKER_TROUBLESHOOTING.md#problem-browser-shows-ssl_error_rx_record_too_long-or-chrome-err_ssl_protocol_error)).
 
 See [HTTPS_SETUP.md](../setup/HTTPS_SETUP.md) for full instructions.
 

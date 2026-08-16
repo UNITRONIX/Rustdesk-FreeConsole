@@ -31,9 +31,13 @@ Symptoms such as wrong characters after some time, broken Shift/Caps Lock, or Hy
 
 | Mode | When to use |
 |------|-------------|
-| **Auto** (default) | **Windows peers:** Map scancodes for letters, modifiers, and nav keys; Legacy `chr` for unshifted digits/symbols. Best for desktop + Hyper-V. |
-| **Legacy** | Layout-specific characters (ą, ü, …), AltGr, or when Map misbehaves on a specific app |
-| **Map** | Full physical scancode path for every key (matches RustDesk Map mode) |
+| **Auto** (default) | **Windows peers:** Map scancodes for letters, modifiers, and nav keys; Legacy `chr` for unshifted digits/symbols (from `event.key`, layout-aware). Best for desktop + Hyper-V. |
+| **Legacy** | Layout-specific characters (ą, ü, Norwegian `-`/`+`/`\`, …), AltGr, or when Map misbehaves on a specific app. Uses the character produced by the local layout (`event.key`), not US key positions. |
+| **Map** | Full physical scancode path for every key (matches RustDesk Map mode). Remote OS layout interprets the scancode — keep local and remote layouts aligned. |
+
+### Non-US layouts (Norwegian, etc.)
+
+Legacy/Auto symbol keys must follow **`KeyboardEvent.key`**. A US-only physical-code map (Slash→`/`, Minus→`-`) previously overrode `event.key`, so Norwegian QWERTY typed `-`/`+`/`\` on the wrong remote keys even when both sides used Norwegian. Fixed in panel `keyboard-encoder.js`.
 
 ### Wire contract (matches RustDesk native)
 

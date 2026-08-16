@@ -30,13 +30,21 @@ func (s *Server) handleClientOIDCAuth(w http.ResponseWriter, r *http.Request) {
 		ID         string `json:"id"`
 		UUID       string `json:"uuid"`
 		DeviceInfo struct {
-			Name string `json:"name"`
-			OS   string `json:"os"`
-			Type string `json:"type"`
+			Name    string `json:"name"`
+			OS      string `json:"os"`
+			Type    string `json:"type"`
+			AppName string `json:"app_name"`
 		} `json:"deviceInfo"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON"})
+		return
+	}
+
+	if msg := rejectWindowsClientAppName(body.DeviceInfo.OS, body.DeviceInfo.AppName); msg != "" {
+		log.Printf("[api] /api/oidc/auth rejected Windows client: os=%q app_name=%q",
+			body.DeviceInfo.OS, body.DeviceInfo.AppName)
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": msg})
 		return
 	}
 

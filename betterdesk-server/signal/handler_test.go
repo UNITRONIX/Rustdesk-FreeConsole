@@ -4,18 +4,23 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
+	cryptopkg "github.com/unitronix/betterdesk-server/crypto"
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
 	"github.com/unitronix/betterdesk-server/ratelimit"
+	"github.com/unitronix/betterdesk-server/relay"
 )
 
 func newTestSignalServer(t *testing.T, mode string) (*Server, db.Database) {
@@ -235,6 +240,65 @@ func TestProcessRegisterPkManagedAllowsExistingPeer(t *testing.T) {
 	}
 	if peer == nil || len(peer.PK) != 32 || peer.Status != "ONLINE" {
 		t.Fatalf("existing peer was not updated correctly: %+v", peer)
+	}
+}
+
+func TestProcessRegisterPkPreservesPersistedIdentityAfterRestart(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	storedUUID := []byte("persisted-uuid-1")
+	storedPK := bytes.Repeat([]byte{0x7A}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "RESTART1",
+		UUID:   hex.EncodeToString(storedUUID),
+		PK:     storedPK,
+		Status: "OFFLINE",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	takeover := &pb.RegisterPk{
+		Id:   "RESTART1",
+		Uuid: storedUUID,
+		Pk:   bytes.Repeat([]byte{0x5A}, 32),
+	}
+	if got := registerPkResult(srv.processRegisterPk(takeover, "203.0.113.10:50123")); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("mismatched persisted PK = %v, want NOT_SUPPORT", got)
+	}
+	persisted, err := database.GetPeer("RESTART1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted == nil || !bytes.Equal(persisted.PK, storedPK) || persisted.UUID != hex.EncodeToString(storedUUID) {
+		t.Fatalf("persisted identity changed after rejected RegisterPk: %+v", persisted)
+	}
+
+	if got := registerPkResult(srv.processRegisterPk(&pb.RegisterPk{
+		Id:   "RESTART1",
+		Uuid: storedUUID,
+		Pk:   storedPK,
+	}, "203.0.113.10:50123")); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("matching persisted identity = %v, want OK", got)
+	}
+}
+
+func TestProcessRegisterPkFirstEnrollmentStoresIdentity(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	firstUUID := []byte("first-enrollment")
+	firstPK := bytes.Repeat([]byte{0x31}, 32)
+
+	if got := registerPkResult(srv.processRegisterPk(&pb.RegisterPk{
+		Id:   "FIRSTPK1",
+		Uuid: firstUUID,
+		Pk:   firstPK,
+	}, "203.0.113.11:50123")); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("first enrollment = %v, want OK", got)
+	}
+	persisted, err := database.GetPeer("FIRSTPK1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted == nil || !bytes.Equal(persisted.PK, firstPK) || persisted.UUID != hex.EncodeToString(firstUUID) {
+		t.Fatalf("first enrollment did not persist identity: %+v", persisted)
 	}
 }
 
@@ -591,6 +655,102 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 	}
 }
 
+func TestHandleRequestRelayTCPIgnoresClientPrivateRelayForExternalInitiator(t *testing.T) {
+	// External initiator + LAN target: client often sends RelayServer=LAN IP
+	// (its configured ID host). Server must advertise configured/public relay.
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.RelayServers = "dcsnorge.no:21117"
+	srv.localIP.Store("193.69.83.122")
+	srv.lanIP.Store("10.0.3.220")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "398123891",
+		UDPAddr:    udpAddr("10.0.2.212", 54847),
+		ConnType:   peer.ConnTCP, // nil TCPConn: sendToPeer no-ops (avoids UDP panic in unit test)
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "EXTINIT01",
+		UDPAddr:    udpAddr("80.212.61.234", 5747),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:          "398123891",
+		Uuid:        "ext-lan-relay-uuid",
+		RelayServer: "10.0.3.220", // client hint — must be ignored
+	}, udpAddr("80.212.61.234", 5747), peer.ConnTCP)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.RelayServer != "dcsnorge.no:21117" {
+		t.Fatalf("relay = %q, want server-configured dcsnorge.no:21117", rr.RelayServer)
+	}
+}
+
+func TestHandlePunchHoleSentIgnoresClientPrivateRelay(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.RelayServers = "dcsnorge.no:21117"
+	srv.localIP.Store("193.69.83.122")
+	srv.lanIP.Store("10.0.3.220")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "398123891",
+		UDPAddr:    udpAddr("10.0.2.212", 54847),
+		ConnType:   peer.ConnUDP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	initiatorConn, serverConn := net.Pipe()
+	defer initiatorConn.Close()
+	defer serverConn.Close()
+
+	initiatorKey := normalizeAddrKey("80.212.61.234:5747")
+	srv.tcpPunchConns.Store(initiatorKey, &tcpPunchConn{
+		conn:      serverConn,
+		createdAt: time.Now(),
+	})
+
+	done := make(chan *pb.RendezvousMessage, 1)
+	go func() {
+		msg, err := codec.ReadRawProto(initiatorConn, 2*time.Second)
+		if err != nil {
+			t.Errorf("read PunchHoleResponse: %v", err)
+			done <- nil
+			return
+		}
+		done <- msg
+	}()
+
+	srv.handlePunchHoleSent(&pb.PunchHoleSent{
+		Id:          "398123891",
+		SocketAddr:  cryptopkg.EncodeAddr(udpAddr("80.212.61.234", 5747)),
+		RelayServer: "10.0.3.220", // echoed ID host — must be ignored
+		NatType:     pb.NatType_ASYMMETRIC,
+	}, udpAddr("10.0.2.212", 65293), false)
+
+	msg := <-done
+	if msg == nil {
+		t.Fatal("no PunchHoleResponse delivered to initiator")
+	}
+	phr := msg.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected PunchHoleResponse, got %T", msg.Union)
+	}
+	if phr.RelayServer != "dcsnorge.no:21117" {
+		t.Fatalf("relay = %q, want server-configured dcsnorge.no:21117", phr.RelayServer)
+	}
+}
+
 func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.localIP.Store("198.51.100.20")
@@ -896,6 +1056,156 @@ func TestOpenRegisteredInitiatorCanRequestRelay(t *testing.T) {
 	}
 }
 
+func TestInboundOnlyAgentsCannotInitiatePunchOrRelay(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		deviceType string
+		tags       string
+	}{
+		{name: "os_agent type", deviceType: "os_agent"},
+		{name: "support-agent type", deviceType: "support-agent"},
+		{name: "support-agent tag", deviceType: "desktop", tags: "managed,support-agent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+			if err := database.UpsertPeer(&db.Peer{
+				ID:         "AGENTOUT1",
+				DeviceType: tc.deviceType,
+				Tags:       tc.tags,
+				Status:     "ONLINE",
+				IP:         "198.51.100.101",
+			}); err != nil {
+				t.Fatalf("UpsertPeer initiator: %v", err)
+			}
+			putOnlinePeer(srv, "AGENTOUT1", "198.51.100.101", 51000, peer.ConnTCP)
+			putOnlinePeer(srv, "TARGETOUT1", "203.0.113.101", 52000, peer.ConnTCP)
+
+			punch := srv.handlePunchHoleRequestTCP(
+				&pb.PunchHoleRequest{Id: "TARGETOUT1"},
+				udpAddr("198.51.100.101", 51000),
+			)
+			if response := punch.GetPunchHoleResponse(); response == nil || response.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+				t.Fatalf("PunchHole response = %+v, want unauthorized rejection", punch)
+			}
+
+			relay := srv.handleRequestRelayTCP(&pb.RequestRelay{
+				Id:   "TARGETOUT1",
+				Uuid: "inbound-only-relay-" + strings.ReplaceAll(tc.name, " ", "-"),
+			}, udpAddr("198.51.100.101", 51000), peer.ConnTCP)
+			if response := relay.GetRelayResponse(); response == nil || response.RefuseReason != refuseInitiatorNotAuthorized {
+				t.Fatalf("RequestRelay response = %+v, want unauthorized rejection", relay)
+			}
+		})
+	}
+}
+
+func TestInboundOnlyAgentCanBeConnectionTarget(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:         "CLIENTIN1",
+		DeviceType: "betterdesk",
+		Status:     "ONLINE",
+		IP:         "198.51.100.102",
+	}); err != nil {
+		t.Fatalf("UpsertPeer initiator: %v", err)
+	}
+	if err := database.UpsertPeer(&db.Peer{
+		ID:         "AGENTIN01",
+		DeviceType: "os_agent",
+		Status:     "ONLINE",
+		IP:         "203.0.113.102",
+	}); err != nil {
+		t.Fatalf("UpsertPeer target: %v", err)
+	}
+	putOnlinePeer(srv, "CLIENTIN1", "198.51.100.102", 51000, peer.ConnTCP)
+	putOnlinePeer(srv, "AGENTIN01", "203.0.113.102", 52000, peer.ConnTCP)
+
+	relay := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "AGENTIN01",
+		Uuid: "agent-is-target-relay",
+	}, udpAddr("198.51.100.102", 51000), peer.ConnTCP)
+	if response := relay.GetRelayResponse(); response == nil || response.RefuseReason != "" {
+		t.Fatalf("RequestRelay to inbound-only target = %+v, want accepted", relay)
+	}
+}
+
+func TestInboundOnlySupportTargetForcesRelay(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "CLIENTRELAY1", DeviceType: "desktop"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertPeer(&db.Peer{
+		ID:         "SUPPORTRELAY1",
+		DeviceType: "os_agent",
+		Tags:       "support-agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	putOnlinePeer(srv, "CLIENTRELAY1", "198.51.100.160", 51000, peer.ConnTCP)
+	putOnlinePeer(srv, "SUPPORTRELAY1", "203.0.113.160", 52000, peer.ConnTCP)
+
+	response := srv.handlePunchHoleRequestTCP(
+		&pb.PunchHoleRequest{Id: "SUPPORTRELAY1"},
+		udpAddr("198.51.100.160", 51000),
+	)
+	punch := response.GetPunchHoleResponse()
+	if punch == nil {
+		t.Fatalf("response = %+v, want PunchHoleResponse", response)
+	}
+	if punch.GetNatType() != pb.NatType_SYMMETRIC {
+		t.Fatalf("NatType = %v, want forced relay (%v)", punch.GetNatType(), pb.NatType_SYMMETRIC)
+	}
+}
+
+func TestUnavailableTargetCannotReceiveRelay(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		setup func(t *testing.T, database db.Database, targetID string)
+	}{
+		{
+			name: "disabled",
+			setup: func(t *testing.T, database db.Database, targetID string) {
+				t.Helper()
+				if err := database.UpsertPeer(&db.Peer{ID: targetID, Disabled: true}); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "soft deleted",
+			setup: func(t *testing.T, database db.Database, targetID string) {
+				t.Helper()
+				if err := database.UpsertPeer(&db.Peer{ID: targetID}); err != nil {
+					t.Fatal(err)
+				}
+				if err := database.DeletePeer(targetID); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+			const initiatorID = "ACTIVEINIT1"
+			const targetID = "UNAVAILTGT1"
+			if err := database.UpsertPeer(&db.Peer{ID: initiatorID, DeviceType: "desktop"}); err != nil {
+				t.Fatal(err)
+			}
+			tc.setup(t, database, targetID)
+			putOnlinePeer(srv, initiatorID, "198.51.100.150", 51000, peer.ConnTCP)
+			putOnlinePeer(srv, targetID, "203.0.113.150", 52000, peer.ConnTCP)
+
+			response := srv.handleRequestRelayTCP(&pb.RequestRelay{
+				Id:   targetID,
+				Uuid: "unavailable-target-" + strings.ReplaceAll(tc.name, " ", "-"),
+			}, udpAddr("198.51.100.150", 51000), peer.ConnTCP)
+			if relay := response.GetRelayResponse(); relay == nil || relay.RefuseReason != "Target offline" {
+				t.Fatalf("relay response = %+v, want unavailable target rejection", response)
+			}
+		})
+	}
+}
+
 func TestPanelProxyLoopbackCanPunchHoleWithoutPeer(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
 	putOnlinePeer(srv, "TGTWEB1", "203.0.113.90", 52000, peer.ConnTCP)
@@ -966,7 +1276,7 @@ func TestManagedPendingStillRejectedDespitePanelAllowlist(t *testing.T) {
 }
 
 func TestTCPRegisterPkBindsIPForViewerOnlyPunch(t *testing.T) {
-	// #327: approved peer, no UDP heartbeat; TCP RegisterPk then PunchHole on same IP.
+	// #327: approved peer, no UDP heartbeat; TCP RegisterPk then PunchHole on same exact addr.
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 	if err := database.UpsertPeer(&db.Peer{ID: "VIEWINIT1", Status: "OFFLINE", IP: "198.51.100.40"}); err != nil {
 		t.Fatalf("UpsertPeer: %v", err)
@@ -991,6 +1301,121 @@ func TestTCPRegisterPkBindsIPForViewerOnlyPunch(t *testing.T) {
 		if failure := phr.GetPunchHoleResponse(); failure != nil && failure.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
 			t.Fatal("viewer-only TCP RegisterPk initiator must not be refused as unauthorized")
 		}
+	}
+}
+
+func TestManagedPendingSameNATAsApprovedInitiatorRejected(t *testing.T) {
+	// #302 residual: pending client shares public IP with an approved peer but
+	// uses a different source port — must not inherit the approved identity.
+	// Both peers must be live in the map so IP-only fallback sees ambiguity.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	if err := database.UpsertPeer(&db.Peer{ID: "APPRNAT1", Status: "ONLINE", IP: "203.0.113.44"}); err != nil {
+		t.Fatalf("UpsertPeer approved: %v", err)
+	}
+	putOnlinePeer(srv, "APPRNAT1", "203.0.113.44", 50001, peer.ConnUDP)
+	putOnlinePeer(srv, "PENDNAT1", "203.0.113.44", 59999, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTNAT1", "198.51.100.44", 52000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDNAT1", `{"device_id":"PENDNAT1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	// Punch from a third port so FindByAddr misses; two live peers → ambiguous.
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.44", 58888), "TGTNAT1", "")
+	if ok {
+		t.Fatalf("same-NAT pending punch must be rejected, got id=%q", id)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTNAT1"}, udpAddr("203.0.113.44", 58888))
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil || phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatalf("same-NAT pending PunchHole should be unauthorized, got %+v", resp)
+	}
+}
+
+func TestExactAddrInitiatorAuthorized(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	if err := database.UpsertPeer(&db.Peer{ID: "EXACTINIT1", Status: "ONLINE", IP: "198.51.100.81"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "EXACTINIT1", "198.51.100.81", 51000, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTEXACT1", "203.0.113.81", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGTEXACT1", "")
+	if !ok || id != "EXACTINIT1" {
+		t.Fatalf("exact addr auth = (%q, %v), want EXACTINIT1", id, ok)
+	}
+
+	// Sole live peer at this IP: stock clients PunchHole on a new TCP port.
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51001), "TGTEXACT1", "")
+	if !ok || id != "EXACTINIT1" {
+		t.Fatalf("single-IP fallback auth = (%q, %v), want EXACTINIT1", id, ok)
+	}
+}
+
+func TestSingleIPFallbackAuthorizesDifferentPort(t *testing.T) {
+	// Stock RustDesk PunchHole uses a new TCP port; with exactly one live peer
+	// at the public IP, authorize via FindAllByIP (3.5.15 / regression after 3.5.16).
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "SOLEINIT1", Status: "ONLINE", IP: "78.31.94.73"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "SOLEINIT1", "78.31.94.73", 51000, peer.ConnTCP)
+	putOnlinePeer(srv, "TGTSINGLE1", "203.0.113.90", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("78.31.94.73", 55041), "TGTSINGLE1", "")
+	if !ok || id != "SOLEINIT1" {
+		t.Fatalf("single-IP fallback = (%q, %v), want SOLEINIT1", id, ok)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTSINGLE1"}, udpAddr("78.31.94.73", 55041))
+	if phr := resp.GetPunchHoleResponse(); phr != nil && phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatal("single live peer PunchHole must not be refused as unauthorized")
+	}
+}
+
+func TestMultiApprovedSameIPAmbiguousRejected(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "APPR1", Status: "ONLINE", IP: "203.0.113.88"}); err != nil {
+		t.Fatalf("UpsertPeer APPR1: %v", err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: "APPR2", Status: "ONLINE", IP: "203.0.113.88"}); err != nil {
+		t.Fatalf("UpsertPeer APPR2: %v", err)
+	}
+	putOnlinePeer(srv, "APPR1", "203.0.113.88", 50001, peer.ConnUDP)
+	putOnlinePeer(srv, "APPR2", "203.0.113.88", 50002, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTMULTI1", "198.51.100.88", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 59999), "TGTMULTI1", "")
+	if ok {
+		t.Fatalf("ambiguous same-NAT must be rejected, got id=%q", id)
+	}
+
+	// Exact port still works for each peer.
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 50001), "TGTMULTI1", "")
+	if !ok || id != "APPR1" {
+		t.Fatalf("exact addr APPR1 = (%q, %v)", id, ok)
+	}
+}
+
+func TestTCPSessionPeerIDAuthorizesWithoutFindByAddr(t *testing.T) {
+	// #327: RegisterPk on the same Secure TCP session binds peerID even when
+	// the peer map entry has a different registered port (no IP-only fallback).
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "SESSINIT1", Status: "ONLINE", IP: "198.51.100.82"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "SESSINIT1", "198.51.100.82", 40000, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTSESS1", "203.0.113.82", 52000, peer.ConnTCP)
+
+	addr := "198.51.100.82:51000"
+	srv.tcpPunchConns.Store(normalizeAddrKey(addr), &tcpPunchConn{
+		createdAt: time.Now(),
+		peerID:    "SESSINIT1",
+	})
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTSESS1", "")
+	if !ok || id != "SESSINIT1" {
+		t.Fatalf("tcp session auth = (%q, %v), want SESSINIT1", id, ok)
 	}
 }
 
@@ -1040,10 +1465,307 @@ func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
 		t.Fatalf("token auth = (%q, %v), want TOKINIT1", id, ok)
 	}
 
-	// Managed: token alone without approved DB peer must fail.
+	// Managed: username/password login token is enough — enrollment not required.
 	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	if !ok || id != "TOKINIT1" {
+		t.Fatalf("managed token without DB peer must succeed, got (%q, %v)", id, ok)
+	}
+
+	// Locked: same — login proves account credentials.
+	srv.cfg.EnrollmentMode = config.EnrollmentModeLocked
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	if !ok || id != "TOKINIT1" {
+		t.Fatalf("locked token without DB peer must succeed, got (%q, %v)", id, ok)
+	}
+}
+
+func TestClientTokenAuthorizesPendingLivePeer(t *testing.T) {
+	// Logged-in initiator that also has a live (pending) registration must still
+	// be allowed via the login token — enrollment approval is not required.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPENDTOK", "203.0.113.96", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "PENDTOK1", "198.51.100.76", 51000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDTOK1", `{"device_id":"PENDTOK1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	user := &db.User{Username: "pendtok", PasswordHash: "hash", Role: "user"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("cd", 32)
+	sum := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(sum[:])
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hash,
+		UserID:     user.ID,
+		ClientID:   "PENDTOK1",
+		ClientUUID: "pend-tok-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTPENDTOK", token)
+	if !ok || id != "PENDTOK1" {
+		t.Fatalf("pending+login token = (%q, %v), want PENDTOK1", id, ok)
+	}
+
+	// Active client_sessions row is enough even without PunchHole token — viewer
+	// login must not require inventory enrollment.
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTPENDTOK", "")
+	if !ok || id != "PENDTOK1" {
+		t.Fatalf("pending+active session without punch token = (%q, %v), want PENDTOK1", id, ok)
+	}
+}
+
+func TestPendingWithoutLoginStillBlocked(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPENDNOL", "203.0.113.98", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "PENDNOL1", "198.51.100.77", 51000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDNOL1", `{"device_id":"PENDNOL1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.77", 51000), "TGTPENDNOL", "")
 	if ok {
-		t.Fatalf("managed token without DB peer must fail, got %q", id)
+		t.Fatalf("pending without login must fail, got %q", id)
+	}
+}
+
+func TestClientTokenWithoutDeviceIDAuthorizesManaged(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTOK2", "203.0.113.97", 52000, peer.ConnTCP)
+
+	user := &db.User{Username: "nodevice", PasswordHash: "hash", Role: "user"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("ef", 32)
+	sum := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(sum[:])
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hash,
+		UserID:     user.ID,
+		ClientID:   "",
+		ClientUUID: "",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	want := fmt.Sprintf("session-user-%d", user.ID)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.77", 51000), "TGTOK2", token)
+	if !ok || id != want {
+		t.Fatalf("token auth = (%q, %v), want %q", id, ok, want)
+	}
+}
+
+func TestHandleRelayResponseForwardAuthorizesRelayTicket(t *testing.T) {
+	// #356: P2P→RelayResponse forward must mint a relay ticket before the
+	// initiator/target reach hbbr, otherwise Claim rejects with
+	// "Unauthorized relay UUID" and clients see Reset by the peer.
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	initiatorAddr := udpAddr("198.51.100.56", 58616)
+	targetAddr := udpAddr("203.0.113.56", 59057)
+	putOnlinePeer(srv, "INIT356", initiatorAddr.IP.String(), initiatorAddr.Port, peer.ConnTCP)
+	putOnlinePeer(srv, "TGT356", targetAddr.IP.String(), targetAddr.Port, peer.ConnTCP)
+
+	// Keep a TCP punch sink so forward returns before the nil udpConn path.
+	client, server := net.Pipe()
+	t.Cleanup(func() { client.Close(); server.Close() })
+	go func() {
+		buf := make([]byte, 64*1024)
+		for {
+			if _, err := client.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	srv.tcpPunchConns.Store(normalizeAddrKey(initiatorAddr.String()), &tcpPunchConn{
+		conn:      server,
+		createdAt: time.Now(),
+		peerID:    "INIT356",
+	})
+
+	const relayUUID = "356-p2p-relay-fallback-uuid"
+	msg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RelayResponse{
+			RelayResponse: &pb.RelayResponse{
+				SocketAddr: cryptopkg.EncodeAddr(initiatorAddr),
+				Uuid:       relayUUID,
+				Union:      &pb.RelayResponse_Id{Id: "TGT356"},
+			},
+		},
+	}
+	srv.handleRelayResponseForward(msg, targetAddr)
+
+	if relay.AuthorizeRelayPair(relayUUID, "OTHER356", "TGT356") {
+		t.Fatal("existing ticket must not rebind to a different initiator")
+	}
+	if !relay.AuthorizeRelayPair(relayUUID, "INIT356", "TGT356") {
+		t.Fatal("same initiator/target pair must remain authorized after forward")
+	}
+	if !relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("first Claim after RelayResponse forward must succeed")
+	}
+	if !relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("second Claim after RelayResponse forward must succeed")
+	}
+	if relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("third Claim must fail after the pair is consumed")
+	}
+}
+
+func TestHandleRelayResponseForwardRefusesUnresolvedPair(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	initiatorAddr := udpAddr("198.51.100.57", 58617)
+	targetAddr := udpAddr("203.0.113.57", 59058)
+	// Target is known; initiator is not in the peer map / TCP session → refuse.
+	putOnlinePeer(srv, "TGT356B", targetAddr.IP.String(), targetAddr.Port, peer.ConnTCP)
+
+	const relayUUID = "356-unresolved-initiator-uuid"
+	msg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RelayResponse{
+			RelayResponse: &pb.RelayResponse{
+				SocketAddr: cryptopkg.EncodeAddr(initiatorAddr),
+				Uuid:       relayUUID,
+				Union:      &pb.RelayResponse_Id{Id: "TGT356B"},
+			},
+		},
+	}
+	srv.handleRelayResponseForward(msg, targetAddr)
+
+	if relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("unresolved initiator must not mint a claimable relay ticket")
+	}
+}
+
+func TestBannedTokenInitiatorRevokesSessionAndRelayTickets(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "TOKBAN1",
+		UUID:   hex.EncodeToString([]byte("token-ban-uuid1")),
+		Status: "ONLINE",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.BanPeer("TOKBAN1", "test ban"); err != nil {
+		t.Fatal(err)
+	}
+	user := &db.User{Username: "bannedtoken", PasswordHash: "hash", Role: "admin"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatal(err)
+	}
+	token := strings.Repeat("cd", 32)
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hashOpaqueClientToken(token),
+		UserID:     user.ID,
+		ClientID:   "TOKBAN1",
+		ClientUUID: "token-ban-uuid1",
+		ExpiresAt:  time.Now().UTC().Add(time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	const relayUUID = "banned-token-relay-uuid"
+	if !relay.AuthorizeRelayPair(relayUUID, "TOKBAN1", "TGTBAN1") {
+		t.Fatal("expected relay ticket authorization")
+	}
+	if id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTBAN1", token); ok || id != "" {
+		t.Fatalf("banned token initiator = (%q, %v), want rejection", id, ok)
+	}
+	if sess, err := database.GetClientSessionByTokenHash(hashOpaqueClientToken(token)); err != nil {
+		t.Fatal(err)
+	} else if sess != nil {
+		t.Fatalf("banned token session remained active: %+v", sess)
+	}
+	if relay.AuthorizeRelayPair(relayUUID, "TOKBAN1", "TGTBAN1") {
+		t.Fatal("banned peer relay ticket must remain revoked")
+	}
+}
+
+func TestManagedLoggedInViewerRegistersEphemerally(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	user := &db.User{Username: "viewer", PasswordHash: "hash", Role: auth.RoleAdmin}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  "ephemeral-hash",
+		UserID:     user.ID,
+		ClientID:   "VIEWEP1",
+		ClientUUID: "view-ep-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	resp := srv.processRegisterPk(&pb.RegisterPk{
+		Id:   "VIEWEP1",
+		Uuid: []byte("view-ep-uuid"),
+		Pk:   []byte("view-ep-pk-bytes-32!!!!!!!!!!!!!!"),
+	}, "198.51.100.88:51000")
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("logged-in viewer RegisterPk = %v, want OK", got)
+	}
+	if p, err := database.GetPeer("VIEWEP1"); err != nil {
+		t.Fatal(err)
+	} else if p != nil {
+		t.Fatalf("ephemeral viewer must not create inventory peer, got %+v", p)
+	}
+	if pending, _ := database.GetConfig("pending_device_VIEWEP1"); pending != "" {
+		t.Fatalf("logged-in viewer must not be queued pending, got %q", pending)
+	}
+	entry := srv.peers.Get("VIEWEP1")
+	if entry == nil || entry.IP == "" {
+		t.Fatalf("expected memory peer for ephemeral viewer, got %#v", entry)
+	}
+
+	putOnlinePeer(srv, "TGTEP1", "203.0.113.88", 52000, peer.ConnTCP)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.88", 51000), "TGTEP1", "")
+	if !ok || id != "VIEWEP1" {
+		t.Fatalf("login-backed ephemeral punch = (%q, %v), want VIEWEP1", id, ok)
+	}
+}
+
+func TestLoggedInInitiatorTargetAccessDenied(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTACL1", "203.0.113.89", 52000, peer.ConnTCP)
+	user := &db.User{Username: "opacl", PasswordHash: "hash", Role: auth.RoleOperator}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("ef", 32)
+	sum := sha256.Sum256([]byte(token))
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hex.EncodeToString(sum[:]),
+		UserID:     user.ID,
+		ClientID:   "ACLINIT1",
+		ClientUUID: "acl-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	srv.SetTargetAccessChecker(func(userID int64, username, role, targetID string) bool {
+		return targetID != "TGTACL1"
+	})
+	if id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.89", 51000), "TGTACL1", token); ok || id != "" {
+		t.Fatalf("ACL deny = (%q, %v), want rejection", id, ok)
+	}
+
+	srv.SetTargetAccessChecker(func(userID int64, username, role, targetID string) bool {
+		return targetID == "TGTACL1"
+	})
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.89", 51000), "TGTACL1", token)
+	if !ok || id != "ACLINIT1" {
+		t.Fatalf("ACL allow = (%q, %v), want ACLINIT1", id, ok)
 	}
 }

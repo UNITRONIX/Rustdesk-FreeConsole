@@ -79,4 +79,30 @@ describe('updateService console sync helpers', () => {
         const again = ensureGoServerSignalRelayPorts(patched.text);
         expect(again.changed).toBe(false);
     });
+
+    test('ensureAuthDbPathInWindowsServiceEnv adds AUTH_DB_PATH when missing', () => {
+        const {
+            ensureAuthDbPathInWindowsServiceEnv,
+        } = require('../services/updateService');
+        const authPath = 'C:\\BetterDeskConsole\\data\\auth.db';
+        const patched = ensureAuthDbPathInWindowsServiceEnv('DB_URL=sqlite\nMESH_ENABLED=Y', authPath);
+        expect(patched.changed).toBe(true);
+        expect(patched.text).toMatch(/^AUTH_DB_PATH=C:\\BetterDeskConsole\\data\\auth\.db$/m);
+
+        const again = ensureAuthDbPathInWindowsServiceEnv(patched.text, authPath);
+        expect(again.changed).toBe(false);
+    });
+
+    test('ensureAuthDbPathInSystemdUnit adds AUTH_DB_PATH when missing', () => {
+        const { ensureAuthDbPathInSystemdUnit } = require('../services/updateService');
+        const unit = [
+            '[Service]',
+            'User=root',
+            'ExecStart=/opt/betterdesk/betterdesk-server -mode all',
+        ].join('\n');
+        const patched = ensureAuthDbPathInSystemdUnit(unit, '/opt/BetterDeskConsole/data/auth.db');
+        expect(patched.changed).toBe(true);
+        expect(patched.text).toMatch(/^Environment=AUTH_DB_PATH=\/opt\/BetterDeskConsole\/data\/auth\.db$/m);
+        expect(ensureAuthDbPathInSystemdUnit(patched.text, '/opt/BetterDeskConsole/data/auth.db').changed).toBe(false);
+    });
 });

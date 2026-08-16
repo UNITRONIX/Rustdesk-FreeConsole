@@ -106,10 +106,101 @@ describe('rustdeskAddressBookSync', () => {
         expect(result.peers.map(p => p.id)).toEqual(['ALLOW1', 'REMOTE']);
     });
 
-    it('leaves address book unchanged when visibleIds is null', () => {
-        const raw = JSON.stringify({ peers: [{ id: 'A' }], tags: [] });
-        expect(sync.filterAddressBookPeersByScope(raw, { visibleIds: null })).toBe(
-            JSON.stringify({ peers: [{ id: 'A' }], tags: [] })
-        );
+    it('allowlist-only when knownDeviceIds is empty (no fail-open)', () => {
+        const result = JSON.parse(sync.filterAddressBookPeersByScope(JSON.stringify({
+            peers: [
+                { id: 'ALLOW1' },
+                { id: 'DENY1' },
+                { id: 'REMOTE' }
+            ],
+            tags: []
+        }), {
+            visibleIds: new Set(['ALLOW1']),
+            knownDeviceIds: []
+        }));
+
+        expect(result.peers.map(p => p.id)).toEqual(['ALLOW1']);
+    });
+
+    it('maps panel display_name to alias and hides hostname on the card', () => {
+        const result = JSON.parse(sync.mergeAddressBookData(JSON.stringify({
+            peers: [{ id: '1031876693', hostname: 'dcstrainingserver', note: 'Training', tags: [] }],
+            tags: []
+        }), {
+            devices: [{
+                id: '1031876693',
+                hostname: 'dcstrainingserver',
+                display_name: 'Training',
+                note: 'Training',
+                tags: []
+            }],
+            includeDevices: false
+        }));
+
+        expect(result.peers[0]).toMatchObject({
+            id: '1031876693',
+            alias: 'Training',
+            hostname: '',
+            username: '',
+            note: ''
+        });
+    });
+
+    it('uses device note as alias when display_name is empty', () => {
+        const result = JSON.parse(sync.mergeAddressBookData(JSON.stringify({
+            peers: [{ id: '1', tags: [] }],
+            tags: []
+        }), {
+            devices: [{ id: '1', hostname: 'pc-1', note: 'Front desk', tags: [] }],
+            includeDevices: false
+        }));
+
+        expect(result.peers[0]).toMatchObject({
+            id: '1',
+            alias: 'Front desk',
+            hostname: ''
+        });
+        expect(result.peers[0].note || '').toBe('');
+    });
+
+    it('promotes stale AB note to alias when panel has no label', () => {
+        const result = JSON.parse(sync.mergeAddressBookData(JSON.stringify({
+            peers: [{
+                id: '1031876693',
+                hostname: 'dcstrainingserver',
+                username: 'admin',
+                note: 'Training',
+                tags: []
+            }],
+            tags: []
+        }), {
+            devices: [{ id: '1031876693', hostname: 'dcstrainingserver', tags: [] }],
+            includeDevices: false
+        }));
+
+        expect(result.peers[0]).toMatchObject({
+            id: '1031876693',
+            alias: 'Training',
+            hostname: '',
+            username: '',
+            note: ''
+        });
+    });
+
+    it('keeps hostname when the panel has no display label', () => {
+        const result = JSON.parse(sync.mergeAddressBookData(JSON.stringify({
+            peers: [{ id: '1', tags: [] }],
+            tags: []
+        }), {
+            devices: [{ id: '1', hostname: 'pc-1', username: 'alice', tags: [] }],
+            includeDevices: false
+        }));
+
+        expect(result.peers[0]).toMatchObject({
+            id: '1',
+            hostname: 'pc-1',
+            username: 'alice'
+        });
+        expect(result.peers[0].alias).toBeUndefined();
     });
 });

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-mkdir-p"
+description = "Enables the desktop_mkdir_p command without any pre-configured scope."
+commands.allow = ["desktop_mkdir_p"]
+
+[[permission]]
+identifier = "deny-desktop-mkdir-p"
+description = "Denies the desktop_mkdir_p command without any pre-configured scope."
+commands.deny = ["desktop_mkdir_p"]

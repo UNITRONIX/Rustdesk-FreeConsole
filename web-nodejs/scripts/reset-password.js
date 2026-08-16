@@ -6,7 +6,7 @@
  * Resets the password for a user. If username is not provided, defaults to 'admin'.
  * If user doesn't exist, creates a new admin user.
  *
- * Supports both SQLite (auth.db) and PostgreSQL (DATABASE_URL env).
+ * Supports both the selected SQLite db_v2.sqlite3 store and PostgreSQL.
  * DB_TYPE env var controls the mode: "postgres" or "sqlite" (default).
  */
 
@@ -40,11 +40,10 @@ function loadEnvFile() {
 
 // ---- SQLite helpers ----
 
-function openSQLite(dataDir) {
+function openSQLite(dbPath) {
     const Database = require('better-sqlite3');
-    const authDbPath = path.join(dataDir, 'auth.db');
-    console.log(`Auth database (SQLite): ${authDbPath}`);
-    const db = new Database(authDbPath, { fileMustExist: false });
+    console.log(`Auth database (SQLite): ${dbPath}`);
+    const db = new Database(dbPath, { fileMustExist: false });
     db.pragma('journal_mode = WAL');
     db.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -52,8 +51,12 @@ function openSQLite(dataDir) {
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT DEFAULT 'admin',
+            auth_provider TEXT NOT NULL DEFAULT 'local',
             created_at TEXT DEFAULT (datetime('now')),
-            last_login TEXT
+            last_login TEXT,
+            totp_secret TEXT DEFAULT '',
+            totp_enabled INTEGER DEFAULT 0,
+            totp_recovery_codes TEXT DEFAULT NULL
         )
     `);
     return {
@@ -118,7 +121,9 @@ async function main() {
         store = await openPostgres();
     } else {
         const dataDir = process.env.DATA_DIR || findDataDir();
-        store = openSQLite(dataDir);
+        const dbPath = process.env.DB_PATH || process.env.DB_URL
+            || path.join(process.env.KEYS_PATH || process.env.RUSTDESK_DIR || dataDir, 'db_v2.sqlite3');
+        store = openSQLite(dbPath);
     }
 
     try {

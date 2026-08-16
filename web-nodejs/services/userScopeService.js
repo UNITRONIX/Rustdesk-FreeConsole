@@ -92,7 +92,7 @@ async function countEffectiveScope(db, user, devices) {
 }
 
 function isDeviceScopeRestrictedDefault() {
-    return String(config.deviceScopeDefault || 'open').toLowerCase() === 'restricted';
+    return String(config.deviceScopeDefault || 'restricted').toLowerCase() === 'restricted';
 }
 
 module.exports = {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-download-write"
+description = "Enables the desktop_download_write command without any pre-configured scope."
+commands.allow = ["desktop_download_write"]
+
+[[permission]]
+identifier = "deny-desktop-download-write"
+description = "Denies the desktop_download_write command without any pre-configured scope."
+commands.deny = ["desktop_download_write"]

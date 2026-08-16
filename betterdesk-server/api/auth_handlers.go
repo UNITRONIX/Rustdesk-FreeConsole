@@ -107,6 +107,13 @@ func (s *Server) requirePermission(perm string, handler http.HandlerFunc) http.H
 	return func(w http.ResponseWriter, r *http.Request) {
 		userRole := getRoleFromCtx(r)
 
+		// Device credentials authenticate an agent to its own protocol only.
+		// Never honor DB permission overrides for this internal role.
+		if auth.IsDeviceRole(userRole) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Device credentials cannot access this endpoint"})
+			return
+		}
+
 		if auth.IsProRole(userRole) && auth.ProRoleBlocksPermission(perm) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Insufficient permissions"})
 			return
@@ -1160,7 +1167,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		if path == "/api/health" || path == "/metrics" ||
 			path == "/api/auth/login" || path == "/api/auth/login/2fa" ||
 			path == "/api/auth/ldap/verify" ||
-			path == "/api/server/pubkey" || path == "/api/server/stats" ||
+			path == "/api/server/pubkey" ||
 			path == "/api/login" || path == "/api/login-options" || path == "/api/logout" ||
 			path == "/api/oidc/auth" || path == "/api/oidc/auth-query" || path == "/api/oidc/callback" ||
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
@@ -1175,6 +1182,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/auth/oidc/session" || path == "/api/auth/oidc/exchange" || path == "/api/auth/sso/status" ||
 			strings.HasPrefix(path, "/ws/bd-mgmt/") ||
 			path == "/api/devices/register" || path == "/api/devices/register/status" ||
+			path == "/api/devices/self/access-policy" || path == "/api/devices/self/help-request" ||
+			path == "/api/devices/self/totp" ||
 			path == "/api/guest/access-links/validate" || path == "/api/guest/access-links/peers" {
 			next.ServeHTTP(w, r)
 			return
@@ -1191,6 +1200,13 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		username, role, ok := s.authenticateRequest(r)
 		if !ok {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid or missing credentials"})
+			return
+		}
+		if auth.IsDeviceRole(role) {
+			// Device JWTs are issued for the CDAP session only. The REST device
+			// self-service endpoints validate a bound device token explicitly,
+			// rather than treating a device as an operator-level API principal.
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Device credentials cannot access this endpoint"})
 			return
 		}
 

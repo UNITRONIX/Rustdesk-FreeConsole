@@ -199,14 +199,54 @@ sudo -u "$BUILD_USER" -H bash -lc "
 # ---------------------------------------------------------------------------
 
 install_appimagetool() {
-    if command -v appimagetool >/dev/null 2>&1; then
-        log "appimagetool already installed"
+    local URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+    local EXTRACT_DIR="/usr/local/lib/appimagetool"
+    local WRAPPER="/usr/local/bin/appimagetool"
+    local RAW_IMG="/usr/local/lib/appimagetool.AppImage"
+    local TMP_EXTRACT
+
+    # Prefer extracted AppRun + shell wrapper so the console user (non-root) can
+    # run appimagetool without FUSE or writing next to /usr/local/bin.
+    if [ -x "$EXTRACT_DIR/AppRun" ] && [ -f "$WRAPPER" ] && head -c 2 "$WRAPPER" 2>/dev/null | grep -q '#!'; then
+        log "appimagetool wrapper already installed ($EXTRACT_DIR)"
         return
     fi
-    log "Downloading appimagetool"
-    local URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-    curl -fsSL "$URL" -o /usr/local/bin/appimagetool
-    chmod +x /usr/local/bin/appimagetool
+
+    log "Installing extracted appimagetool (FUSE-free wrapper)"
+    mkdir -p /usr/local/lib
+    curl -fsSL "$URL" -o "$RAW_IMG"
+    chmod +x "$RAW_IMG"
+
+    TMP_EXTRACT="$(mktemp -d /tmp/appimagetool-extract.XXXXXX)"
+    (
+        cd "$TMP_EXTRACT"
+        if ! APPIMAGE_EXTRACT_AND_RUN=1 "$RAW_IMG" --appimage-extract; then
+            warn "appimagetool extract failed — installing raw AppImage (may fail for non-root)"
+            cp -f "$RAW_IMG" "$WRAPPER"
+            chmod +x "$WRAPPER"
+            rm -rf "$TMP_EXTRACT"
+            exit 1
+        fi
+    ) || return 0
+
+    rm -rf "$EXTRACT_DIR"
+    mv "$TMP_EXTRACT/squashfs-root" "$EXTRACT_DIR"
+    rm -rf "$TMP_EXTRACT"
+
+    if [ ! -x "$EXTRACT_DIR/AppRun" ]; then
+        warn "AppRun missing after extract — falling back to raw AppImage"
+        cp -f "$RAW_IMG" "$WRAPPER"
+        chmod +x "$WRAPPER"
+        return
+    fi
+
+    cat > "$WRAPPER" <<'WRAP'
+#!/bin/sh
+# BetterDesk wrapper: run extracted appimagetool without FUSE / /usr/local/bin writes.
+exec /usr/local/lib/appimagetool/AppRun "$@"
+WRAP
+    chmod +x "$WRAPPER"
+    log "appimagetool ready via $WRAPPER → $EXTRACT_DIR/AppRun"
 }
 install_appimagetool
 

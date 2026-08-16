@@ -1,7 +1,11 @@
 <% const ux35ServerTab = typeof currentTab !== 'undefined' && currentTab ? currentTab : 'overview'; %>
 <% const ux35CommercialTab = typeof currentTab !== 'undefined' && currentTab ? currentTab : 'overview'; %>
 <aside class="ux35-sidebar" id="ux35-sidebar" aria-label="<%= _('nav.main') %>">
-    <div class="ux35-sidebar-resize" id="ux35-sidebar-resize" title="<%= _('ux35.resize_sidebar') || 'Resize sidebar' %>"></div>
+    <div class="ux35-sidebar-resize" id="ux35-sidebar-resize"
+         role="separator" aria-orientation="vertical" tabindex="0"
+         aria-label="<%= _('ux35.resize_sidebar') || 'Resize sidebar' %>"
+         aria-valuemin="200" aria-valuemax="320" aria-valuenow="220"
+         title="<%= _('ux35.resize_sidebar') || 'Resize sidebar' %>"></div>
     <nav class="ux35-sidebar-nav" id="ux35-sidebar-nav">
         <!-- Main -->
         <div class="ux35-sidebar-section" data-panel="main">

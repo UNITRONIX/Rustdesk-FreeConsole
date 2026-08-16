@@ -86,7 +86,7 @@ func (c *bdMgmtNonceCache) markUsed(key string, now time.Time) bool {
 }
 
 func bdMgmtSignaturePayload(deviceID, ts, nonce string) []byte {
-	return []byte(fmt.Sprintf("bd-mgmt-v1\n%s\n%s\n%s", deviceID, ts, nonce))
+	return fmt.Appendf(nil, "bd-mgmt-v1\n%s\n%s\n%s", deviceID, ts, nonce)
 }
 
 func canonicalizeDevicePublicKey(encoded string) (string, error) {
@@ -109,27 +109,31 @@ func (s *Server) storeBdMgmtPublicKey(deviceID, encoded string) error {
 }
 
 func (s *Server) loadBdMgmtPublicKey(deviceID string) ([]byte, error) {
+	// An explicit management key is an Ed25519 identity bound during
+	// enrollment. Prefer it over a generic peer PK, which may be a different
+	// protocol's 32-byte key and therefore is not necessarily an Ed25519 key.
+	stored, err := s.db.GetConfig(bdMgmtPublicKeyConfigPref + deviceID)
+	if err != nil {
+		return nil, err
+	}
+	if stored != "" {
+		decoded, err := base64.StdEncoding.DecodeString(stored)
+		if err != nil {
+			return nil, fmt.Errorf("invalid stored public key: %w", err)
+		}
+		if len(decoded) != ed25519.PublicKeySize {
+			return nil, fmt.Errorf("invalid stored public key length: %d", len(decoded))
+		}
+		return decoded, nil
+	}
+
 	if peerInfo, err := s.db.GetPeer(deviceID); err == nil && peerInfo != nil && len(peerInfo.PK) == ed25519.PublicKeySize {
 		pk := make([]byte, len(peerInfo.PK))
 		copy(pk, peerInfo.PK)
 		return pk, nil
 	}
 
-	stored, err := s.db.GetConfig(bdMgmtPublicKeyConfigPref + deviceID)
-	if err != nil {
-		return nil, err
-	}
-	if stored == "" {
-		return nil, errors.New("no bound device public key")
-	}
-	decoded, err := base64.StdEncoding.DecodeString(stored)
-	if err != nil {
-		return nil, fmt.Errorf("invalid stored public key: %w", err)
-	}
-	if len(decoded) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("invalid stored public key length: %d", len(decoded))
-	}
-	return decoded, nil
+	return nil, errors.New("no bound device public key")
 }
 
 func (s *Server) verifyBdMgmtRequest(r *http.Request, deviceID string) error {

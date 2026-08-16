@@ -72,9 +72,14 @@
                 e.stopPropagation();
                 // Close other dropdowns
                 document.querySelectorAll('.lang-dropdown.open').forEach(d => {
-                    if (d !== dropdown) d.classList.remove('open');
+                    if (d !== dropdown) {
+                        d.classList.remove('open');
+                        d.parentElement?.querySelector('button')?.setAttribute('aria-expanded', 'false');
+                    }
                 });
-                dropdown.classList.toggle('open');
+                const open = !dropdown.classList.contains('open');
+                dropdown.classList.toggle('open', open);
+                btn.setAttribute('aria-expanded', String(open));
             });
         });
         
@@ -82,6 +87,7 @@
         document.addEventListener('click', () => {
             document.querySelectorAll('.lang-dropdown.open').forEach(d => {
                 d.classList.remove('open');
+                d.parentElement?.querySelector('button')?.setAttribute('aria-expanded', 'false');
             });
         });
     }
@@ -138,6 +144,14 @@
                     Notifications.error(_('errors.logout_failed'));
                 }
             }
+        });
+
+        [changePasswordBtn, logoutBtn].filter(Boolean).forEach(btn => {
+            btn.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                btn.click();
+            });
         });
     }
     

@@ -347,7 +347,6 @@
     var flyout = document.getElementById('sidebar-flyout');
     var flyoutTitle = document.getElementById('sidebar-flyout-title');
     var expandBtn = document.getElementById('sidebar-expand-btn');
-    var helpBtn = document.getElementById('sidebar-help-btn');
     var nav = flyout;
     var STORAGE_COLLAPSED = 'bd_sidebar_collapsed';
     var STORAGE_SCROLL = 'bd_sidebar_scroll';
@@ -431,13 +430,6 @@
         expandBtn.addEventListener('click', toggleCollapse);
         expandBtn.querySelector('.material-icons').textContent =
             isCollapsed ? 'chevron_right' : 'chevron_left';
-    }
-
-    // Help button — start tutorial
-    if (helpBtn) {
-        helpBtn.addEventListener('click', function() {
-            if (typeof Tutorial !== 'undefined') Tutorial.start('console');
-        });
     }
 
     // Scroll preservation

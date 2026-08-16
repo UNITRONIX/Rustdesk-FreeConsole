@@ -255,7 +255,9 @@ With Nginx reverse proxy, leave `HTTPS_ENABLED=false` in `.env`.
 ### RustDesk Client WSS Through Nginx
 
 RustDesk **native** clients with `allow-websocket=Y` use the Go server WebSocket ports.
-BetterDesk **Web Remote** (browser console) uses different panel paths — do not mix them up:
+BetterDesk **Web Remote** (browser console) uses different panel paths — do not mix them up.
+
+There is **no** server-side “WebSocket-only” mode that disables TCP/UDP — that is a client + firewall/proxy choice. Full operator checklist, separate-hostname layout, and verify steps: [REVERSE_PROXY.md — Desktop WebSocket Mode checklist](REVERSE_PROXY.md#desktop-websocket-mode-checklist-not-server-websocket-only) and FAQ [#344](https://github.com/UNITRONIX/BetterDesk/issues/344). Desktop WSS fixes landed mainly in **≥ 3.4.0**; **3.4.2** fixed Web Remote after enrollment (#313 / #302), not desktop WS-only.
 
 | Public path | Upstream | Purpose |
 |-------------|----------|---------|
@@ -265,6 +267,8 @@ BetterDesk **Web Remote** (browser console) uses different panel paths — do no
 | `/ws/relay` | Go `:21119` | Native RustDesk relay WSS — **collides** with Web Remote on the same hostname |
 
 **Never** proxy `/ws/rendezvous` to `:21118`. Doing so closes the browser socket with code **1000** after the first frame (TCP length header `65 01…` cannot unmarshal as raw protobuf) — [#329](https://github.com/UNITRONIX/BetterDesk/issues/329).
+
+**Hostname split when both stacks are required:** keep Web Remote on `console.example.com` (all `/ws/*` → panel `:5000`) and native desktop WSS on `desk.example.com` (`/ws/id` → `:21118`, `/ws/relay` → `:21119`). See the checklist linked above.
 
 If Nginx runs on the Docker host, proxy to the published localhost ports. If
 Nginx runs in the same Docker network, replace `127.0.0.1` with the BetterDesk

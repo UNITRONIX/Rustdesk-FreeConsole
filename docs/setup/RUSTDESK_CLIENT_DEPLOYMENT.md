@@ -120,6 +120,8 @@ Combine with a custom detection script that verifies network settings if require
 
 BetterDesk **Pro features** (address book sync, device list, audit) activate after each user **logs in** in the RustDesk client with their BetterDesk account — server config alone is not enough.
 
+That BetterDesk login does **not** replace the target’s **permanent peer password**. For unattended access, set `--password` (or equivalent) on each target during deploy and share that peer secret with authorized operators; user/device groups only scope which devices appear in the address book.
+
 ## Troubleshooting
 
 | Symptom | Check |

@@ -11,15 +11,19 @@ func init() {
 	prepWindowsGraphics()
 }
 
-// prepWindowsGraphics enables Mesa software OpenGL when opengl32.dll ships next to the exe.
+// prepWindowsGraphics cleans up incomplete Mesa OpenGL sidecars left by older
+// Fyne builds. The default Wails UI uses WebView2 and does not need Mesa; an
+// orphan opengl32.dll without libgallium_wgl.dll still must not shadow system GL.
 func prepWindowsGraphics() {
 	ensureMesaBesideExe()
-	exe, err := os.Executable()
-	if err != nil {
+	dir := exeDir()
+	gl := filepath.Join(dir, "opengl32.dll")
+	gallium := filepath.Join(dir, "libgallium_wgl.dll")
+	if _, err := os.Stat(gl); err != nil {
 		return
 	}
-	dir := filepath.Dir(exe)
-	if _, err := os.Stat(filepath.Join(dir, "opengl32.dll")); err != nil {
+	if _, err := os.Stat(gallium); err != nil {
+		_ = os.Remove(gl)
 		return
 	}
 	if os.Getenv("GALLIUM_DRIVER") == "" {

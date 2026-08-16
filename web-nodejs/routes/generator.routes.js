@@ -23,6 +23,8 @@ const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
 const conn = require('../services/agentBundleConnection');
+const supportProfile = require('../services/supportAgentProfile');
+const { PRODUCT_TYPES, normalizeProductType } = require('../lib/generatorBuildTypes');
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
 // default 2 MB JSON body limit on the bundle CRUD + preview endpoints only.
@@ -54,7 +56,7 @@ function serializeBundle(row) {
         created_at:      row.created_at,
         updated_at:      row.updated_at,
         download_url:    `/d/${publicId}`,
-        product_type:    row.product_type || 'agent',
+        product_type:    normalizeProductType(row.product_type),
     };
 }
 
@@ -85,25 +87,15 @@ async function resolveBundleSlug({ preferred, name, fallbackId, excludeBundleId 
 
 function injectServerBranding(input) {
     // Legacy alias — use finalizeBundleBranding for new bundles.
-    return finalizeBundleBrandingSync(input);
+    return supportProfile.finalizeBundleBrandingSync(input);
 }
 
 function finalizeBundleBrandingSync(input) {
-    const branding = { ...(input || {}) };
-    const host = branding.server_host || conn.defaultServerHost();
-    const useHttps = branding.use_https ?? conn.defaultUseHttps();
-    const urls = conn.buildServerUrls(host, useHttps);
-    branding.server = {
-        address: urls.address,
-        api_url: urls.api_url,
-        public_key: keyService.getPublicKey() || '',
-        cdap_port: urls.cdap_port,
-        cdap_url: urls.cdap_url,
-    };
-    branding.server_address = branding.server.address;
-    branding.server_key = branding.server.public_key;
-    branding.use_https = !!useHttps;
-    return branding;
+    return supportProfile.finalizeBundleBrandingSync(input);
+}
+
+function addSupportProfileValidity(branding, now = new Date()) {
+    return supportProfile.addSupportProfileValidity(branding, now);
 }
 
 /**
@@ -113,19 +105,7 @@ function finalizeBundleBrandingSync(input) {
  * after operator approval (managed enrollment).
  */
 async function finalizeBundleBranding(input) {
-    const branding = finalizeBundleBrandingSync(input);
-    const pubKey = (await keyService.resolvePublicKey()) || '';
-    if (branding.server) {
-        branding.server.public_key = pubKey;
-    }
-    branding.server_key = pubKey;
-    // Strip legacy shared tokens from older bundles on save/rebuild.
-    delete branding.enrollment_token;
-    delete branding.has_enrollment_token;
-    delete branding.enrollment_token_masked;
-    branding.server_host = input.server_host || conn.defaultServerHost();
-    branding.use_https = !!(input.use_https ?? conn.defaultUseHttps());
-    return branding;
+    return supportProfile.refreshSupportAgentBranding(input);
 }
 
 function publicBrandingView(branding) {
@@ -137,18 +117,10 @@ function publicBrandingView(branding) {
     return out;
 }
 
-function normalizeProductType(raw) {
-    const v = String(raw || 'agent-client').toLowerCase();
-    if (v === 'rdclient') return 'rdclient';
-    if (v === 'agent-client' || v === 'agent_client') return 'agent-client';
-    if (v === 'support-agent' || v === 'support_agent' || v === 'agent') return 'support-agent';
-    return 'agent-client';
-}
-
 function resolveBuildWorker(productType) {
     const pt = normalizeProductType(productType);
-    if (pt === 'rdclient') return rdclientBuildWorker;
-    if (pt === 'agent-client') return agentClientBuildWorker;
+    if (pt === PRODUCT_TYPES.RDCLIENT) return rdclientBuildWorker;
+    if (pt === PRODUCT_TYPES.AGENT_CLIENT) return agentClientBuildWorker;
     return buildWorker;
 }
 
@@ -199,7 +171,7 @@ router.get('/api/generator/defaults', requireAuth, requireAdmin, async (req, res
         success: true,
         data: {
             server_host: conn.defaultServerHost(),
-            use_https: conn.defaultUseHttps(),
+            use_https: true,
             api_port: conn.defaultApiPort(),
             public_key: (await keyService.resolvePublicKey()) || '',
         },
@@ -212,8 +184,8 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const productType = normalizeProductType(req.body.product_type);
-        const validateFn = productType === 'rdclient'
+        const productType = normalizeProductType(req.body.product_type, PRODUCT_TYPES.SUPPORT_AGENT);
+        const validateFn = productType === PRODUCT_TYPES.RDCLIENT
             ? bundleService.validateRdclientBranding
             : bundleService.validateBranding;
         const { valid, errors, normalized: base } = validateFn(req.body.branding || {});
@@ -234,14 +206,17 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
                 details: [slugResult.error],
             });
         }
-        const normalized = productType === 'rdclient'
+        const normalized = productType === PRODUCT_TYPES.RDCLIENT
             ? { ...base, bundle_id: bundleId, server_url: base.panel_url }
             : await finalizeBundleBranding(base);
-        if (productType !== 'rdclient') {
+        if (productType !== PRODUCT_TYPES.RDCLIENT) {
             normalized.bundle_id = bundleId;
-            normalized.product_name = productType === 'agent-client'
+            normalized.product_name = productType === PRODUCT_TYPES.AGENT_CLIENT
                 ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
                 : (normalized.company_name || 'BetterDesk Support');
+            if (productType === PRODUCT_TYPES.SUPPORT_AGENT) {
+                addSupportProfileValidity(normalized);
+            }
         }
         const brandingHash = bundleService.hashBranding(normalized);
         const created = await db.createAgentBundle({
@@ -253,7 +228,10 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             createdBy: req.session?.userId || null,
             productType,
         });
-        resolveBuildWorker(productType).enqueueBuildsForHash(brandingHash).catch((e) => {
+        const platformsFilter = Array.isArray(req.body.platforms) ? req.body.platforms : null;
+        resolveBuildWorker(productType).enqueueBuildsForHash(brandingHash, {
+            platforms: platformsFilter,
+        }).catch((e) => {
             console.error('[generator] enqueue builds failed:', e.message);
         });
         res.json({ success: true, data: { bundle: serializeBundle(created) } });
@@ -271,16 +249,27 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
+        const productType = normalizeProductType(existing.product_type);
         const existingBranding = parseBranding(existing.branding);
-        const { valid, errors, normalized: base } = bundleService.validateBranding(req.body.branding || existingBranding);
+        const validateFn = productType === PRODUCT_TYPES.RDCLIENT
+            ? bundleService.validateRdclientBranding
+            : bundleService.validateBranding;
+        const { valid, errors, normalized: base } = validateFn(req.body.branding || existingBranding);
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
-        const normalized = await finalizeBundleBranding(base);
-        normalized.bundle_id = req.params.bundleId;
-        normalized.product_name = normalizeProductType(existing.product_type) === 'agent-client'
-            ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
-            : (normalized.company_name || 'BetterDesk Support');
+        const normalized = productType === PRODUCT_TYPES.RDCLIENT
+            ? { ...base, bundle_id: req.params.bundleId, server_url: base.panel_url }
+            : await finalizeBundleBranding(base);
+        if (productType !== PRODUCT_TYPES.RDCLIENT) {
+            normalized.bundle_id = req.params.bundleId;
+            normalized.product_name = productType === PRODUCT_TYPES.AGENT_CLIENT
+                ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
+                : (normalized.company_name || 'BetterDesk Support');
+            if (productType === PRODUCT_TYPES.SUPPORT_AGENT) {
+                addSupportProfileValidity(normalized);
+            }
+        }
         const brandingHash = bundleService.hashBranding(normalized);
         let slug = existing.slug || '';
         if (req.body.slug !== undefined) {
@@ -317,7 +306,10 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         // Phase 2: if branding hash changed, queue new builds; cached artifacts
         // for the previous hash remain reusable for prior portal links.
         if (existing.branding_hash !== brandingHash) {
-            resolveBuildWorker(existing.product_type).enqueueBuildsForHash(brandingHash).catch((e) => {
+            const platformsFilter = Array.isArray(req.body.platforms) ? req.body.platforms : null;
+            resolveBuildWorker(existing.product_type).enqueueBuildsForHash(brandingHash, {
+                platforms: platformsFilter,
+            }).catch((e) => {
                 console.error('[generator] enqueue builds failed:', e.message);
             });
         }
@@ -335,11 +327,16 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
         if (row.revoked) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
         }
-        const result = await resolveBuildWorker(row.product_type).rebuildBundleById(req.params.bundleId);
+        const platformsFilter = Array.isArray(req.body?.platforms) ? req.body.platforms : null;
+        const result = await resolveBuildWorker(row.product_type).rebuildBundleById(
+            req.params.bundleId,
+            platformsFilter ? { platforms: platformsFilter } : undefined
+        );
         if (!result.success) {
             return res.status(404).json({ success: false, error: req.t('errors.not_found') });
         }
-        const builds = await db.listAgentBundleBuildsForHash(row.branding_hash);
+        const listHash = result.brandingHash || row.branding_hash;
+        const builds = await db.listAgentBundleBuildsForHash(listHash);
         res.json({
             success: true,
             data: {
@@ -349,6 +346,54 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
         });
     } catch (err) {
         console.error('[generator] rebuild bundle error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+router.post(
+    '/api/generator/bundles/:bundleId/rebuild/:platform/:arch/:format',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+        try {
+            const row = await db.getAgentBundle(req.params.bundleId);
+            if (!row) return res.status(404).json({ success: false, error: req.t('errors.not_found') });
+            if (row.revoked) {
+                return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
+            }
+            if (!row.branding_hash) {
+                return res.status(400).json({ success: false, error: req.t('generator.errors.missing_hash') });
+            }
+            const worker = resolveBuildWorker(row.product_type);
+            const requeueFn = worker.requeuePlatformBuild || buildWorker.requeuePlatformBuild;
+            const result = await requeueFn(
+                row.branding_hash,
+                req.params.platform,
+                req.params.arch,
+                req.params.format
+            );
+            if (!result.success) {
+                const errKey = result.error === 'unsupported_platform'
+                    ? 'generator.errors.unsupported_platform'
+                    : 'errors.bad_request';
+                return res.status(400).json({ success: false, error: req.t(errKey) });
+            }
+            const listHash = result.brandingHash || row.branding_hash;
+            const builds = await db.listAgentBundleBuildsForHash(listHash);
+            res.json({ success: true, data: { builds: builds || [] } });
+        } catch (err) {
+            console.error('[generator] rebuild platform error:', err);
+            res.status(500).json({ success: false, error: req.t('errors.server_error') });
+        }
+    }
+);
+
+router.get('/api/generator/build-status', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const status = buildWorker.getBuildWorkerStatus();
+        res.json({ success: true, data: status });
+    } catch (err) {
+        console.error('[generator] build-status error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });

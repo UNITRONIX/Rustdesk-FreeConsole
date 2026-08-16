@@ -14,16 +14,8 @@
 }
 
 /* Hide floating buttons when desktop mode topbar provides them */
-.desktop-active .widget-add-btn,
-body.desktop-active .tutorial-help-btn {
+.desktop-active .widget-add-btn {
     display: none !important;
-}
-
-/* Reposition help menu near topbar in desktop mode */
-body.desktop-active .tutorial-help-menu {
-    bottom: auto;
-    top: 42px;
-    right: 80px;
 }
 
 .desktop-widget,

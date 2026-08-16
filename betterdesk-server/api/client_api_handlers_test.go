@@ -214,7 +214,7 @@ func withClientUser(r *http.Request, username, role string) *http.Request {
 	return r.WithContext(ctx)
 }
 
-func TestHandleClientAddressBookPersonalEmptyProbeReturns404(t *testing.T) {
+func TestHandleClientAddressBookPersonalEmptyProbeReturnsGUID(t *testing.T) {
 	database := testSetupDB(t)
 	defer database.Close()
 
@@ -225,12 +225,20 @@ func TestHandleClientAddressBookPersonalEmptyProbeReturns404(t *testing.T) {
 
 	srv.handleClientAddressBookPersonal(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404; body = %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	guid, _ := body["guid"].(string)
+	if guid != personalABGUID("alice") {
+		t.Fatalf("guid = %q, want %q", guid, personalABGUID("alice"))
 	}
 }
 
-func TestHandleClientAddressBookPersonalEmptyJSONProbeReturns404(t *testing.T) {
+func TestHandleClientAddressBookPersonalEmptyJSONProbeReturnsGUID(t *testing.T) {
 	database := testSetupDB(t)
 	defer database.Close()
 
@@ -241,8 +249,15 @@ func TestHandleClientAddressBookPersonalEmptyJSONProbeReturns404(t *testing.T) {
 
 	srv.handleClientAddressBookPersonal(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404; body = %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["guid"] != personalABGUID("alice") {
+		t.Fatalf("guid = %v, want %q", body["guid"], personalABGUID("alice"))
 	}
 }
 
@@ -347,7 +362,16 @@ func TestHandleClientAddressBookMergesOrgSharedBook(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Without panel ACL, operators fail closed (empty AB). Grant both peers so
+	// org merge can be verified under Restricted scope.
+	panel := &mockPanelACLStore{
+		userIDs:           map[string]int64{"alice": 42},
+		restrictedDefault: true,
+		peerGrants:        map[int64][]string{42: {"111", "999"}},
+	}
+
 	srv := New(config.DefaultConfig(), database, peer.NewMap(), nil, "test")
+	srv.SetPanelStore(panel)
 	req := httptest.NewRequest(http.MethodGet, "/api/ab", nil)
 	ctx := context.WithValue(req.Context(), ctxKeyUsername, "alice")
 	ctx = context.WithValue(ctx, ctxKeyRole, "operator")

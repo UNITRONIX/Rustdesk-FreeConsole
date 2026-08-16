@@ -33,18 +33,22 @@ const (
 // is still exposed to the local user through the UI, where it is decrypted in
 // memory on demand. The file is additionally written with 0600 permissions.
 type AppState struct {
-	DeviceID            string `json:"device_id"`
-	InstallationSecret  string `json:"installation_secret,omitempty"`
-	MachineUUID         string `json:"machine_uuid,omitempty"`
-	AccessMode          string `json:"access_mode"`
-	AccessPassword      string `json:"access_password"`
-	CustomPassword      bool   `json:"custom_password"`
-	Language            string `json:"language"`
-	TOTPEnabled         bool   `json:"totp_enabled,omitempty"`
-	TOTPSecret          string `json:"totp_secret,omitempty"`
-	DeviceToken         string `json:"device_token,omitempty"`
-	EnrollmentStatus    string `json:"enrollment_status,omitempty"`
-	EnrollmentMessage   string `json:"enrollment_message,omitempty"`
+	DeviceID           string `json:"device_id"`
+	InstallationSecret string `json:"installation_secret,omitempty"`
+	MachineUUID        string `json:"machine_uuid,omitempty"`
+	AccessMode         string `json:"access_mode"`
+	AccessPassword     string `json:"access_password"`
+	CustomPassword     bool   `json:"custom_password"`
+	Language           string `json:"language"`
+	TOTPEnabled        bool   `json:"totp_enabled,omitempty"`
+	TOTPSecret         string `json:"totp_secret,omitempty"`
+	DeviceToken        string `json:"device_token,omitempty"`
+	EnrollmentStatus   string `json:"enrollment_status,omitempty"`
+	EnrollmentMessage  string `json:"enrollment_message,omitempty"`
+	// Last-known-good connection endpoints (transport resilience).
+	LastGoodCDAP string `json:"last_good_cdap,omitempty"`
+	LastGoodAPI  string `json:"last_good_api,omitempty"`
+	LastGoodAt   string `json:"last_good_at,omitempty"`
 
 	mu   sync.Mutex `json:"-"`
 	path string     `json:"-"`
@@ -301,7 +305,12 @@ func (s *AppState) SetEnrollment(status, deviceID, token, message string) error 
 		s.DeviceID = deviceID
 	}
 	s.EnrollmentStatus = status
-	if token != "" {
+	// Pending and rejected outcomes are authoritative non-approved states.
+	// Retaining a previous credential here would let later enrollment
+	// requests keep presenting a token the server has revoked or rejected.
+	if status == EnrollmentPending || status == EnrollmentRejected {
+		s.DeviceToken = ""
+	} else if token != "" {
 		s.DeviceToken = token
 	}
 	s.EnrollmentMessage = message

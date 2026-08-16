@@ -134,9 +134,9 @@
 }
 
 .filter-btn.active {
-    background: var(--primary);
-    color: #fff;
-    border-color: var(--primary);
+    background: var(--accent-blue-muted);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
 }
 
 /* Table */
@@ -284,6 +284,36 @@
 .device-id-cell {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-weight: 600;
+    color: var(--primary);
+}
+
+.device-id-cell .device-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.device-id-cell .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    opacity: 0.55;
+}
+
+.device-id-cell .copy-btn .material-icons {
+    font-size: 1rem;
+}
+
+.device-id-cell .device-id:hover .copy-btn,
+.device-id-cell .copy-btn:hover,
+.device-id-cell .copy-btn.copied {
+    opacity: 1;
     color: var(--primary);
 }
 

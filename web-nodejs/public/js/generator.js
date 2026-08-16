@@ -1,6 +1,6 @@
 /* =========================================================================
-   Agent Generator (Phase 1: panel + preview + bundle CRUD)
-   Build artifacts not yet produced; /api/d/.../download returns 503.
+   BetterDesk Support Agent Generator
+   Create branded Support Agent installers; builds run on this console host.
    ========================================================================= */
 
 (function () {
@@ -42,26 +42,28 @@
         currentBundle: null,
         currentBuilds: [],
         platformLabels: {},
+        platforms: [],
+        selectedPlatforms: new Set(),
         dirty: false,
         slugManual: false,
         previewTimer: null,
         buildsPollTimer: null,
-        productType: 'agent-client',
+        productType: 'support-agent',
     };
 
     const $ = (id) => document.getElementById(id);
     const els = {};
 
     function cacheEls() {
-        ['gen-new-bundle', 'gen-bundle-list', 'gen-editor-title', 'gen-revoke-btn', 'gen-delete-btn', 'gen-save-btn',
-         'gen-rebuild-btn', 'gen-builds-list', 'gen-builds-summary',
+        ['gen-new-support', 'gen-bundle-list', 'gen-editor-title', 'gen-revoke-btn', 'gen-delete-btn', 'gen-save-btn',
+         'gen-rebuild-btn', 'gen-builds-list', 'gen-builds-summary', 'gen-toolchain-banner', 'gen-platforms',
          'gen-empty-state', 'gen-editor-form',
          'gen-name', 'gen-slug', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
          'gen-server-host', 'gen-use-https', 'gen-token-mask',
          'gen-logo', 'gen-logo-clear', 'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended',
          'gen-download-info', 'gen-download-url', 'gen-copy-link', 'gen-open-link',
          'gen-preview', 'gen-prev-body-logo', 'gen-prev-name', 'gen-prev-text', 'gen-prev-pw-row', 'gen-prev-contact',
-         'gen-validation-errors'
+         'gen-validation-errors', 'gen-advanced-branding'
         ].forEach(id => { els[id] = $(id); });
     }
 
@@ -251,6 +253,7 @@
         const map = {
             ready: t('generator.build_status_ready', 'Ready'),
             pending: t('generator.build_status_pending', 'Queued'),
+            queued: t('generator.build_status_pending', 'Queued'),
             building: t('generator.build_status_building', 'Building'),
             failed: t('generator.build_status_failed', 'Failed'),
         };
@@ -260,13 +263,16 @@
     function summarizeBuilds(builds) {
         const counts = { ready: 0, pending: 0, building: 0, failed: 0 };
         for (const b of builds || []) {
-            if (counts[b.status] != null) counts[b.status]++;
+            const status = b.status === 'queued' ? 'pending' : b.status;
+            if (counts[status] != null) counts[status]++;
         }
         return counts;
     }
 
     function buildsNeedPoll(builds) {
-        return (builds || []).some(b => b.status === 'pending' || b.status === 'building');
+        return (builds || []).some(
+            (b) => b.status === 'queued' || b.status === 'pending' || b.status === 'building'
+        );
     }
 
     function stopBuildsPoll() {
@@ -283,6 +289,76 @@
         state.buildsPollTimer = setInterval(() => {
             refreshBuilds().catch(() => {});
         }, 5000);
+    }
+
+    function classifyBuildErrorClient(msg) {
+        const s = String(msg || '');
+        if (/branding signing|sealbranding|refusing to embed plaintext|signed branding profile could not/i.test(s)) {
+            return t('generator.toolchain_branding_seal', 'Branding signing failed — check bundle signing key and rebuild');
+        }
+        if (/not in std|Go toolchain|stdlib verification|go:|cannot find package/i.test(s)) {
+            return t('generator.toolchain_go', 'Go toolchain missing or unhealthy');
+        }
+        if (/wixl|msitools|\.wxs/i.test(s)) {
+            return t('generator.toolchain_wixl', 'wixl (msitools) required for Windows .msi builds');
+        }
+        if (/appimagetool|AppImage|Failed to extract AppImage|could not create symlink/i.test(s)) {
+            return t('generator.toolchain_appimage', 'appimagetool required for Linux AppImage builds');
+        }
+        if (/dpkg-deb|fakeroot|\.deb/i.test(s)) {
+            return t('generator.toolchain_deb', 'dpkg-deb / fakeroot required for .deb packages');
+        }
+        if (/rpmbuild|\.rpm/i.test(s)) {
+            return t('generator.toolchain_rpm', 'rpmbuild required for .rpm packages');
+        }
+        if (/mesa|opengl|libGL|WGL/i.test(s)) {
+            return t('generator.toolchain_mesa', 'Mesa/OpenGL support needed for Windows GUI builds');
+        }
+        if (/mingw|x86_64-w64-mingw|cgo: C compiler|CC=.*mingw/i.test(s)) {
+            return t('generator.toolchain_cgo', 'CGO / mingw cross-compiler required for Windows Fyne builds');
+        }
+        return t('generator.build_error_hint', 'Build error');
+    }
+
+    function selectAllPlatforms() {
+        state.selectedPlatforms = new Set(
+            (state.platforms || []).map((p) => platformKey(p.platform, p.arch, p.format))
+        );
+        renderPlatformChecklist();
+    }
+
+    function readSelectedPlatforms() {
+        const keys = state.selectedPlatforms;
+        const list = (state.platforms || []).filter((p) => keys.has(platformKey(p.platform, p.arch, p.format)));
+        return list.map((p) => ({ platform: p.platform, arch: p.arch, format: p.format }));
+    }
+
+    function renderPlatformChecklist() {
+        const root = els['gen-platforms'];
+        if (!root) return;
+        if (!state.platforms.length) {
+            root.innerHTML = `<p class="text-muted">${escapeText(t('generator.builds_loading', 'Loading…'))}</p>`;
+            return;
+        }
+        root.innerHTML = state.platforms.map((p) => {
+            const key = platformKey(p.platform, p.arch, p.format);
+            const checked = state.selectedPlatforms.has(key) ? 'checked' : '';
+            const label = p.label || platformLabel(p.platform, p.arch, p.format);
+            return `
+                <label class="platform-check">
+                    <input type="checkbox" data-platform-key="${escapeText(key)}" ${checked}>
+                    <span>${escapeText(label)}</span>
+                </label>
+            `;
+        }).join('');
+        root.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const key = cb.dataset.platformKey;
+                if (cb.checked) state.selectedPlatforms.add(key);
+                else state.selectedPlatforms.delete(key);
+                if (state.currentId === 'new' || state.currentId) markDirty();
+            });
+        });
     }
 
     function renderBuilds(builds) {
@@ -318,15 +394,31 @@
                     <tr>
                         <th>${escapeText(t('generator.builds_title', 'Client builds'))}</th>
                         <th>${escapeText(t('common.status', 'Status'))}</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     ${rows.map(b => {
-                        const err = b.error_message ? `<div class="build-error" title="${escapeText(b.error_message)}">${escapeText(b.error_message)}</div>` : '';
+                        const hint = b.error_message
+                            ? `<div class="build-error-hint">${escapeText(classifyBuildErrorClient(b.error_message))}</div>`
+                            : '';
+                        const err = b.error_message
+                            ? `<div class="build-error" title="${escapeText(b.error_message)}">${escapeText(b.error_message)}</div>`
+                            : '';
+                        const retry = b.status === 'failed'
+                            ? `<button type="button" class="btn btn-ghost btn-xs gen-retry-build"
+                                data-platform="${escapeText(b.platform)}"
+                                data-arch="${escapeText(b.arch)}"
+                                data-format="${escapeText(b.format)}">
+                                <span class="material-icons">replay</span>
+                                ${escapeText(t('generator.retry_build', 'Retry'))}
+                               </button>`
+                            : '';
                         return `
                             <tr class="build-row build-row--${escapeText(b.status)}">
-                                <td>${escapeText(platformLabel(b.platform, b.arch, b.format))}${err}</td>
+                                <td>${escapeText(platformLabel(b.platform, b.arch, b.format))}${hint}${err}</td>
                                 <td><span class="build-badge build-badge--${escapeText(b.status)}">${escapeText(statusLabel(b.status))}</span></td>
+                                <td class="build-actions">${retry}</td>
                             </tr>
                         `;
                     }).join('')}
@@ -334,7 +426,73 @@
             </table>
         `;
 
+        listEl.querySelectorAll('.gen-retry-build').forEach((btn) => {
+            btn.addEventListener('click', () => retryPlatformBuild(
+                btn.dataset.platform,
+                btn.dataset.arch,
+                btn.dataset.format
+            ));
+        });
+
         scheduleBuildsPoll();
+    }
+
+    async function retryPlatformBuild(platform, arch, format) {
+        if (!state.currentId || state.currentId === 'new') return;
+        try {
+            const res = await api(
+                'POST',
+                `/api/generator/bundles/${encodeURIComponent(state.currentId)}/rebuild/`
+                    + `${encodeURIComponent(platform)}/${encodeURIComponent(arch)}/${encodeURIComponent(format)}`
+            );
+            notify.success(t('generator.retry_queued', 'Platform build queued'));
+            renderBuilds((res && res.data && res.data.builds) || []);
+        } catch (e) {
+            notify.error(e.message);
+        }
+    }
+
+    async function loadToolchainStatus() {
+        const banner = els['gen-toolchain-banner'];
+        if (!banner) return;
+        try {
+            const res = await api('GET', '/api/generator/build-status');
+            const d = (res && res.data) || {};
+            const issues = [];
+            if (!d.workerEnabled) {
+                issues.push(t('generator.toolchain_worker_off', 'Agent build worker is disabled'));
+            }
+            if (!d.goHealthy) {
+                issues.push(t('generator.toolchain_go_missing', 'Go is not available'));
+            }
+            if (!d.mingwGcc) {
+                issues.push(t('generator.toolchain_mingw_missing', 'mingw-w64 (x86_64-w64-mingw32-gcc) not found — Windows builds will fail'));
+            }
+            if (!d.msiBuilder) {
+                issues.push(t('generator.toolchain_msi_missing', 'MSI builder (wixl) not found'));
+            }
+            if (!d.appimagetool) {
+                issues.push(t('generator.toolchain_appimage_missing', 'appimagetool not found — AppImage builds will fail'));
+            }
+            if (d.rebuildPending) {
+                issues.push(
+                    t('generator.rebuild_pending_banner', 'A generator rebuild is pending')
+                        .replace('{{reason}}', d.rebuildPending.reason || 'update')
+                );
+            }
+            if (issues.length) {
+                banner.className = 'toolchain-banner toolchain-banner--warn';
+                banner.textContent = issues.join(' · ');
+                banner.classList.remove('hidden');
+            } else {
+                banner.className = 'toolchain-banner toolchain-banner--ok';
+                banner.textContent = t('generator.toolchain_banner_ok', 'Build toolchain ready (Go {{go}}).')
+                    .replace('{{go}}', d.goBin || 'go');
+                banner.classList.remove('hidden');
+            }
+        } catch (_) {
+            banner.classList.add('hidden');
+        }
     }
 
     async function refreshBuilds() {
@@ -355,7 +513,10 @@
             btn.innerHTML = `<span class="material-icons spinning">sync</span> ${escapeText(t('generator.rebuilding_all', 'Queuing rebuilds…'))}`;
         }
         try {
-            const res = await api('POST', `/api/generator/bundles/${encodeURIComponent(state.currentId)}/rebuild`);
+            const platforms = readSelectedPlatforms();
+            const res = await api('POST', `/api/generator/bundles/${encodeURIComponent(state.currentId)}/rebuild`, {
+                platforms: platforms.length ? platforms : undefined,
+            });
             notify.success(t('generator.rebuild_queued', 'All platform builds queued'));
             renderBuilds((res && res.data && res.data.builds) || []);
         } catch (e) {
@@ -383,12 +544,12 @@
             const revokedBadge = bundle.revoked
                 ? `<span class="badge-revoked">${escapeText(t('generator.revoked', 'Revoked'))}</span>`
                 : '';
-            const pt = bundle.product_type || 'agent-client';
-            const productBadge = pt === 'rdclient'
-                ? `<span class="badge-product">${escapeText(t('generator.product_rdclient', 'RdClient'))}</span>`
-                : pt === 'support-agent' || pt === 'agent'
-                    ? `<span class="badge-product">${escapeText(t('generator.product_support_agent', 'Support'))}</span>`
-                    : `<span class="badge-product">${escapeText(t('generator.product_agent_client', 'Agent Client'))}</span>`;
+            const pt = bundle.product_type || 'support-agent';
+            const productBadge = (pt === 'support-agent' || pt === 'agent')
+                ? `<span class="badge-product">${escapeText(t('generator.product_support_agent', 'Support'))}</span>`
+                : pt === 'rdclient'
+                    ? `<span class="badge-product badge-product--legacy">${escapeText(t('generator.product_rdclient', 'RdClient'))}</span>`
+                    : `<span class="badge-product badge-product--legacy">${escapeText(t('generator.product_agent_client', 'Agent Client'))}</span>`;
             item.innerHTML = `
                 <div class="bundle-item-title">
                     ${escapeText(bundle.name || bundle.bundle_id)}
@@ -435,17 +596,14 @@
         state.currentBuilds = [];
         state.dirty = false;
         state.slugManual = false;
-        state.productType = productType || 'agent-client';
+        state.productType = productType || 'support-agent';
+        selectAllPlatforms();
         stopBuildsPoll();
-        const titleKey = state.productType === 'rdclient'
-            ? 'generator.rdclient_new_bundle'
-            : state.productType === 'support-agent'
-                ? 'generator.support_agent_new_bundle'
-                : 'generator.agent_client_new_bundle';
-        els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t(titleKey, 'New bundle'))}`;
+        els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t('generator.support_agent_new_bundle', 'New Support Agent'))}`;
         els['gen-name'].value = '';
         if (els['gen-slug']) els['gen-slug'].value = '';
         writeBranding(DEFAULT_BRANDING);
+        if (els['gen-advanced-branding']) els['gen-advanced-branding'].open = false;
         els['gen-revoke-btn'].classList.add('hidden');
         els['gen-delete-btn'].classList.add('hidden');
         els['gen-download-info'].classList.remove('hidden');
@@ -467,14 +625,20 @@
     function setEditorForBundle(bundle) {
         state.currentId = bundle.bundle_id;
         state.currentBundle = bundle;
-        state.productType = bundle.product_type || 'agent-client';
+        state.productType = bundle.product_type || 'support-agent';
         state.dirty = false;
         state.slugManual = true;
+        selectAllPlatforms();
         stopBuildsPoll();
         els['gen-editor-title'].innerHTML = `<span class="material-icons">edit</span> ${escapeText(bundle.name || bundle.bundle_id)}`;
         els['gen-name'].value = bundle.name || '';
         if (els['gen-slug']) els['gen-slug'].value = bundle.slug || bundle.public_id || '';
         writeBranding(bundle.branding);
+        if (els['gen-advanced-branding']) {
+            const b = bundle.branding || {};
+            const hasCustom = !!(b.company_name || b.logo_data_url || b.short_text || b.contact_email);
+            els['gen-advanced-branding'].open = hasCustom;
+        }
         els['gen-revoke-btn'].classList.remove('hidden');
         els['gen-revoke-btn'].innerHTML = bundle.revoked
             ? `<span class="material-icons">undo</span> ${escapeText(t('generator.unrevoke', 'Unrevoke'))}`
@@ -525,11 +689,21 @@
 
     async function saveBundle() {
         clearErrors();
+        const branding = readBranding();
+        if (!branding.company_name && els['gen-name'].value.trim()) {
+            branding.company_name = els['gen-name'].value.trim();
+        }
+        const platforms = readSelectedPlatforms();
+        if (!platforms.length) {
+            showErrors([t('generator.errors.platforms_required', 'Select at least one platform to build')]);
+            return;
+        }
         const payload = {
             name: els['gen-name'].value.trim(),
             slug: readSlugInput(),
-            branding: readBranding(),
-            product_type: state.productType || 'agent',
+            branding,
+            product_type: 'support-agent',
+            platforms,
         };
         if (!payload.name) {
             showErrors([t('generator.errors.name_required', 'Bundle name is required')]);
@@ -548,6 +722,7 @@
             await loadBundles();
             if (res && res.data && res.data.bundle) {
                 setEditorForBundle(res.data.bundle);
+                refreshBuilds().catch(() => {});
             }
         } catch (e) {
             const errs = (e.data && e.data.errors) || [e.message];
@@ -659,21 +834,22 @@
         try {
             const res = await api('GET', '/api/generator/platforms');
             const platforms = (res && res.data && res.data.platforms) || [];
+            state.platforms = platforms;
             state.platformLabels = {};
             platforms.forEach(p => {
                 state.platformLabels[platformKey(p.platform, p.arch, p.format)] = p.label;
             });
+            selectAllPlatforms();
         } catch (_) {
+            state.platforms = [];
             state.platformLabels = {};
         }
     }
 
     function bindEvents() {
-        els['gen-new-bundle'].addEventListener('click', () => setEditorForNew('agent-client'));
-        const supportBtn = $('gen-new-support');
-        if (supportBtn) supportBtn.addEventListener('click', () => setEditorForNew('support-agent'));
-        const rdBtn = $('gen-new-rdclient');
-        if (rdBtn) rdBtn.addEventListener('click', () => setEditorForNew('rdclient'));
+        if (els['gen-new-support']) {
+            els['gen-new-support'].addEventListener('click', () => setEditorForNew('support-agent'));
+        }
         els['gen-save-btn'].addEventListener('click', saveBundle);
         els['gen-rebuild-btn'].addEventListener('click', rebuildAllBuilds);
         els['gen-revoke-btn'].addEventListener('click', toggleRevoke);
@@ -714,6 +890,7 @@
         bindEvents();
         await loadConnectionDefaults();
         await loadPlatformLabels();
+        loadToolchainStatus().catch(() => {});
         loadBundles();
     }
 

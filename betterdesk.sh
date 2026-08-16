@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.5.4
+#   BetterDesk Console Manager v3.5.56
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.5.4"
+VERSION="3.5.56"
 # Bump when installer control-flow changes must apply mid-session after Update (#219).
 BETTERDESK_SH_REVISION="20260725-console-start-306"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -880,8 +880,11 @@ resolve_le_cert_live_dir() {
     echo "$le_live_dir"
 }
 
-# Copy a TLS file to dest as a real file (not a symlink). Removes dest when it
-# already resolves to the same path as src — cp -L otherwise fails with "same file" (#219).
+# Copy a TLS file to dest as a real file (not a symlink).
+# - If dest is already the same real file as src (self-signed generated in place),
+#   do nothing — deleting dest would remove src and break cp (#325, discussion #322).
+# - If dest is a symlink that resolves to src (LE live dir), remove the symlink
+#   and copy content so the console user can read it (#219).
 _safe_cp_tls_file() {
     local src="$1"
     local dest="$2"
@@ -892,7 +895,13 @@ _safe_cp_tls_file() {
     if [ -e "$dest" ]; then
         dest_real=$(readlink -f "$dest" 2>/dev/null || echo "$dest")
         if [ "$src_real" = "$dest_real" ]; then
-            rm -f "$dest"
+            if [ -L "$dest" ]; then
+                # Symlink to src → replace with a real copy (#219)
+                rm -f "$dest"
+            else
+                # Already a real file at dest (self-signed path) — no copy needed (#325)
+                return 0
+            fi
         fi
     fi
     tmp="${dest}.betterdesk.$$.tmp"
@@ -4372,7 +4381,7 @@ do_install() {
 #===============================================================================
 
 # GitHub repository configuration for online updates
-UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-UNITRONIX}"
+UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-Chesster1981}"
 UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
 UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
 UPDATE_CLONE_DIR="/tmp/betterdesk-update-$$"

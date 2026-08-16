@@ -312,6 +312,7 @@ func (pg *PostgresDB) ListUserPeerGrants(userID int64) ([]string, error) {
 }
 
 // DeviceScopeDefaultRestricted reads panel settings for default-deny device visibility.
+// When unset, defaults to restricted (allowlist-only for non-admins).
 func (pg *PostgresDB) DeviceScopeDefaultRestricted() bool {
 	if pg.pgHasTable("settings") {
 		var value string
@@ -320,5 +321,9 @@ func (pg *PostgresDB) DeviceScopeDefaultRestricted() bool {
 			return strings.EqualFold(strings.TrimSpace(value), "restricted")
 		}
 	}
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
+	env := strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT"))
+	if env == "" {
+		return true
+	}
+	return strings.EqualFold(env, "restricted")
 }

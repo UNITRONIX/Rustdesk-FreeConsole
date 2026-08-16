@@ -7,6 +7,7 @@ const {
     buildNpmInstallEnv,
     ensureConsoleNpmDirs,
     runConsoleNpmInstall,
+    verifyConsoleNativeBindings,
     verifyConsoleNodeModules,
 } = require('../lib/consoleNpmInstall');
 
@@ -62,6 +63,18 @@ describe('consoleNpmInstall', () => {
         fs.writeFileSync(path.join(tmpRoot, 'node_modules', 'express', 'package.json'), '{"name":"express"}');
         expect(verifyConsoleNodeModules(tmpRoot, ['express'])).toBe(true);
         expect(verifyConsoleNodeModules(tmpRoot, ['missing-package-xyz'])).toBe(false);
+    });
+
+    test('verifyConsoleNativeBindings loads real better-sqlite3 from this console tree', () => {
+        const consoleRoot = path.join(__dirname, '..');
+        const result = verifyConsoleNativeBindings(consoleRoot, ['better-sqlite3']);
+        expect(result).toEqual({ ok: true });
+    });
+
+    test('verifyConsoleNativeBindings reports missing packages', () => {
+        const result = verifyConsoleNativeBindings(tmpRoot, ['missing-native-xyz']);
+        expect(result.ok).toBe(false);
+        expect(result.error).toMatch(/missing-native-xyz/);
     });
 
     test('ensureConsoleNpmDirs is idempotent', () => {

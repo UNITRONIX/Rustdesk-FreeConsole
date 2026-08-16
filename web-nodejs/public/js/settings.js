@@ -38,7 +38,6 @@
             initEmailSection();
         }
 
-        initTutorialSection();
         loadAuditLog();
         loadServerInfo();
         initMeshSettingsSection();
@@ -2752,65 +2751,6 @@
         el.innerHTML = html;
     }
     
-    // ==================== Tutorials ====================
-
-    function initTutorialSection() {
-        const toggle = document.getElementById('tutorials-enabled');
-        const resetBtn = document.getElementById('tutorials-reset-btn');
-        if (!toggle) return;
-
-        // Read current state from Tutorial system (localStorage)
-        const tutorialDisabled = typeof Tutorial !== 'undefined' ? Tutorial.isDisabled() : 
-            localStorage.getItem('betterdesk_tutorial_disabled') === 'true';
-        toggle.checked = !tutorialDisabled;
-
-        toggle.addEventListener('change', function() {
-            const disabled = !toggle.checked;
-            if (typeof Tutorial !== 'undefined') {
-                Tutorial.setDisabled(disabled);
-            } else {
-                localStorage.setItem('betterdesk_tutorial_disabled', disabled ? 'true' : 'false');
-            }
-            // Notify tutorial.js to show/hide help button
-            window.dispatchEvent(new CustomEvent('tutorial:stateChanged', { detail: { disabled: disabled } }));
-
-            if (typeof Toast !== 'undefined') {
-                Toast.success(
-                    disabled ? _('settings.tutorials_disabled_toast') : _('settings.tutorials_enabled_toast'),
-                    '', 3000
-                );
-            }
-        });
-
-        // Listen for changes from help menu toggle
-        window.addEventListener('tutorial:stateChanged', function(e) {
-            if (e.detail && typeof e.detail.disabled === 'boolean') {
-                toggle.checked = !e.detail.disabled;
-            }
-        });
-
-        if (resetBtn) {
-            resetBtn.addEventListener('click', async function() {
-                const confirmed = await settingsConfirmCritical({
-                    title: tSettings('confirm.tutorials_reset_title', 'Reset tutorials?'),
-                    message: tSettings('confirm.tutorials_reset', 'Reset all tutorial progress? Guided tips will show again on each page.'),
-                    confirmLabel: _('tutorial.reset_all'),
-                    icon: 'refresh'
-                });
-                if (!confirmed) return;
-
-                if (typeof Tutorial !== 'undefined') {
-                    Tutorial.resetTutorial();
-                } else {
-                    localStorage.removeItem('betterdesk_tutorial_seen');
-                }
-                if (typeof Toast !== 'undefined') {
-                    Toast.success(_('settings.tutorials_reset_toast'), '', 3000);
-                }
-            });
-        }
-    }
-
     // ==================== Self-Update ====================
     
     let _updateState = { remoteSHA: null, changedData: null };
@@ -2909,7 +2849,7 @@
             renderUpdateChannelBadge(data);
             if (branchEl) {
                 branchEl.textContent = data?.branch
-                    ? `${data.branch} · ${data.owner || 'UNITRONIX'}/${data.repo || 'BetterDesk'}`
+                    ? `${data.branch} · ${data.owner || 'Chesster1981'}/${data.repo || 'BetterDesk'}`
                     : '—';
             }
         } catch (_e) {
@@ -3564,11 +3504,22 @@
         window.location.replace(url.toString());
     }
 
+    function criticalServicesFailed(result) {
+        return (result?.servicesFailed || []).filter((s) => !s.nonCritical);
+    }
+
+    function softServicesFailed(result) {
+        // Windows NSSM OpenService Access Denied (#272) — files applied; do not
+        // treat as a failed update when the service is often already Running.
+        return (result?.servicesFailed || []).filter((s) => s.nonCritical);
+    }
+
     function hasUpdateFailures(result) {
         if (!result) return false;
         const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
-        return (result.failed?.length || 0) > 0
-            || (result.servicesFailed?.length || 0) > 0
+        const criticalFailed = (result.failed || []).filter((f) => !f.nonCritical);
+        return criticalFailed.length > 0
+            || criticalServicesFailed(result).length > 0
             || !!result.consoleRestartBlocked
             || !!result.restartTimeout
             || deployFailed;
@@ -3590,13 +3541,29 @@
         ];
         lines.push(`<ul>${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
         if (result?.failed?.length) {
-            lines.push(`<ul class="update-wizard-error-list">${result.failed.map(f =>
-                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+            const hardFailed = result.failed.filter((f) => !f.nonCritical);
+            const softFailed = result.failed.filter((f) => f.nonCritical);
+            if (hardFailed.length) {
+                lines.push(`<ul class="update-wizard-error-list">${hardFailed.map(f =>
+                    `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+                ).join('')}</ul>`);
+            }
+            if (softFailed.length) {
+                lines.push(`<ul class="text-muted" style="margin-top:0.5em">${softFailed.map(f =>
+                    `<li>${Utils.escapeHtml(f.file || 'unknown')}${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+                ).join('')}</ul>`);
+            }
+        }
+        const hardSvc = criticalServicesFailed(result);
+        if (hardSvc.length) {
+            lines.push(`<ul class="update-wizard-error-list">${hardSvc.map(s =>
+                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}${s.hint ? `<br><span class="text-muted">${Utils.escapeHtml(s.hint)}</span>` : ''}</li>`
             ).join('')}</ul>`);
         }
-        if (result?.servicesFailed?.length) {
-            lines.push(`<ul class="update-wizard-error-list">${result.servicesFailed.map(s =>
-                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
+        const softSvc = softServicesFailed(result);
+        if (softSvc.length) {
+            lines.push(`<ul class="text-muted" style="margin-top:0.5em">${softSvc.map(s =>
+                `<li>${Utils.escapeHtml(s.service || 'service')}${s.hint ? `: ${Utils.escapeHtml(s.hint)}` : (s.error ? `: ${Utils.escapeHtml(s.error)}` : '')}</li>`
             ).join('')}</ul>`);
         }
         if (result?.consoleRestartBlocked) {
@@ -3694,10 +3661,15 @@
             if (bannerDetails) bannerDetails.innerHTML = buildUpdateSummaryHtml(result, { includeSummary: false });
             const footer = [closeFooterBtn];
             const needsReload = (result?.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
-            if (needsReload) {
+            const autoRefresh = !!(result?.panelRefreshRecommended);
+            if (needsReload || autoRefresh) {
                 footer.push({ label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole });
             }
             updateModalFooter(footer);
+            // Services verified running after soft NSSM ACL — show success, then refresh.
+            if (autoRefresh) {
+                startReloadCountdown(8);
+            }
         } else if (state === 'partial_error' || state === 'error') {
             toggleUpdateLogExpanded(true);
             setModalClosable(true);
@@ -3899,11 +3871,23 @@
             const failed  = result.failed?.length || 0;
             const removed = result.removed?.length || 0;
             logUpdate(`${_('updates.applied')}: ${applied} · ${_('updates.failed')}: ${failed} · ${_('updates.removed')}: ${removed}`);
+            if (result.agentRebuildQueued) {
+                logUpdate(
+                    _('updates.agent_rebuild_queued')
+                        .replace('{{count}}', String(result.agentRebuildBundles ?? '?'))
+                        .replace('{{staged}}', String(result.agentSourcesStaged ?? 0))
+                        .replace('{{paths}}', String(result.agentSourcePaths ?? 0))
+                );
+            }
             for (const item of (result.failed || [])) {
-                logUpdate(`${item.file}: ${item.error || ''}`);
+                if (item.file === 'support-agent-source-sync') {
+                    logUpdate(`${_('updates.agent_source_sync_failed')} ${item.error || ''}`);
+                } else {
+                    logUpdate(`${item.file}: ${item.error || ''}`);
+                }
             }
             for (const item of (result.servicesFailed || [])) {
-                logUpdate(`${item.service}: ${item.error || ''}`);
+                logUpdate(`${item.service}: ${item.error || ''}${item.hint ? ` — ${item.hint}` : ''}`);
             }
 
             if (result.needsConsoleRestart && !result.consoleRestartBlocked) {

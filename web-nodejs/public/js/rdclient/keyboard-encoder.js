@@ -204,6 +204,11 @@ const RDKeyboardEncoder = {
     },
 
     /**
+     * Resolve Legacy printable character as a Unicode code point.
+     * Non-letter keys prefer KeyboardEvent.key (layout-aware: Norwegian Slash→'-',
+     * Minus→'+', …). LEGACY_CHAR_MAP is US-QWERTY and must not override those.
+     * Letters with a DOM event use resolveLegacyLetterCase; without an event,
+     * LEGACY_CHAR_MAP / key fallback matches upstream lowercase+modifier style.
      * @param {string} code
      * @param {string} key
      * @param {KeyboardEvent|null} e
@@ -214,6 +219,16 @@ const RDKeyboardEncoder = {
             const resolved = this.resolveLegacyLetterCase(e);
             if (resolved && resolved.length === 1) {
                 return resolved.codePointAt(0);
+            }
+        }
+        // Symbol/digit/punctuation: always prefer the character the OS produced.
+        if (!this.isLetterCode(code)) {
+            const fromKey = (key && key !== 'Unidentified' && key !== 'Dead') ? key : '';
+            if (fromKey) {
+                const chars = [...fromKey];
+                if (chars.length === 1) {
+                    return chars[0].codePointAt(0) ?? null;
+                }
             }
         }
         const mapped = this.LEGACY_CHAR_MAP[code];

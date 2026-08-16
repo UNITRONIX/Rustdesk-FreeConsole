@@ -6,7 +6,7 @@ const config = require('../config/config');
 let scopeDefaultCache = { value: null, at: 0 };
 
 async function isDeviceScopeRestrictedDefault(db) {
-    const envRestricted = String(config.deviceScopeDefault || 'open').toLowerCase() === 'restricted';
+    const envRestricted = String(config.deviceScopeDefault || 'restricted').toLowerCase() === 'restricted';
     if (!db || typeof db.getSetting !== 'function') return envRestricted;
     const now = Date.now();
     if (scopeDefaultCache.value !== null && now - scopeDefaultCache.at < 30000) {
@@ -121,13 +121,16 @@ function getGroupFolderId(group) {
     return folderIdFromGroupGuid(group && group.guid);
 }
 
-function groupAllowedForUser(group, user) {
-    if (!user || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
+function groupAllowedForUser(group, user, opts = {}) {
+    const strict = opts && opts.strict === true;
+    if (!strict && (!user || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin')) {
         return true;
     }
+    if (!user) return false;
     const allowedUsers = normalizeUsernames(group && group.allowed_users);
     const allowedGroups = normalizeGroupGuids(group && (group.allowed_groups || group.allowed_user_groups));
-    if (allowedUsers.length === 0 && allowedGroups.length === 0) return true;
+    // Fail closed: empty ACL is private until users and/or user groups are attached.
+    if (allowedUsers.length === 0 && allowedGroups.length === 0) return false;
     if (allowedUsers.includes(user.username)) return true;
 
     const userGroups = new Set(normalizeGroupGuids(user.user_groups || user.group_guids || user.allowed_groups));
@@ -135,10 +138,10 @@ function groupAllowedForUser(group, user) {
 }
 
 async function getUserAccessContext(db, user) {
-    if (!user || !user.id || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
-        return user;
-    }
-    if (Array.isArray(user.user_groups) || typeof db.getUserGroupsForUser !== 'function') return user;
+    // Always resolve user-group membership — RustDesk AB uses strict ACL even for
+    // panel admins, so privileged roles still need their user_groups loaded.
+    if (!user || !user.id || typeof db.getUserGroupsForUser !== 'function') return user;
+    if (Array.isArray(user.user_groups)) return user;
     try {
         const groups = await db.getUserGroupsForUser(user.id);
         return {
@@ -197,19 +200,23 @@ async function enrichGroups(db, groups, devices = []) {
 }
 
 async function getDeviceScopeForUser(db, user, devices = []) {
-    if (!user || !user.id || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
+    if (!user) {
+        return new Set();
+    }
+    if (isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
         return null;
     }
-
-    if (typeof db.getAllDeviceGroups !== 'function') return null;
+    // Non-admins must never fail open: missing user id or ACL adapter → deny-all.
+    if (!user.id || typeof db.getAllDeviceGroups !== 'function') {
+        return new Set();
+    }
 
     const restrictedDefault = await isDeviceScopeRestrictedDefault(db);
     const accessUser = await getUserAccessContext(db, user);
     const groups = await db.getAllDeviceGroups();
-    const restrictedGroups = (groups || []).filter(group =>
-        normalizeUsernames(group.allowed_users).length > 0 ||
-        normalizeGroupGuids(group.allowed_groups || group.allowed_user_groups).length > 0
-    );
+    // Every device/folder group participates in scope. Empty ACL denies non-admins
+    // (groupAllowedForUser) and still hides member devices from the open overlay.
+    const scopedGroups = groups || [];
 
     let peerGrants = [];
     if (typeof db.getUserPeerGrants === 'function') {
@@ -220,20 +227,23 @@ async function getDeviceScopeForUser(db, user, devices = []) {
         }
     }
 
-    if (restrictedGroups.length === 0 && peerGrants.length === 0) {
+    if (scopedGroups.length === 0 && peerGrants.length === 0) {
         return restrictedDefault ? new Set() : null;
     }
 
     const allowedIds = new Set();
     const restrictedIds = new Set();
-    for (const group of restrictedGroups) {
+    for (const group of scopedGroups) {
         const ids = await getGroupPeerIds(db, group, devices);
         const target = groupAllowedForUser(group, accessUser) ? allowedIds : restrictedIds;
         for (const id of ids) target.add(id);
     }
     for (const id of peerGrants) allowedIds.add(String(id));
 
-    if (restrictedDefault) {
+    // Security: once a non-admin has any explicit allowlist entry (folder/group ACL
+    // or peer grant), do not also expose the open-mode "unassigned" overlay — that
+    // leaked the rest of the fleet to operators granted only a subset of devices.
+    if (restrictedDefault || allowedIds.size > 0) {
         return allowedIds;
     }
 

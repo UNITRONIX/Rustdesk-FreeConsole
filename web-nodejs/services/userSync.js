@@ -53,6 +53,19 @@ function isSuperAdminRole(role) {
     return role === 'super_admin' || role === 'admin';
 }
 
+function usesSharedUserStore() {
+    if (db.type === 'postgres') return true;
+    try {
+        return typeof db.getAuthDb === 'function' && db.getAuthDb() === db.getDb();
+    } catch (_) {
+        return false;
+    }
+}
+
+function usesSharedSQLiteStore() {
+    return db.type === 'sqlite' && usesSharedUserStore();
+}
+
 /**
  * Fetch Go users via API. Distinguishes empty list from API failure (Issue #315).
  * @returns {Promise<{ users: object[], ok: boolean, status?: number, error?: string }>}
@@ -85,7 +98,7 @@ async function listGoUsers() {
  */
 async function assertGoAllowsSuperAdminDelete(username) {
     if (!username) return { ok: true, reason: 'no-username' };
-    if (db.type === 'postgres') return { ok: true, reason: 'shared-db' };
+    if (usesSharedUserStore()) return { ok: true, reason: 'shared-db' };
 
     const listed = await listGoUsers();
     if (!listed.ok) {
@@ -227,6 +240,35 @@ function randomPassword() {
 }
 
 /**
+ * Overwrite an existing Go SQLite user's password_hash with the panel hash.
+ * Used after API placeholder create so RustDesk login matches the panel password.
+ */
+function patchGoUserPasswordHash(username, passwordHash) {
+    const normalized = normalizeUsername(username);
+    const hash = String(passwordHash || '').trim();
+    if (!normalized || !hash) return false;
+
+    const goDb = getGoSqliteDbForWrite();
+    if (!goDb) return false;
+    if (!sqliteTableExists(goDb, 'users')) return false;
+
+    const cols = sqliteColumns(goDb, 'users');
+    if (!cols.has('username') || !cols.has('password_hash')) return false;
+
+    try {
+        const info = goDb.prepare(
+            'UPDATE users SET password_hash = ? WHERE lower(username) = ?'
+        ).run(hash, normalized);
+        if (!info || info.changes < 1) return false;
+        console.log(`[userSync] backfill: restored panel password hash on Go user '${username}'`);
+        return true;
+    } catch (err) {
+        console.warn(`[userSync] Go hash patch failed for '${username}': ${err.message}`);
+        return false;
+    }
+}
+
+/**
  * Insert a missing Go SQLite user with the panel password_hash so RustDesk
  * client login (Go /api/login) accepts the same local password as the panel.
  * Returns true on success.
@@ -265,7 +307,9 @@ function insertGoUserWithPasswordHash(username, passwordHash, role, authProvider
         return true;
     } catch (err) {
         // UNIQUE username — already present (race with API or concurrent startup).
-        if (String(err.message || '').includes('UNIQUE')) return true;
+        if (String(err.message || '').includes('UNIQUE')) {
+            return patchGoUserPasswordHash(normalized, hash);
+        }
         console.warn(`[userSync] Go hash insert failed for '${normalized}': ${err.message}`);
         return false;
     }
@@ -295,6 +339,7 @@ async function resolveGoUserId(localUserId) {
         return null;
     }
     if (!localUser) return null;
+    if (usesSharedUserStore()) return localUser.id;
 
     const goUser = await findGoUserByUsername(localUser.username);
     return goUser?.id || localUser.id;
@@ -309,7 +354,7 @@ async function resolveGoUserId(localUserId) {
  */
 async function mirrorCreate(username, password, role) {
     if (!username || !password) return;
-    if (db.type === 'postgres') {
+    if (usesSharedUserStore()) {
         return;
     }
     try {
@@ -344,6 +389,7 @@ async function mirrorCreate(username, password, role) {
 async function mirrorUpdate(username, { password, role, allowCreate = true } = {}) {
     if (!username) return;
     if (!password && !role) return;
+    if (usesSharedUserStore()) return;
 
     let goUser = await findGoUserByUsername(username);
 
@@ -391,7 +437,7 @@ async function mirrorUpdate(username, { password, role, allowCreate = true } = {
  */
 async function mirrorDelete(username) {
     if (!username) return { ok: true, skipped: true };
-    if (db.type === 'postgres') return { ok: true, skipped: 'shared-db' };
+    if (usesSharedUserStore()) return { ok: true, skipped: 'shared-db' };
 
     const goUser = await findGoUserByUsername(username);
     if (!goUser) return { ok: true, skipped: 'not-on-go' };
@@ -415,19 +461,13 @@ async function mirrorDelete(username) {
 
 async function mirrorTotpEnable(username, { secret } = {}) {
     if (!username || !secret) return;
-    if (db.type === 'postgres') {
-        // PostgreSQL uses the shared users table; the local enable already
-        // updates the row read by the Go API.
-        return;
-    }
+    if (usesSharedUserStore()) return;
     mirrorTotpToGoSqlite(username, { enabled: true, secret });
 }
 
 async function mirrorTotpDisable(username) {
     if (!username) return;
-    if (db.type === 'postgres') {
-        return;
-    }
+    if (usesSharedUserStore()) return;
     mirrorTotpToGoSqlite(username, { enabled: false });
 }
 
@@ -440,9 +480,15 @@ async function mirrorTotpDisable(username) {
  * PostgreSQL shared-DB installs normally already share the users table.
  */
 async function backfillFromNode() {
+    if (usesSharedSQLiteStore()) return { skipped: 'shared-store' };
     let nodeUsers;
     try {
-        nodeUsers = await db.getAllUsers();
+        // Must include password_hash / totp_secret — getAllUsers() omits them by design.
+        if (typeof db.getAllUsersForBackup === 'function') {
+            nodeUsers = await db.getAllUsersForBackup();
+        } else {
+            nodeUsers = await db.getAllUsers();
+        }
     } catch (err) {
         console.warn(`[userSync] backfill: cannot read Node users: ${err.message}`);
         return;
@@ -469,6 +515,7 @@ async function backfillFromNode() {
                     mirrorTotpToGoSqlite(u.username, { enabled: true, secret: u.totp_secret });
                 }
             }
+            restoreGoPasswordHashesFromPanel(nodeUsers);
         }
         return;
     }
@@ -485,10 +532,23 @@ async function backfillFromNode() {
                 password: randomPassword(),
                 role: normalizeRole(u.role),
             });
-            console.log(`[userSync] backfill: created Go user '${u.username}' (${normalizeRole(u.role)}) via API (placeholder password)`);
+            // Prefer restoring the panel hash so RustDesk accepts the same password.
+            // Without this, API create leaves a random placeholder and client login fails.
+            if (db.type === 'sqlite' && hash && patchGoUserPasswordHash(u.username, hash)) {
+                continue;
+            }
+            console.warn(
+                `[userSync] backfill: Go user '${u.username}' created with a placeholder password — ` +
+                'RustDesk/panel passwords will not match until an admin resets the password in the console'
+            );
         } catch (err) {
             const status = err.response?.status;
-            if (status === 409) continue; // race — already exists, fine.
+            if (status === 409) {
+                if (db.type === 'sqlite' && hash) {
+                    patchGoUserPasswordHash(u.username, hash);
+                }
+                continue;
+            }
             console.warn(`[userSync] backfill: failed to create '${u.username}': status=${status} ${err.message}`);
         }
     }
@@ -499,7 +559,71 @@ async function backfillFromNode() {
                 mirrorTotpToGoSqlite(u.username, { enabled: true, secret: u.totp_secret });
             }
         }
+        // Re-copy panel hashes onto all Go rows (covers API-placeholder backfill).
+        restoreGoPasswordHashesFromPanel(nodeUsers);
     }
+}
+
+/**
+ * Copy every panel local password_hash onto the matching Go SQLite user.
+ * Does not recover plaintext — restores the same hash the console already uses,
+ * so RustDesk /api/login accepts the passwords operators already know.
+ *
+ * @param {Array<object>} [panelUsers] Optional preloaded panel users (avoids extra DB read).
+ * @returns {{ restored: number, skipped: number, failed: string[] }}
+ */
+function restoreGoPasswordHashesFromPanel(panelUsers) {
+    const result = { restored: 0, skipped: 0, failed: [] };
+    if (db.type !== 'sqlite') {
+        console.log('[userSync] restoreGoPasswordHashesFromPanel: skipped (shared PostgreSQL)');
+        return result;
+    }
+
+    let users = panelUsers;
+    if (!Array.isArray(users) || users.length === 0 ||
+        (users.length > 0 && users.every((u) => !String(u.password_hash || '').trim()))) {
+        try {
+            if (typeof db.getAuthDb === 'function') {
+                const authDb = db.getAuthDb();
+                users = authDb.prepare(
+                    `SELECT username, password_hash, COALESCE(auth_provider, 'local') AS auth_provider FROM users`
+                ).all();
+            }
+        } catch (err) {
+            console.warn(`[userSync] restoreGoPasswordHashesFromPanel: cannot read panel users: ${err.message}`);
+            return result;
+        }
+    }
+    if (!Array.isArray(users) || users.length === 0) return result;
+
+    for (const u of users) {
+        const username = String(u.username || '').trim();
+        const hash = String(u.password_hash || '').trim();
+        const provider = String(u.auth_provider || 'local').trim() || 'local';
+        if (!username || !hash) {
+            result.skipped += 1;
+            continue;
+        }
+        // LDAP/OIDC accounts use unusable local hashes — do not overwrite Go.
+        if (provider === 'ldap' || provider === 'oidc') {
+            result.skipped += 1;
+            continue;
+        }
+        if (patchGoUserPasswordHash(username, hash)) {
+            result.restored += 1;
+        } else {
+            result.failed.push(username);
+        }
+    }
+
+    if (result.restored > 0 || result.failed.length > 0) {
+        console.log(
+            `[userSync] restoreGoPasswordHashesFromPanel: restored=${result.restored} ` +
+            `skipped=${result.skipped} failed=${result.failed.length}` +
+            (result.failed.length ? ` (${result.failed.join(', ')})` : '')
+        );
+    }
+    return result;
 }
 
 /**
@@ -545,16 +669,26 @@ async function backfillFromGoPostgres() {
 }
 
 /**
- * Backfill: recover Node auth.db users from the Go server SQLite database.
+ * Backfill only legacy dual-store SQLite deployments.
  *
- * SQLite dual-DB installs read db_v2.sqlite3 directly (preserves password hashes).
- * PostgreSQL uses the Go REST API to reconcile auth_provider/role only.
+ * Consolidated SQLite and PostgreSQL already share one users table and must
+ * not run best-effort reconciliation over that source of truth.
  */
 async function backfillFromGo() {
     if (db.type === 'postgres') {
         return backfillFromGoPostgres();
     }
     if (typeof db.getAuthDb !== 'function') return { imported: 0, skipped: 'no-auth-db' };
+    let authDb;
+    try {
+        authDb = db.getAuthDb();
+        if (authDb === db.getDb()) {
+            return { imported: 0, skipped: 'shared-sqlite-store' };
+        }
+    } catch (err) {
+        console.warn(`[userSync] Go->Node backfill: cannot open local auth DB: ${err.message}`);
+        return { imported: 0, error: err.message };
+    }
 
     const goUsers = readGoUsersFromSqlite()
         .filter(u => normalizeUsername(u.username) && String(u.password_hash || '').trim() !== '');
@@ -571,14 +705,6 @@ async function backfillFromGo() {
     const localByUsername = new Set((localUsers || []).map(u => normalizeUsername(u.username)));
     const localIds = new Set((localUsers || []).map(u => Number(u.id)).filter(Number.isInteger));
     const missing = goUsers.filter(u => !localByUsername.has(normalizeUsername(u.username)));
-
-    let authDb;
-    try {
-        authDb = db.getAuthDb();
-    } catch (err) {
-        console.warn(`[userSync] Go->Node backfill: cannot open local auth DB: ${err.message}`);
-        return { imported: 0, error: err.message };
-    }
 
     const insertWithId = authDb.prepare(`
         INSERT INTO users (id, username, password_hash, role, auth_provider, created_at, last_login, totp_secret, totp_enabled)
@@ -670,6 +796,7 @@ module.exports = {
     mirrorTotpEnable,
     mirrorTotpDisable,
     insertGoUserWithPasswordHash,
+    restoreGoPasswordHashesFromPanel,
     backfillFromGo,
     backfillFromNode,
 };

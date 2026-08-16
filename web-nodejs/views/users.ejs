@@ -88,11 +88,12 @@
         
         <!-- Add/Edit User Modal Template -->
         <template id="user-form-template">
-            <form id="user-form" class="user-form">
+            <form id="user-form" class="user-form" autocomplete="off">
                 <div class="form-group">
                     <label for="user-username">${_('users.username')}</label>
                     <input type="text" id="user-username" name="username" class="form-input" 
                         pattern="[a-zA-Z0-9_]{3,32}" required
+                        autocomplete="off" autocapitalize="off" spellcheck="false"
                         placeholder="${_('users.username_placeholder')}">
                     <span class="form-hint">${_('users.username_hint')}</span>
                 </div>
@@ -101,7 +102,8 @@
                     <label for="user-password">${_('users.password')}</label>
                     <div class="password-input-wrapper">
                         <input type="password" id="user-password" name="password" class="form-input" 
-                            minlength="8" placeholder="${_('users.password_placeholder')}">
+                            minlength="8" autocomplete="new-password"
+                            placeholder="${_('users.password_placeholder')}">
                         <button type="button" class="btn-icon toggle-password" tabindex="-1">
                             <span class="material-icons">visibility</span>
                         </button>
@@ -113,6 +115,7 @@
                 <div class="form-group">
                     <label for="user-email">${_('users.email')}</label>
                     <input type="email" id="user-email" name="email" class="form-input"
+                        autocomplete="off"
                         placeholder="${_('users.email_placeholder')}">
                     <span class="form-hint">${_('users.email_hint')}</span>
                 </div>

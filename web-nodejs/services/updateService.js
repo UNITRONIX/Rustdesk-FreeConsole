@@ -6,7 +6,7 @@
  * categorises them by component (console / server / agent / scripts),
  * applies updates, and restarts affected services.
  *
- * GitHub repo:  UNITRONIX/BetterDesk
+ * GitHub repo:  Chesster1981/BetterDesk (fork default; override via UPDATE_GITHUB_OWNER)
  * Tracking:     data/.update_sha (deployed commit SHA)
  *
  * Flow:
@@ -53,8 +53,87 @@ const {
     ensureParentDirForFile,
     isUpdatePermissionError,
 } = require('../lib/updateProjectRoot');
+const {
+    restartWindowsNssmService,
+    stopWindowsNssmService,
+    startWindowsNssmService,
+    queryNssmStatus,
+    isStatusRunning,
+} = require('../lib/windowsNssmRestart');
+const { ensureWindowsConsoleAppExitRestart, ensureWindowsConsoleServiceEnvFlag } = require('../lib/windowsConsoleSelfRestart');
+const {
+    ensureWindowsServiceControlTask,
+    privilegedStopService,
+    privilegedStartService,
+    privilegedDeployServerBinary,
+    taskExists: windowsServiceControlTaskExists,
+    controlDir: windowsServiceControlDir,
+} = require('../lib/windowsPrivilegedServiceControl');
 
-const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
+function writeWindowsPendingServerDeploy(sourcePath, targetPath) {
+    try {
+        const dir = windowsServiceControlDir(ROOT_DIR);
+        fs.mkdirSync(dir, { recursive: true });
+        const pending = {
+            source: sourcePath,
+            target: targetPath,
+            requestedAt: new Date().toISOString(),
+        };
+        fs.writeFileSync(
+            path.join(dir, 'pending-server-deploy.json'),
+            `${JSON.stringify(pending, null, 2)}\n`,
+            'utf8'
+        );
+    } catch (err) {
+        console.warn(`[UPDATE] Could not write pending-server-deploy.json: ${err.message}`);
+    }
+}
+
+function windowsAdminDeployHint() {
+    const script = path.join(ROOT_DIR, 'scripts', 'windows-install-service-control-and-deploy.ps1');
+    return `Admin PowerShell once (stops BetterDeskServer, deploys pending Go binary, installs BetterDeskServiceControl watcher): `
+        + `powershell -ExecutionPolicy Bypass -File "${script}" `
+        + `— then Settings → Updates → Apply again. `
+        + `Why not stop both services from the panel? BetterDeskConsole *is* the updater; stopping it aborts Apply. `
+        + `The console VA also cannot taskkill BetterDeskServer — hence the SYSTEM watcher / self-replace API.`;
+}
+
+/**
+ * After console restart: if a rename-swap left BetterDeskServer on the old image,
+ * try privileged/direct stop→start again (helper may now exist) and clear pending.
+ */
+function resumePendingWindowsServerRestart() {
+    if (!IS_WINDOWS) {
+        return { skipped: true };
+    }
+    try {
+        const dir = windowsServiceControlDir(ROOT_DIR);
+        const pendingPath = path.join(dir, 'pending-server-deploy.json');
+        const flagPath = path.join(dir, 'server-restart-pending.flag');
+        const hasPending = fs.existsSync(pendingPath) || fs.existsSync(flagPath);
+        if (!hasPending) {
+            return { skipped: true, reason: 'no-pending' };
+        }
+        const serviceName = 'BetterDeskServer';
+        console.log('[UPDATE] Resuming pending Windows BetterDeskServer restart after binary swap…');
+        const restarted = restartService(serviceName);
+        if (restarted.success) {
+            try { fs.unlinkSync(flagPath); } catch (_e) { /* ok */ }
+            try { fs.unlinkSync(pendingPath); } catch (_e) { /* ok */ }
+            console.log(`[UPDATE] Pending server restart succeeded (${restarted.method || 'restart'})`);
+            return { success: true, method: restarted.method };
+        }
+        console.warn(
+            `[UPDATE] Pending server restart still blocked: ${restarted.error || 'unknown'}`
+            + (restarted.hint ? ` — ${restarted.hint}` : '')
+        );
+        return { success: false, error: restarted.error, hint: restarted.hint || windowsAdminDeployHint() };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+}
+
+const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'Chesster1981';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
 const GITHUB_API    = 'https://api.github.com';
 
@@ -260,6 +339,7 @@ const AGENT_REBUILD_TRIGGER_PATHS = [
     /^betterdesk-agent\//,
     /^betterdesk-server\//,
     /^web-nodejs\/services\/agentBuildWorker\.js$/,
+    /^web-nodejs\/lib\/agentSourcePaths\.js$/,
     /^web-nodejs\/services\/agentBundleConnection\.js$/,
     /^web-nodejs\/services\/agentBundleService\.js$/,
     /^web-nodejs\/routes\/generator\.routes\.js$/,
@@ -270,6 +350,19 @@ const AGENT_REBUILD_TRIGGER_PATHS = [
 function shouldQueueAgentRebuild(changedData) {
     const all = Object.values(changedData?.grouped || {}).flat();
     return all.some((f) => AGENT_REBUILD_TRIGGER_PATHS.some((rx) => rx.test(f.path)));
+}
+
+/**
+ * Drop require cache for agent-source path policy + build worker so an in-flight
+ * panel update uses the just-written modules (not the pre-update C:\opt trap).
+ */
+function loadAgentBuildWorkerFresh() {
+    for (const rel of ['../lib/agentSourcePaths', './agentBuildWorker']) {
+        try {
+            delete require.cache[require.resolve(rel)];
+        } catch (_) { /* module may not have been loaded yet */ }
+    }
+    return require('./agentBuildWorker');
 }
 
 /**
@@ -903,6 +996,109 @@ function ensureMeshEnabledInServiceEnv(envText) {
 }
 
 /**
+ * Resolve console auth.db path for Go AUTH_DB_PATH (Windows SQLite ACL sync).
+ * @returns {string}
+ */
+function resolveConsoleAuthDbPath() {
+    const candidates = [];
+    if (config.dataDir) {
+        candidates.push(path.join(config.dataDir, 'auth.db'));
+    }
+    candidates.push(path.join(ROOT_DIR, 'data', 'auth.db'));
+    if (IS_WINDOWS) {
+        candidates.push('C:\\betterdesk-console\\data\\auth.db');
+        candidates.push('C:\\BetterDeskConsole\\data\\auth.db');
+        candidates.push('C:\\Program Files\\BetterDeskConsole\\data\\auth.db');
+    } else {
+        candidates.push('/opt/BetterDeskConsole/data/auth.db');
+    }
+    for (const p of candidates) {
+        try {
+            if (p && fs.existsSync(p) && fs.statSync(p).isFile()) return p;
+        } catch (_e) { /* ignore */ }
+    }
+    return candidates[0] || path.join(ROOT_DIR, 'data', 'auth.db');
+}
+
+/**
+ * Ensure NSSM AppEnvironmentExtra includes AUTH_DB_PATH for panel device ACL.
+ * @param {string} envText
+ * @param {string} authDbPath
+ * @returns {{ text: string, changed: boolean }}
+ */
+function ensureAuthDbPathInWindowsServiceEnv(envText, authDbPath) {
+    if (!authDbPath) return { text: envText, changed: false };
+    const lines = (envText || '')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+    const map = new Map();
+    for (const line of lines) {
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        map.set(line.slice(0, eq), line.slice(eq + 1));
+    }
+    const current = map.get('AUTH_DB_PATH');
+    if (current === authDbPath) return { text: envText, changed: false };
+    if (current) {
+        try {
+            if (fs.existsSync(current) && fs.statSync(current).isFile()) {
+                return { text: envText, changed: false };
+            }
+        } catch (_e) { /* rewrite broken path */ }
+    }
+    map.set('AUTH_DB_PATH', authDbPath);
+    const merged = [...map.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
+    return { text: merged, changed: true };
+}
+
+/**
+ * Ensure systemd unit has Environment=AUTH_DB_PATH=… for SQLite panel ACL.
+ * @param {string} unitText
+ * @param {string} authDbPath
+ * @returns {{ text: string, changed: boolean }}
+ */
+function ensureAuthDbPathInSystemdUnit(unitText, authDbPath) {
+    if (!unitText || typeof unitText !== 'string' || !authDbPath) {
+        return { text: unitText, changed: false };
+    }
+    if (/^Environment=AUTH_DB_PATH=/m.test(unitText)) {
+        return { text: unitText, changed: false };
+    }
+    const line = `Environment=AUTH_DB_PATH=${authDbPath}`;
+    if (/^\[Service\]/m.test(unitText)) {
+        return {
+            text: unitText.replace(/^\[Service\]/m, `[Service]\n${line}`),
+            changed: true
+        };
+    }
+    return { text: `${line}\n${unitText}`, changed: true };
+}
+
+/**
+ * Grant NT SERVICE\\BetterDeskServer read access to console data/ (auth.db).
+ * Best-effort; failures are non-fatal (LocalSystem installs need no grant).
+ * @param {string} authDbPath
+ * @returns {{ ok: boolean }}
+ */
+function grantWindowsGoServerAuthDbAccess(authDbPath) {
+    if (!IS_WINDOWS || !authDbPath) return { ok: false };
+    const dataDir = path.dirname(authDbPath);
+    if (!fs.existsSync(dataDir)) return { ok: false };
+    const account = `NT SERVICE\\${COMPONENTS.server.service}`;
+    try {
+        execFileSync('icacls', [dataDir, '/grant', `${account}:(OI)(CI)R`, '/T', '/C', '/Q'], {
+            timeout: 15000,
+            stdio: 'pipe'
+        });
+        return { ok: true };
+    } catch (_e) {
+        return { ok: false };
+    }
+}
+
+/**
  * Ensure Go server systemd unit loads console .env (NTP / billing keys for timesync).
  */
 function ensureGoServerEnvironmentFile(unitText, envFilePath) {
@@ -982,15 +1178,30 @@ function sanitizeGoServerServiceConfig() {
                     timeout: 5000,
                     stdio: 'pipe'
                 }).toString();
-                const meshPatch = ensureMeshEnabledInServiceEnv(serverEnvRaw);
+                let nextEnv = serverEnvRaw;
+                const meshPatch = ensureMeshEnabledInServiceEnv(nextEnv);
                 if (meshPatch.changed) {
-                    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', meshPatch.text], {
+                    nextEnv = meshPatch.text;
+                    result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+                const authDbPath = resolveConsoleAuthDbPath();
+                const authPatch = ensureAuthDbPathInWindowsServiceEnv(nextEnv, authDbPath);
+                if (authPatch.changed) {
+                    nextEnv = authPatch.text;
+                    result.changes.push('set AUTH_DB_PATH on BetterDesk Go Server NSSM environment (panel ACL)');
+                }
+                if (nextEnv !== serverEnvRaw) {
+                    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', nextEnv], {
                         timeout: 5000,
                         stdio: 'pipe'
                     });
                     result.changed = true;
                     result.needsRestart = true;
-                    result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+                // AUTH_DB_PATH is useless if the virtual service account cannot read auth.db.
+                const aclGrant = grantWindowsGoServerAuthDbAccess(authDbPath);
+                if (aclGrant.ok && authPatch.changed) {
+                    result.changes.push('granted BetterDeskServer read access to console data/auth.db');
                 }
             } catch (_e) { /* server service may not exist */ }
 
@@ -1049,6 +1260,14 @@ function sanitizeGoServerServiceConfig() {
             }
             result.needsRestart = true;
             result.changes.push('set MESH_ENABLED=Y in betterdesk-server systemd unit');
+        }
+
+        const authDbPath = resolveConsoleAuthDbPath();
+        const authUnitPatch = ensureAuthDbPathInSystemdUnit(clean, authDbPath);
+        if (authUnitPatch.changed) {
+            clean = authUnitPatch.text;
+            result.needsRestart = true;
+            result.changes.push('set AUTH_DB_PATH on betterdesk-server systemd unit (panel ACL)');
         }
 
         const consoleEnvPath = path.join(ROOT_DIR, '.env');
@@ -1318,8 +1537,11 @@ async function ensureServerSource(remoteSHA, opts = {}) {
 
     fs.mkdirSync(serverDir, { recursive: true });
 
-    // --- Try git clone --depth=1 (fastest) ---
+    // --- Try git clone --depth=1, then pin it to the already verified SHA ---
     try {
+        if (!/^[a-f0-9]{40}$/i.test(String(remoteSHA || ''))) {
+            throw new Error('Refusing to clone an invalid remote commit SHA');
+        }
         const tmpDir = path.join(config.dataDir, '_tmp_server_clone');
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
 
@@ -1327,10 +1549,15 @@ async function ensureServerSource(remoteSHA, opts = {}) {
             ? `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`
             : `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`;
 
-        execSync(
-            `git clone --depth=1 --single-branch --branch "${getGithubBranch()}" "${repoUrl}" "${tmpDir}"`,
-            { timeout: 120000, stdio: 'pipe' }
-        );
+        execFileSync('git', [
+            'clone', '--depth=1', '--single-branch', '--branch', getGithubBranch(), repoUrl, tmpDir
+        ], { timeout: 120000, stdio: 'pipe' });
+        const clonedSHA = String(execFileSync(
+            'git', ['-C', tmpDir, 'rev-parse', 'HEAD'], { timeout: 10_000, encoding: 'utf8' }
+        )).trim().toLowerCase();
+        if (clonedSHA !== String(remoteSHA).toLowerCase()) {
+            throw new Error(`Cloned commit ${clonedSHA} does not match requested ${remoteSHA}`);
+        }
 
         const srcDir = path.join(tmpDir, 'betterdesk-server');
         if (fs.existsSync(srcDir)) {
@@ -1489,9 +1716,11 @@ async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
  * Build the Go server binary from local source.
  * Uses async exec to avoid blocking the Node.js event loop.
  *
+ * @param {string|null} preferredGoBinPath
+ * @param {{ sha?: string }} [opts]
  * @returns {Promise<{ success: boolean, binaryPath: string|null, error?: string, duration?: number }>}
  */
-async function buildGoServer(preferredGoBinPath = null) {
+async function buildGoServer(preferredGoBinPath = null, opts = {}) {
     const serverDir = resolveServerSourceRootForUpdate();
     if (!fs.existsSync(path.join(serverDir, 'go.mod'))) {
         return { success: false, binaryPath: null, error: 'go.mod not found — server source incomplete' };
@@ -1525,7 +1754,13 @@ async function buildGoServer(preferredGoBinPath = null) {
         });
 
         const productVersion = readProductVersion({ rootDir: PROJECT_ROOT });
-        const ldflags = `-s -w -X main.Version=${productVersion}`;
+        const sha = String(opts.sha || '').trim() || String(getLocalSHA() || '').trim();
+        const shortSha = sha ? sha.slice(0, 7) : '';
+        const buildDate = new Date().toISOString();
+        let ldflags = `-s -w -X main.Version=${productVersion} -X main.BuildDate=${buildDate}`;
+        if (shortSha) {
+            ldflags += ` -X main.GitCommit=${shortSha}`;
+        }
         await spawnPromise(
             goBin,
             ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', binaryName, '.'],
@@ -2370,6 +2605,25 @@ function mergeConsoleEnvAfterUpdate() {
 /** In-place service definition patch (TLS API flags, HTTP URLs, console user). */
 function patchServiceDefinitions() {
     const goPatch = sanitizeGoServerServiceConfig();
+    if (IS_WINDOWS) {
+        const appExit = ensureWindowsConsoleAppExitRestart();
+        if (appExit.changed) {
+            goPatch.changed = true;
+            goPatch.changes = (goPatch.changes || []).concat(appExit.changes || []);
+        }
+        if (appExit.error) {
+            goPatch.consoleAppExitError = appExit.error;
+        }
+        const serviceEnv = ensureWindowsConsoleServiceEnvFlag();
+        if (serviceEnv.changed) {
+            goPatch.changed = true;
+            goPatch.changes = (goPatch.changes || []).concat(serviceEnv.changes || []);
+        }
+        if (serviceEnv.error) {
+            goPatch.consoleServiceEnvError = serviceEnv.error;
+        }
+        return goPatch;
+    }
     if (process.platform !== 'linux') {
         return goPatch;
     }
@@ -2409,6 +2663,10 @@ function runPostConsoleSecurityHooks() {
             cwd: ROOT_DIR,
             timeout: 120000,
             stdio: 'pipe',
+            env: {
+                ...process.env,
+                BETTERDESK_ARM_CONSOLE_RESTART: IS_WINDOWS ? '1' : '0',
+            },
         });
         out.verify = 'ok';
     } catch (err) {
@@ -2538,7 +2796,10 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     file: 'npm install',
                     error: npmResult.error || 'npm install failed',
                     nodeModulesOk: npmResult.nodeModulesOk,
-                    nonCritical: npmResult.nodeModulesOk,
+                    nativeError: npmResult.nativeError,
+                    // resolve-only checks are not enough after better-sqlite3 major bumps;
+                    // broken native bindings must block "successful" console restart.
+                    nonCritical: npmResult.nodeModulesOk === true && !npmResult.nativeError,
                 });
                 console.error(`[UPDATE] npm install failed: ${npmResult.error || 'unknown'}`);
             }
@@ -2584,6 +2845,23 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     if (changedData.grouped.server?.length && selectedComponents.includes('server')) {
         if (!IS_WINDOWS) {
             results.linuxPrivilegeSync = syncLinuxPanelUpdatePrivileges();
+        } else {
+            // Ensure SYSTEM helper exists (no-op if already registered / Access Denied).
+            try {
+                results.windowsServiceControl = ensureWindowsServiceControlTask({ consoleRoot: ROOT_DIR });
+            } catch (err) {
+                results.windowsServiceControl = { ok: false, error: err.message || String(err) };
+            }
+            // Stop BetterDeskServer before build/download so the live exe is not locked
+            // and privileged deploy can replace it. Console stays up to finish Apply.
+            const earlyStop = stopService('BetterDeskServer');
+            results.serverEarlyStop = earlyStop;
+            if (!earlyStop.success) {
+                console.warn(
+                    `[UPDATE] Early BetterDeskServer stop failed: ${earlyStop.error || 'unknown'}`
+                    + (earlyStop.hint ? ` — ${earlyStop.hint}` : '')
+                );
+            }
         }
 
         const strategy = opts.serverStrategy || 'auto'; // 'auto', 'compile', 'download', 'install-go'
@@ -2702,7 +2980,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
         if (wantsCompile && goAvailable) {
             // ---- Strategy: Compile from source ----
-            const buildResult = await buildGoServer(preferredGoBinPath);
+            const buildResult = await buildGoServer(preferredGoBinPath, { sha: remoteSHA });
             results.serverBuild = {
                 success: buildResult.success,
                 duration: buildResult.duration || 0,
@@ -2773,8 +3051,181 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             }
         }
 
-        // 4. Deploy to service path (common for both strategies)
+        // 4. Deploy to service path (common for both strategies).
+        // Windows: LocalSystem helper stop+copy+start when direct NSSM lacks rights;
+        // never overwrite a live betterdesk-server.exe.
         if (serverBinaryPath) {
+            const serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server';
+            let stoppedForDeploy = false;
+            let skipDeployWhileRunning = false;
+            if (IS_WINDOWS) {
+                const targetPath = detectServerBinaryPath();
+
+                // Preferred: ask the running Go process to replace its own image
+                // (it has rights; BetterDeskConsole does not). Stopping the console
+                // mid-Apply would abort this update — we never stop both from here.
+                try {
+                    const selfReplace = await require('./betterdeskApi').replaceServerBinary(serverBinaryPath);
+                    results.selfReplace = selfReplace;
+                    if (selfReplace && selfReplace.success) {
+                        results.serverStop = {
+                            success: true,
+                            service: serviceName,
+                            method: 'self-replace-exit',
+                        };
+                        results.serverDeploy = {
+                            success: true,
+                            backupPath: selfReplace.backupPath || null,
+                            error: null,
+                            method: `self-replace:${buildUsed}`,
+                        };
+                        results.serverStart = {
+                            success: true,
+                            service: serviceName,
+                            method: 'nssm-restart-expected',
+                            note: 'Go process exited after replace; NSSM AppExit=Restart loads the new binary',
+                        };
+                        results.serverServiceConfig = sanitizeGoServerServiceConfig();
+                        results.servicesRestarted.push('server');
+                        results.needsServerRestart = false;
+                        clearServerBinaryStale();
+                        stoppedForDeploy = true;
+                        serverBinaryPath = null;
+                    }
+                } catch (selfErr) {
+                    results.selfReplace = { success: false, error: selfErr.message || String(selfErr) };
+                }
+
+                if (serverBinaryPath) {
+                const privDeploy = privilegedDeployServerBinary(serverBinaryPath, targetPath, {
+                    consoleRoot: ROOT_DIR,
+                    service: serviceName,
+                    startAfter: true,
+                    timeoutMs: 180000,
+                });
+                if (privDeploy && privDeploy.success) {
+                    results.serverStop = {
+                        success: true,
+                        service: serviceName,
+                        method: `privileged:${privDeploy.stopMethod || 'stop'}`,
+                        privileged: true,
+                    };
+                    results.serverDeploy = {
+                        success: true,
+                        backupPath: privDeploy.backupPath || null,
+                        error: null,
+                        method: `privileged:${buildUsed}`,
+                    };
+                    results.serverStart = {
+                        success: true,
+                        service: serviceName,
+                        method: `privileged:${privDeploy.startMethod || 'start'}`,
+                        privileged: true,
+                    };
+                    results.serverServiceConfig = sanitizeGoServerServiceConfig();
+                    results.servicesRestarted.push('server');
+                    results.needsServerRestart = false;
+                    clearServerBinaryStale();
+                    stoppedForDeploy = true;
+                    // Skip the legacy stop/deploy/start path below.
+                    skipDeployWhileRunning = false;
+                    serverBinaryPath = null; // mark handled
+                } else {
+                    results.privilegedDeploy = privDeploy || { success: false, error: 'no result' };
+                    writeWindowsPendingServerDeploy(serverBinaryPath, targetPath);
+                    const adminHint = windowsAdminDeployHint();
+                    // Windows can often rename a running .exe aside and place a new
+                    // binary at the original path. Do that before giving up — the live
+                    // process stays on old code until restart, but the next start loads
+                    // the update (and SYSTEM watcher / Admin restart finishes the job).
+                    const swapDeploy = deployServerBinary(serverBinaryPath, targetPath);
+                    if (swapDeploy.success) {
+                        results.serverDeploy = {
+                            success: true,
+                            backupPath: swapDeploy.backupPath || null,
+                            error: null,
+                            method: `rename-swap:${buildUsed}`,
+                            note: 'Binary replaced while service may still be running old image',
+                        };
+                        clearServerBinaryStale();
+                        const stopResult = stopService(serviceName);
+                        results.serverStop = stopResult;
+                        if (stopResult.success) {
+                            stoppedForDeploy = true;
+                            const startResult = startService(serviceName);
+                            results.serverStart = startResult;
+                            if (startResult.success) {
+                                results.servicesRestarted.push('server');
+                                results.needsServerRestart = false;
+                            } else {
+                                results.needsServerRestart = true;
+                                results.failed.push({
+                                    file: 'betterdesk-server',
+                                    error: `Binary deployed (rename-swap) but could not start ${serviceName}: ${startResult.error || 'unknown'}`,
+                                    nonCritical: true,
+                                    hint: startResult.hint || adminHint,
+                                });
+                            }
+                        } else {
+                            results.needsServerRestart = true;
+                            results.serverBinaryPendingRestart = true;
+                            try {
+                                const dir = windowsServiceControlDir(ROOT_DIR);
+                                fs.mkdirSync(dir, { recursive: true });
+                                fs.writeFileSync(
+                                    path.join(dir, 'server-restart-pending.flag'),
+                                    `${new Date().toISOString()}\n`,
+                                    'utf8'
+                                );
+                            } catch (_e) { /* ok */ }
+                            results.failed.push({
+                                file: 'betterdesk-server',
+                                error: `Go binary replaced on disk (rename-swap) but ${serviceName} is still running the old image: ${stopResult.error || 'stop failed'}`,
+                                nonCritical: true,
+                                hint: adminHint,
+                            });
+                            console.warn(
+                                `[UPDATE] rename-swap deployed new Go binary; ${serviceName} still running old process`
+                                + (privDeploy && privDeploy.error ? ` (privileged: ${privDeploy.error})` : '')
+                            );
+                        }
+                        serverBinaryPath = null; // handled (restart may still be needed)
+                        skipDeployWhileRunning = true;
+                    } else {
+                        const stopResult = stopService(serviceName);
+                        results.serverStop = stopResult;
+                        if (stopResult.success) {
+                            stoppedForDeploy = true;
+                        } else {
+                            const stillRunning = /SERVICE_RUNNING/i.test(stopResult.error || '');
+                            if (stillRunning) {
+                                skipDeployWhileRunning = true;
+                                results.failed.push({
+                                    file: 'betterdesk-server',
+                                    error: `Cannot deploy Go binary while ${serviceName} is still running: ${stopResult.error}`
+                                        + (swapDeploy.error ? ` (rename-swap: ${swapDeploy.error})` : '')
+                                        + ' — Console cannot stop BetterDeskServer (no SCM/taskkill rights). Stopping BetterDeskConsole mid-Apply would abort the update; run the Admin bootstrap once.',
+                                    nonCritical: false,
+                                    hint: adminHint,
+                                });
+                                console.error(
+                                    `[UPDATE] Skipping Go binary deploy — ${serviceName} still SERVICE_RUNNING after stop/force-kill`
+                                    + (privDeploy && privDeploy.error ? ` (privileged: ${privDeploy.error})` : '')
+                                    + (swapDeploy.error ? ` (rename-swap: ${swapDeploy.error})` : '')
+                                );
+                            } else {
+                                console.warn(
+                                    `[UPDATE] Could not stop ${serviceName} before deploy: ${stopResult.error}`
+                                    + (stopResult.hint ? ` — ${stopResult.hint}` : '')
+                                );
+                            }
+                        }
+                    }
+                }
+                } // end if serverBinaryPath still set after self-replace
+            }
+
+            if (serverBinaryPath && !skipDeployWhileRunning) {
             const targetPath = detectServerBinaryPath();
             const deployResult = deployServerBinary(serverBinaryPath, targetPath);
             results.serverDeploy = {
@@ -2801,28 +3252,83 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 // Fresh binary (with updated dependencies) is in place — any
                 // previous staleness warning no longer applies.
                 clearServerBinaryStale();
+
+                if (IS_WINDOWS) {
+                    // Prefer start after deploy when we stopped (or service was already down).
+                    const startResult = startService(serviceName);
+                    results.serverStart = startResult;
+                    if (startResult.success) {
+                        results.servicesRestarted.push('server');
+                        results.needsServerRestart = false;
+                    } else if (startResult.nonCritical) {
+                        // Access Denied: if the service is already up, treat as
+                        // success and let the UI refresh — do not scare operators.
+                        const recovered = await recoverSoftServerControlFailure(
+                            results,
+                            serviceName,
+                            startResult
+                        );
+                        if (!recovered.recovered) {
+                            results.servicesFailed.push({
+                                service: 'server',
+                                error: startResult.error,
+                                nonCritical: true,
+                                hint: startResult.hint,
+                            });
+                            results.needsServerRestart = false;
+                            console.warn(
+                                `[UPDATE] Could not start ${serviceName} after deploy: ${startResult.error}`
+                                + (startResult.hint ? ` — ${startResult.hint}` : '')
+                            );
+                        }
+                    } else if (stoppedForDeploy) {
+                        // We stopped it — surface start failure so routes can retry restart.
+                        results.needsServerRestart = true;
+                    }
+                }
             } else {
+                // Deploy failed — try to bring the service back if we stopped it.
+                if (IS_WINDOWS && stoppedForDeploy) {
+                    const recover = startService(serviceName);
+                    results.serverStart = recover;
+                    if (recover.success) {
+                        results.servicesRestarted.push('server');
+                    }
+                }
                 results.failed.push({ file: 'betterdesk-server-deploy', error: deployResult.error || 'Server deploy failed' });
             }
+            } // !skipDeployWhileRunning
         }
     }
 
     // ---- Generator agent: sync agent-source/ + queue bundle rebuilds ----
     if (shouldQueueAgentRebuild(changedData)) {
         try {
-            const agentBuildWorker = require('./agentBuildWorker');
+            // Re-load after files were written so this same update process picks up
+            // the Windows /opt→C:\opt path policy (stale require cache would keep
+            // syncing into the orphan tree and fail with EPERM again).
+            const agentBuildWorker = loadAgentBuildWorkerFresh();
             const stageResult = await agentBuildWorker.syncFullAgentSourceFromGitHub({
                 remoteSHA,
                 download: ghDownloadFile,
                 listPaths: ghListRepoBlobPaths,
             });
             agentBuildWorker.markRebuildPending('in-app update');
+            // Requeue immediately so agent-only updates rebuild without waiting
+            // for a console restart. The pending flag remains as a restart safety net.
+            let requeue = { bundles: 0 };
+            try {
+                requeue = await agentBuildWorker.requeueAllBundleBuilds();
+            } catch (requeueErr) {
+                console.warn(`[UPDATE] Immediate agent rebuild requeue failed: ${requeueErr.message}`);
+            }
             results.agentSourcesStaged = stageResult.staged;
             results.agentSourcePaths = stageResult.paths;
             results.agentRebuildQueued = true;
+            results.agentRebuildBundles = requeue.bundles;
             console.log(
                 `[UPDATE] Agent source tree synced (${stageResult.staged}/${stageResult.paths} file(s));`
-                + ' generator bundles queued for rebuild on console restart'
+                + ` generator rebuild queued for ${requeue.bundles} bundle(s)`
             );
         } catch (err) {
             results.failed.push({ file: 'support-agent-source-sync', error: err.message, nonCritical: true });
@@ -2892,8 +3398,47 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             fs.writeFileSync(versionDest, versionContent);
         } catch (_e) { /* non-critical */ }
 
-        if (nonCriticalFailures.length > 0) {
-            console.log(`[UPDATE] SHA saved despite ${nonCriticalFailures.length} non-critical failure(s): ${nonCriticalFailures.map(f => f.file).join(', ')}`);
+        // ---- Support Agent generator: stage source + queue only its bundles ----
+        // Agent Client and RdClient use their own workers. Keeping this rebuild
+        // scoped prevents a Support Agent source update from invalidating their
+        // ready artifacts, while legacy "agent" rows normalize to Support Agent.
+        if (shouldQueueAgentRebuild(changedData)) {
+            try {
+                const agentBuildWorker = require('./agentBuildWorker');
+                const stageResult = await agentBuildWorker.syncFullAgentSourceFromGitHub({
+                    remoteSHA,
+                    download: ghDownloadFile,
+                    listPaths: ghListRepoBlobPaths,
+                });
+                agentBuildWorker.markRebuildPending('in-app update');
+                // The worker's product-type filter deliberately requeues only
+                // Support Agent bundles. The flag remains a restart safety net.
+                let requeue = { bundles: 0 };
+                try {
+                    requeue = await agentBuildWorker.requeueAllBundleBuilds();
+                } catch (requeueErr) {
+                    console.warn(`[UPDATE] Immediate support-agent rebuild requeue failed: ${requeueErr.message}`);
+                }
+                results.agentSourcesStaged = stageResult.staged;
+                results.agentSourcePaths = stageResult.paths;
+                results.agentRebuildQueued = true;
+                results.agentRebuildBundles = requeue.bundles;
+                results.agentRebuildProductType = 'support-agent';
+                console.log(
+                    `[UPDATE] Support Agent source tree synced (${stageResult.staged}/${stageResult.paths} file(s));`
+                    + ` rebuild queued for ${requeue.bundles} bundle(s)`
+                );
+            } catch (err) {
+                results.failed.push({ file: 'support-agent-source-sync', error: err.message, nonCritical: true });
+                console.warn(`[UPDATE] Full support-agent source sync failed: ${err.message}`);
+            }
+        }
+
+        const finalFailures = splitUpdateFailures(results.failed, ROOT_DIR);
+        results.criticalFailures = finalFailures.critical;
+        results.nonCriticalFailures = finalFailures.nonCritical;
+        if (finalFailures.nonCritical.length > 0) {
+            console.log(`[UPDATE] SHA saved despite ${finalFailures.nonCritical.length} non-critical failure(s): ${finalFailures.nonCritical.map(f => f.file).join(', ')}`);
         }
     } else {
         results.skipped.push('SHA tracking (critical update steps incomplete)');
@@ -2920,6 +3465,37 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         results.securityHooks = runPostConsoleSecurityHooks();
     }
 
+    // Arm Windows console revival from the freshly written helper on disk.
+    // The in-memory settings.routes exit path may still be an older build; spawning
+    // here means interactive installs recover even when NSSM start is ineffective.
+    if (IS_WINDOWS && results.needsConsoleRestart && criticalFailures.length === 0) {
+        try {
+            const helperPath = path.join(ROOT_DIR, 'lib', 'windowsConsoleSelfRestart.js');
+            if (fs.existsSync(helperPath)) {
+                try { delete require.cache[require.resolve(helperPath)]; } catch (_e) { /* ok */ }
+                delete require.cache[helperPath];
+                const helper = require(helperPath);
+                if (typeof helper.prepareWindowsConsoleRestart === 'function') {
+                    results.windowsConsoleRestart = helper.prepareWindowsConsoleRestart({
+                        consoleRoot: ROOT_DIR,
+                        reason: 'applyUpdate',
+                    });
+                    const mode = results.windowsConsoleRestart.mode;
+                    if (mode === 'interactive-reexec' || mode === 'service-fallback-reexec') {
+                        if (results.windowsConsoleRestart.reexec?.spawned) {
+                            console.log('[UPDATE] Armed Windows console re-exec before process exit');
+                        }
+                    } else if (results.windowsConsoleRestart.scheduled?.scheduled) {
+                        console.log('[UPDATE] Armed Windows NSSM console start before process exit');
+                    }
+                }
+            }
+        } catch (err) {
+            results.windowsConsoleRestart = { error: err.message || String(err) };
+            console.warn(`[UPDATE] Windows console restart arming failed: ${err.message}`);
+        }
+    }
+
     return results;
     } finally {
         _updateInProgress = false;
@@ -2928,7 +3504,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
 /** Sync full support-agent trees from GitHub at the given commit SHA. */
 async function syncAgentSourceAtSha(remoteSHA) {
-    const agentBuildWorker = require('./agentBuildWorker');
+    const agentBuildWorker = loadAgentBuildWorkerFresh();
     return agentBuildWorker.syncFullAgentSourceFromGitHub({
         remoteSHA,
         download: ghDownloadFile,
@@ -2937,31 +3513,279 @@ async function syncAgentSourceAtSha(remoteSHA) {
 }
 
 /**
+ * Classify Windows NSSM OpenService ACL failures (#272) as non-critical so the
+ * update UI does not look like a failed install when files applied cleanly.
+ */
+function classifyWindowsServiceControlError(err, action) {
+    const message = err.message || String(err);
+    const nonCritical = /access is denied|OpenService/i.test(message);
+    const pauseHint = 'NSSM left BetterDeskServer paused (restart throttle). In Admin PowerShell: nssm continue BetterDeskServer; if still paused: nssm stop BetterDeskServer && nssm start BetterDeskServer';
+    const runningHint = 'BetterDeskServer stayed SERVICE_RUNNING after stop — force-kill may have failed. Admin PowerShell: nssm stop BetterDeskServer; if still running: taskkill /F /IM betterdesk-server.exe && nssm start BetterDeskServer';
+    const aclHint = action === 'stop'
+        ? 'Could not stop BetterDeskServer (Access Denied). Binary deploy may still succeed; restart via Admin PowerShell or betterdesk.ps1 → Update if needed'
+        : 'Could not start/restart BetterDeskServer (Access Denied). If the service is already Running, no action is needed — otherwise Admin PowerShell: nssm stop BetterDeskServer && nssm start BetterDeskServer, or betterdesk.ps1 → Update';
+    return {
+        success: false,
+        error: message,
+        nonCritical,
+        hint: nonCritical
+            ? aclHint
+            : (/SERVICE_PAUSED/i.test(message)
+                ? pauseHint
+                : (/SERVICE_RUNNING/i.test(message) ? runningHint : undefined)),
+    };
+}
+
+/**
+ * Whether the Go API answers /api/health (works even when NSSM OpenService is denied).
+ * @returns {Promise<boolean>}
+ */
+async function isGoApiReachable() {
+    try {
+        const health = await require('./betterdeskApi').getHealth();
+        const status = String(health?.status || '').toLowerCase();
+        return status === 'running' || status === 'ok';
+    } catch (_e) {
+        return false;
+    }
+}
+
+/**
+ * Check if BetterDeskServer looks up without needing start rights.
+ * Prefer nssm status when allowed; fall back to HTTP /api/health.
+ *
+ * @param {string} [serviceName]
+ * @returns {Promise<{ running: boolean, via?: string }>}
+ */
+async function verifyServerLooksRunning(serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server') {
+    if (IS_WINDOWS) {
+        try {
+            const status = queryNssmStatus(execSync, serviceName);
+            if (isStatusRunning(status)) {
+                return { running: true, via: 'nssm' };
+            }
+        } catch (_e) {
+            // OpenService often denied for status too — fall through to HTTP.
+        }
+    }
+
+    if (await isGoApiReachable()) {
+        return { running: true, via: 'http-health' };
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+    if (await isGoApiReachable()) {
+        return { running: true, via: 'http-health' };
+    }
+    return { running: false };
+}
+
+/**
+ * After Access Denied (or similar soft control failure): if the service is
+ * already up, treat as success and ask the UI to refresh the panel.
+ *
+ * IMPORTANT: after a Windows rename-swap deploy the old process may still be
+ * RUNNING and answering HTTP — that is NOT a successful restart. Never recover
+ * when serverBinaryPendingRestart is set.
+ *
+ * @returns {Promise<{ recovered: boolean, via?: string }>}
+ */
+async function recoverSoftServerControlFailure(results, serviceName, controlResult) {
+    if (results && results.serverBinaryPendingRestart) {
+        console.warn(
+            `[UPDATE] ${serviceName} still needs a real stop/start after binary swap — not treating HTTP-up as success`
+        );
+        return { recovered: false };
+    }
+    const method = String(results?.serverDeploy?.method || '');
+    if (/^rename-swap/i.test(method)) {
+        console.warn(
+            `[UPDATE] ${serviceName} deploy was rename-swap — running process may still be the old image`
+        );
+        return { recovered: false };
+    }
+    const verify = await verifyServerLooksRunning(serviceName);
+    if (!verify.running) {
+        return { recovered: false };
+    }
+    if (!results.servicesRestarted.includes('server')) {
+        results.servicesRestarted.push('server');
+    }
+    results.serverVerifiedRunning = true;
+    results.panelRefreshRecommended = true;
+    results.needsServerRestart = false;
+    results.serverStart = {
+        ...(controlResult || {}),
+        success: true,
+        recovered: true,
+        method: verify.via || 'verified-running',
+    };
+    console.log(
+        `[UPDATE] ${serviceName} service control failed (${controlResult?.error || 'unknown'})`
+        + ` but service appears running via ${verify.via} — treating as success`
+    );
+    return { recovered: true, via: verify.via };
+}
+
+/**
+ * Stop a system service before replacing its binary (Windows NSSM / Linux systemd).
+ * Returns { success, service, error?, nonCritical?, hint?, method? }.
+ *
+ * Windows: prefer LocalSystem BetterDeskServiceControl watcher (file drop) because
+ * NT SERVICE\\BetterDeskConsole cannot taskkill / nssm-set AppExit on BetterDeskServer,
+ * and schtasks /Run often Access Denied for the console virtual account.
+ */
+function stopService(serviceName) {
+    try {
+        if (IS_WINDOWS) {
+            const {
+                isWatchLoopAlive,
+                serviceExists: svcCtrlExists,
+                taskExists: svcTaskExists,
+            } = require('../lib/windowsPrivilegedServiceControl');
+
+            const helperLikely = isWatchLoopAlive(ROOT_DIR)
+                || svcCtrlExists()
+                || svcTaskExists();
+            let privFail = null;
+
+            if (helperLikely) {
+                const priv = privilegedStopService(serviceName, { consoleRoot: ROOT_DIR });
+                if (priv && priv.success) {
+                    return {
+                        success: true,
+                        service: serviceName,
+                        method: `privileged:${priv.method || 'stop'}`,
+                        privileged: true,
+                    };
+                }
+                privFail = priv;
+            }
+
+            try {
+                const win = stopWindowsNssmService(serviceName);
+                return { success: true, service: serviceName, method: win.method || 'stop' };
+            } catch (directErr) {
+                if (!helperLikely) {
+                    const priv = privilegedStopService(serviceName, { consoleRoot: ROOT_DIR });
+                    if (priv && priv.success) {
+                        return {
+                            success: true,
+                            service: serviceName,
+                            method: `privileged:${priv.method || 'stop'}`,
+                            privileged: true,
+                        };
+                    }
+                    privFail = priv;
+                }
+                const classified = classifyWindowsServiceControlError(directErr, 'stop');
+                if (privFail && privFail.error) {
+                    classified.hint = [
+                        classified.hint,
+                        privFail.hint,
+                        privFail.needTaskInstall
+                            ? 'Admin once: betterdesk.ps1 → Update (installs BetterDeskServiceControl SYSTEM watcher service)'
+                            : null,
+                    ].filter(Boolean).join(' — ');
+                    classified.privilegedError = privFail.error;
+                }
+                return { service: serviceName, ...classified };
+            }
+        }
+        runPrivileged(`systemctl stop ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
+        return { success: true, service: serviceName, method: 'stop' };
+    } catch (err) {
+        if (IS_WINDOWS) {
+            return { service: serviceName, ...classifyWindowsServiceControlError(err, 'stop') };
+        }
+        return { success: false, service: serviceName, error: err.message || String(err) };
+    }
+}
+
+/**
+ * Start a system service after binary deploy.
+ * Returns { success, service, error?, nonCritical?, hint?, method? }.
+ */
+function startService(serviceName) {
+    try {
+        if (IS_WINDOWS) {
+            try {
+                const win = startWindowsNssmService(serviceName);
+                return { success: true, service: serviceName, method: win.method || 'start' };
+            } catch (directErr) {
+                const priv = privilegedStartService(serviceName, { consoleRoot: ROOT_DIR });
+                if (priv && priv.success) {
+                    return {
+                        success: true,
+                        service: serviceName,
+                        method: `privileged:${priv.method || 'start'}`,
+                        privileged: true,
+                    };
+                }
+                const classified = classifyWindowsServiceControlError(directErr, 'start');
+                if (priv && priv.error) {
+                    classified.hint = [classified.hint, priv.hint].filter(Boolean).join(' — ');
+                    classified.privilegedError = priv.error;
+                }
+                return { service: serviceName, ...classified };
+            }
+        }
+        runPrivileged(`systemctl start ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
+        return { success: true, service: serviceName, method: 'start' };
+    } catch (err) {
+        if (IS_WINDOWS) {
+            return { service: serviceName, ...classifyWindowsServiceControlError(err, 'start') };
+        }
+        return { success: false, service: serviceName, error: err.message || String(err) };
+    }
+}
+
+/**
  * Restart a system service.
- * Returns { success, service, error? }.
+ * Returns { success, service, error?, nonCritical?, hint?, method? }.
+ *
+ * Windows: always stop→start (via stopService/startService) so privileged
+ * SYSTEM helper is tried. Bare start is a no-op when SERVICE_RUNNING — that
+ * left rename-swapped binaries stuck on the old process image.
  */
 function restartService(serviceName) {
     try {
         if (IS_WINDOWS) {
-            execSync(`nssm restart "${serviceName}"`, { timeout: 30000, stdio: 'pipe' });
-        } else {
-            runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
+            const stop = stopService(serviceName);
+            if (!stop.success) {
+                return {
+                    success: false,
+                    service: serviceName,
+                    error: stop.error || 'stop failed during restart',
+                    hint: stop.hint,
+                    nonCritical: stop.nonCritical,
+                    privilegedError: stop.privilegedError,
+                    method: 'restart-stop-failed',
+                };
+            }
+            const start = startService(serviceName);
+            if (!start.success) {
+                return {
+                    ...start,
+                    method: `restart-start-failed:${start.method || 'start'}`,
+                };
+            }
+            return {
+                success: true,
+                service: serviceName,
+                method: `restart:${stop.method || 'stop'}→${start.method || 'start'}`,
+                privileged: !!(stop.privileged || start.privileged),
+            };
         }
+        runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
         return { success: true, service: serviceName };
     } catch (err) {
-        const message = err.message || String(err);
-        // Console service account often lacks rights to OpenService on sibling
-        // NSSM units (BetterDeskServer). Treat as non-critical so SHA save /
-        // success banner are not blocked — operator can restart via PS1 (#272).
-        const nonCritical = IS_WINDOWS && /access is denied|OpenService/i.test(message);
+        if (IS_WINDOWS) {
+            return { service: serviceName, ...classifyWindowsServiceControlError(err, 'start') };
+        }
         return {
             success: false,
             service: serviceName,
-            error: message,
-            nonCritical,
-            hint: nonCritical
-                ? 'Restart BetterDeskServer manually (Admin PowerShell: nssm restart BetterDeskServer) or run betterdesk.ps1 → Update'
-                : undefined,
+            error: err.message || String(err),
         };
     }
 }
@@ -3184,7 +4008,7 @@ async function rebuildServerBinary(opts = {}) {
     }
 
     // 3. Build with the updated dependencies.
-    const build = await buildGoServer(preferredGoBinPath);
+    const build = await buildGoServer(preferredGoBinPath, { sha: remoteSHA });
     result.steps.build = {
         success: build.success,
         duration: build.duration || 0,
@@ -3198,8 +4022,15 @@ async function rebuildServerBinary(opts = {}) {
     }
 
     // 4. Deploy to the service path.
+    // Windows: stop → replace exe → start (not bare nssm restart).
     if (!IS_WINDOWS) {
         result.steps.linuxPrivilegeSync = syncLinuxPanelUpdatePrivileges();
+    }
+    const serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server';
+    let stoppedForDeploy = false;
+    if (IS_WINDOWS && opts.restart !== false) {
+        result.steps.stop = stopService(serviceName);
+        stoppedForDeploy = !!result.steps.stop.success;
     }
     const targetPath = detectServerBinaryPath();
     const deploy = deployServerBinary(build.binaryPath, targetPath);
@@ -3210,6 +4041,9 @@ async function rebuildServerBinary(opts = {}) {
         targetPath
     };
     if (!deploy.success) {
+        if (IS_WINDOWS && stoppedForDeploy) {
+            result.steps.start = startService(serviceName);
+        }
         result.error = deploy.error || 'Deploy failed';
         markServerBinaryStale({ reason: 'deploy_failed', detail: result.error, sha: remoteSHA });
         return result;
@@ -3219,9 +4053,16 @@ async function rebuildServerBinary(opts = {}) {
     result.steps.serviceConfig = sanitizeGoServerServiceConfig();
     clearServerBinaryStale();
 
-    // 6. Restart the service so the new binary takes effect.
+    // 6. Start (Windows after stop) or restart (Linux / fallback) so the new binary takes effect.
     if (opts.restart !== false) {
-        result.steps.restart = restartService(IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server');
+        if (IS_WINDOWS) {
+            result.steps.start = startService(serviceName);
+            result.steps.restart = result.steps.start.success
+                ? result.steps.start
+                : restartService(serviceName);
+        } else {
+            result.steps.restart = restartService(serviceName);
+        }
     }
 
     result.success = true;
@@ -3347,6 +4188,11 @@ module.exports = {
     syncBillingEnvToWindowsGoServer,
     BILLING_ENV_KEYS,
     restartService,
+    stopService,
+    startService,
+    verifyServerLooksRunning,
+    recoverSoftServerControlFailure,
+    resumePendingWindowsServerRestart,
     daemonReload,
     listBackups,
     deleteBackup,
@@ -3373,6 +4219,9 @@ module.exports = {
     getDockerUpdateInstructions,
     isGithubRateLimitError,
     ensureMeshEnabledInServiceEnv,
+    ensureAuthDbPathInWindowsServiceEnv,
+    ensureAuthDbPathInSystemdUnit,
+    resolveConsoleAuthDbPath,
     ensureGoServerEnvironmentFile,
     ensureGoServerSignalRelayPorts,
     githubApiError,

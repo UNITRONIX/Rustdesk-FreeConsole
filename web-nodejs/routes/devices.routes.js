@@ -761,6 +761,9 @@ router.get('/api/devices/:id/access-policy', requireAuth, requirePermission('dev
         if (await rejectIfDeviceOutOfScope(req, res, device)) return;
         const goApi = require('../services/betterdeskApi');
         const result = await goApi.getAccessPolicy(req.params.id);
+        if (result && result.success === false) {
+            return res.status(502).json(result);
+        }
         res.json(result);
     } catch (err) {
         console.error('Get access policy error:', err);
@@ -778,6 +781,13 @@ router.put('/api/devices/:id/access-policy', requireAuth, requirePermission('dev
         if (await rejectIfDeviceOutOfScope(req, res, device)) return;
         const goApi = require('../services/betterdeskApi');
         const result = await goApi.saveAccessPolicy(req.params.id, req.body);
+        if (!result || result.success === false) {
+            const status = result && result.status ? result.status : 502;
+            return res.status(status).json({
+                success: false,
+                error: (result && result.error) || 'Failed to save access policy',
+            });
+        }
         res.json(result);
     } catch (err) {
         console.error('Save access policy error:', err);
@@ -799,6 +809,35 @@ router.delete('/api/devices/:id/access-policy', requireAuth, requirePermission('
     } catch (err) {
         console.error('Delete access policy error:', err);
         res.status(500).json({ success: false, error: 'Failed to delete access policy' });
+    }
+});
+
+/**
+ * GET /api/devices/:id/connect-secret - Unattended connect password for auto-auth
+ */
+router.get('/api/devices/:id/connect-secret', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const device = await serverBackend.getDeviceById(req.params.id);
+        if (!device) return res.status(404).json({ success: false, error: req.t('devices.not_found') });
+        if (await rejectIfDeviceOutOfScope(req, res, device)) return;
+        const goApi = require('../services/betterdeskApi');
+        const result = await goApi.getConnectSecret(req.params.id);
+        if (!result.success) {
+            const err = String(result.error || '');
+            const status = /unavailable|codec/i.test(err) ? 503 : 404;
+            return res.status(status).json(result);
+        }
+        // Flatten for the viewer: password at top level (also keep data for older clients)
+        const password = result.data && result.data.password;
+        res.json({
+            success: true,
+            password,
+            passwordless_server_access: result.data && result.data.passwordless_server_access,
+            data: result.data,
+        });
+    } catch (err) {
+        console.error('Get connect secret error:', err);
+        res.status(500).json({ success: false, error: 'Failed to get connect secret' });
     }
 });
 
