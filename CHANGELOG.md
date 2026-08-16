@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.45] — 2026-08-16
+
 ### Fixed
 - **Managed enrollment for viewer-only mobile (#375):** Clients that only log in and initiate sessions (no `RegisterPeer`/`RegisterPk`) now appear in `/registrations` when `ENROLLMENT_MODE=managed` — queued from successful `/api/login` and from PunchHole rejected with a valid account login token. Connection stays denied until operator approval. Locked mode still does not queue. Stock client “ID does not exist” for this case means the initiator is not enrolled, not a missing target.
 
@@ -2944,3 +2951,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.42]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.41...v3.5.42
 [3.5.43]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.42...v3.5.43
 [3.5.44]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.43...v3.5.44
+[3.5.45]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.44...v3.5.45
