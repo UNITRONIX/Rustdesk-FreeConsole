@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Managed enrollment for viewer-only mobile (#375):** Clients that only log in and initiate sessions (no `RegisterPeer`/`RegisterPk`) now appear in `/registrations` when `ENROLLMENT_MODE=managed` — queued from successful `/api/login` and from PunchHole rejected with a valid account login token. Connection stays denied until operator approval. Locked mode still does not queue. Stock client “ID does not exist” for this case means the initiator is not enrolled, not a missing target.
+
 ### Changed
 - _(none yet)_
 

@@ -5,12 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -140,7 +142,45 @@ func (s *Server) issueClientSession(user *db.User, clientID, clientUUID, clientI
 	// No connection blocking — ownership only. If the peer row does not exist yet,
 	// heartbeat / RegisterPk will apply the binding via ApplyActiveSessionOwner.
 	db.BindPeerOwner(s.db, clientID, clientUUID, user.Username)
+
+	// Viewer-only mobiles often never RegisterPeer/Pk; queue them at login so
+	// managed enrollment can approve outbound initiators (#375).
+	s.queueManagedViewerEnrollment(clientID, clientUUID, clientIP)
+
 	return plainToken, nil
+}
+
+// queueManagedViewerEnrollment writes pending_device_<id> when enrollment is
+// managed and the logged-in client has no approved peer row. Locked mode does
+// not queue. Soft-deleted / explicitly rejected devices are skipped. Does not
+// auto-approve — PunchHole still requires an approved peers row (#302 / #375).
+func (s *Server) queueManagedViewerEnrollment(clientID, clientUUID, clientIP string) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" || s.db == nil || s.cfg == nil {
+		return
+	}
+	mode := s.cfg.EnrollmentMode
+	if mode == "" {
+		mode = config.EnrollmentModeOpen
+	}
+	if mode != config.EnrollmentModeManaged {
+		return
+	}
+	if softDeleted, _ := s.db.IsPeerSoftDeleted(clientID); softDeleted {
+		return
+	}
+	if v, err := s.db.GetConfig("rejected_device_" + clientID); err == nil && v != "" {
+		return
+	}
+	if peer, err := s.db.GetPeer(clientID); err == nil && peer != nil {
+		return
+	}
+	if err := s.storePendingDevice(&EnrollmentRequest{
+		DeviceID: clientID,
+		UUID:     strings.TrimSpace(clientUUID),
+	}, clientIP); err != nil {
+		log.Printf("[api] queueManagedViewerEnrollment: store pending %s: %v", clientID, err)
+	}
 }
 
 // retryAfterMissingClientSessions re-creates the client_sessions table when a

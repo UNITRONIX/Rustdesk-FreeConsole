@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -208,6 +209,93 @@ func TestIssueClientSessionRejectsZeroUserID(t *testing.T) {
 	_, err := srv.issueClientSession(&db.User{ID: 0, Username: "nobody"}, "dev", "uuid", "127.0.0.1")
 	if err == nil {
 		t.Fatal("expected error for user id 0")
+	}
+}
+
+func TestManagedLoginQueuesViewerEnrollment(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	srv := newClientLoginTestServer(database)
+	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
+
+	rec, _ := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "viewer-ios-375",
+		"uuid":     "viewer-uuid-375",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+
+	pending, err := database.GetConfig("pending_device_viewer-ios-375")
+	if err != nil || pending == "" {
+		t.Fatalf("expected pending_device_viewer-ios-375, got %q err=%v", pending, err)
+	}
+	if peer, _ := database.GetPeer("viewer-ios-375"); peer != nil {
+		t.Fatal("login must not auto-create approved peer")
+	}
+}
+
+func TestLockedLoginDoesNotQueueViewerEnrollment(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	srv := newClientLoginTestServer(database)
+	srv.cfg.EnrollmentMode = config.EnrollmentModeLocked
+
+	rec, _ := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "locked-viewer-375",
+		"uuid":     "locked-uuid-375",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+
+	pending, err := database.GetConfig("pending_device_locked-viewer-375")
+	if err != nil {
+		t.Fatalf("GetConfig: %v", err)
+	}
+	if pending != "" {
+		t.Fatalf("locked login must not queue pending, got %q", pending)
+	}
+}
+
+func TestManagedLoginSkipsRejectedViewerEnrollment(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+	if err := database.SetConfig("rejected_device_rej-viewer-375", `{"device_id":"rej-viewer-375"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	srv := newClientLoginTestServer(database)
+	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
+
+	rec, _ := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "rej-viewer-375",
+		"uuid":     "rej-uuid-375",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+
+	pending, err := database.GetConfig("pending_device_rej-viewer-375")
+	if err != nil {
+		t.Fatalf("GetConfig: %v", err)
+	}
+	if pending != "" {
+		t.Fatalf("rejected device must not re-queue, got %q", pending)
 	}
 }
 

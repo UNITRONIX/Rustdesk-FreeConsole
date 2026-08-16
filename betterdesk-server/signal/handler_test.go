@@ -1366,11 +1366,109 @@ func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
 		t.Fatalf("token auth = (%q, %v), want TOKINIT1", id, ok)
 	}
 
-	// Managed: token alone without approved DB peer must fail.
+	// Managed: token alone without approved DB peer must fail — but queue for approval (#375).
 	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
 	if ok {
 		t.Fatalf("managed token without DB peer must fail, got %q", id)
+	}
+	pending, err := database.GetConfig("pending_device_TOKINIT1")
+	if err != nil || pending == "" {
+		t.Fatalf("managed token reject must queue pending_device_TOKINIT1, got %q err=%v", pending, err)
+	}
+}
+
+func TestManagedTokenQueuesViewerOnlyInitiator(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTOK375", "203.0.113.96", 52000, peer.ConnTCP)
+
+	user := &db.User{Username: "mobileuser", PasswordHash: "hash", Role: "user"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("cd", 32)
+	sum := sha256.Sum256([]byte(token))
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hex.EncodeToString(sum[:]),
+		UserID:     user.ID,
+		ClientID:   "MOBILE375",
+		ClientUUID: "ios-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.80", 51000), "TGTOK375", token)
+	if ok {
+		t.Fatalf("managed viewer token must not punch, got id=%q", id)
+	}
+	pending, err := database.GetConfig("pending_device_MOBILE375")
+	if err != nil || pending == "" {
+		t.Fatalf("expected pending_device_MOBILE375, got %q err=%v", pending, err)
+	}
+	if !strings.Contains(pending, "MOBILE375") {
+		t.Fatalf("pending JSON missing device id: %s", pending)
+	}
+
+	// Second attempt: still denied as pending (must not initiate).
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.80", 51000), "TGTOK375", token)
+	if ok {
+		t.Fatalf("pending initiator must stay denied, got %q", id)
+	}
+}
+
+func TestLockedTokenDoesNotQueueViewerOnlyInitiator(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeLocked)
+	putOnlinePeer(srv, "TGLOCK375", "203.0.113.97", 52000, peer.ConnTCP)
+
+	user := &db.User{Username: "lockuser", PasswordHash: "hash", Role: "user"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("ef", 32)
+	sum := sha256.Sum256([]byte(token))
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hex.EncodeToString(sum[:]),
+		UserID:     user.ID,
+		ClientID:   "LOCKVIEW1",
+		ClientUUID: "lock-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGLOCK375", token)
+	if ok {
+		t.Fatalf("locked token without peer must fail, got %q", id)
+	}
+	pending, err := database.GetConfig("pending_device_LOCKVIEW1")
+	if err != nil {
+		t.Fatalf("GetConfig: %v", err)
+	}
+	if pending != "" {
+		t.Fatalf("locked mode must not queue pending, got %q", pending)
+	}
+}
+
+func TestIPFallbackDoesNotQueueManagedPending(t *testing.T) {
+	// Address / IP identity must not invent enrollment queue entries (#375 security).
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTIP375", "203.0.113.98", 52000, peer.ConnUDP)
+	// Memory-only peer (no DB row) at initiator IP — IP fallback would resolve this ID.
+	putOnlinePeer(srv, "IPONLY375", "198.51.100.82", 51000, peer.ConnUDP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTIP375", "")
+	if ok {
+		t.Fatalf("unenrolled IP peer must not punch, got %q", id)
+	}
+	pending, err := database.GetConfig("pending_device_IPONLY375")
+	if err != nil {
+		t.Fatalf("GetConfig: %v", err)
+	}
+	if pending != "" {
+		t.Fatalf("IP-fallback path must not create pending_device_*, got %q", pending)
 	}
 }
 

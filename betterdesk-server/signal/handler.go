@@ -1928,7 +1928,7 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		if e := s.peers.Get(id); e != nil {
 			banned = e.Banned
 		}
-		return s.finalizeAuthorizedInitiator(id, raddr, targetID, banned)
+		return s.finalizeAuthorizedInitiator(id, raddr, targetID, banned, false)
 	}
 
 	// 2. Opaque client login token — hard-fail when present so we never fall
@@ -1948,7 +1948,7 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 	// 4. Exact registered endpoint (ip:port).
 	initiator := s.peers.FindByAddr(raddr)
 	if initiator != nil && !initiator.IsExpired(config.RegTimeout) {
-		return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
+		return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned, false)
 	}
 
 	// 5. Safe IP-only fallback: stock RustDesk opens PunchHole on a new TCP
@@ -1965,7 +1965,7 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
 		return "", false
 	case 1:
-		return s.finalizeAuthorizedInitiator(live[0].ID, raddr, targetID, live[0].Banned)
+		return s.finalizeAuthorizedInitiator(live[0].ID, raddr, targetID, live[0].Banned, false)
 	default:
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_ambiguous_same_nat")
 		return "", false
@@ -2044,12 +2044,20 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 		return "", false
 	}
-	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false)
+	// queueManagedClaim=true: account-bound login token may place the device in
+	// the managed enrollment queue (#375). IP/address paths must not.
+	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false, true)
 }
 
 // finalizeAuthorizedInitiator applies ban / soft-delete / enrollment checks shared
 // by live-peer and token-based authorization paths.
-func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPAddr, targetID string, memoryBanned bool) (string, bool) {
+//
+// queueManagedClaim may only be true for opaque client-login token auth (#375).
+// When true and enrollment is managed, an unknown initiator is written to
+// pending_device_* so viewer-only mobiles appear in /registrations — connection
+// is still denied until operator approval. Locked mode never queues. Address /
+// IP-fallback callers must pass false.
+func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPAddr, targetID string, memoryBanned, queueManagedClaim bool) (string, bool) {
 	if memoryBanned {
 		s.revokeBannedPeerAccess(initiatorID, nil)
 		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
@@ -2088,6 +2096,15 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 		}
 		dbPeer, err := s.db.GetPeer(initiatorID)
 		if err != nil || dbPeer == nil {
+			// Viewer-only clients never RegisterPeer/Pk; queue only from trusted
+			// login-token claims so operators can approve them (#375).
+			if mode == config.EnrollmentModeManaged && queueManagedClaim && initiatorID != "" {
+				clientIP := ""
+				if raddr != nil {
+					clientIP = raddr.IP.String()
+				}
+				s.recordPendingEnrollment(initiatorID, clientIP, pendingEnrollmentMeta{})
+			}
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
 			return "", false
 		}
