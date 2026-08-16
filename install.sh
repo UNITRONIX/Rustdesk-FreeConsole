@@ -8,15 +8,18 @@
 # Docker legacy (two-container split images):
 #   curl -fsSL .../install.sh | sudo bash -s -- --split
 #
-# Native (git clone + betterdesk.sh --auto):
+# Native stable (git clone + betterdesk.sh --auto):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash -s -- --native
+#
+# Native Development channel (this file on the `dev` branch defaults to --branch dev):
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/dev/install.sh | sudo bash -s -- --native
 #
 # Options (pass after "bash -s --"):
 #   --docker | --native          Installation mode (default: docker)
 #   --split                      Legacy two-container layout (server + console images)
 #   --install-dir PATH             Install directory (default: /opt/betterdesk)
 #   --version TAG                  Docker image tag / release baseline (default: 3.5.43)
-#   --branch BRANCH                Git branch for native install (default: main)
+#   --branch BRANCH                Git branch for native install (default: this installer channel)
 #   --relay-mode auto|local|public Relay auto-detection strategy
 #   --relay-servers IP[:port]      Fixed relay address (overrides --relay-mode)
 #   --admin-password PASS          Set admin password (Docker: ADMIN_PASSWORD env)
@@ -38,7 +41,11 @@ set -euo pipefail
 
 VERSION="1.0.0"
 BETTERDESK_REPO="${BETTERDESK_REPO:-UNITRONIX/BetterDesk}"
-BETTERDESK_BRANCH="${BETTERDESK_BRANCH:-main}"
+# Must match the GitHub branch that serves this install.sh URL
+# (.../dev/install.sh → dev, .../main/install.sh → main). Override with
+# --branch / BETTERDESK_BRANCH. Flip to "main" when releasing this file on main.
+BETTERDESK_INSTALLER_CHANNEL="dev"
+BETTERDESK_BRANCH="${BETTERDESK_BRANCH:-$BETTERDESK_INSTALLER_CHANNEL}"
 BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.5.43}"
 BETTERDESK_RAW_BASE="${BETTERDESK_RAW_BASE:-https://raw.githubusercontent.com/${BETTERDESK_REPO}/${BETTERDESK_BRANCH}}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/betterdesk}"
@@ -79,7 +86,7 @@ warn() { echo -e "${C_YELLOW}!${C_RESET} $*" >&2; }
 die()  { echo -e "${C_RED}✗${C_RESET} $*" >&2; exit 1; }
 
 usage() {
-    sed -n '4,27p' "$0" | sed 's/^# \?//'
+    sed -n '4,33p' "$0" | sed 's/^# \?//'
     exit 0
 }
 
@@ -529,23 +536,34 @@ uninstall_docker_mode() {
 install_native_mode() {
     local repo_dir="${INSTALL_DIR}/source"
     local relay
+    local commit_sha
 
     log "BetterDesk native installer v${VERSION}"
+    log "Native install branch: ${BETTERDESK_BRANCH} (override with --branch)"
 
     require_command git
     relay=$(resolve_relay_address)
 
     if [ -d "$repo_dir/.git" ]; then
-        log "Updating existing clone in ${repo_dir}..."
+        log "Updating existing clone in ${repo_dir} to ${BETTERDESK_BRANCH}..."
+        git -C "$repo_dir" remote set-url origin "https://github.com/${BETTERDESK_REPO}.git" || true
         git -C "$repo_dir" fetch --depth 1 origin "$BETTERDESK_BRANCH"
-        git -C "$repo_dir" checkout "$BETTERDESK_BRANCH"
-        git -C "$repo_dir" pull --ff-only origin "$BETTERDESK_BRANCH" || true
+        # Shallow clones previously pinned to another branch need a hard reset.
+        if ! git -C "$repo_dir" checkout -B "$BETTERDESK_BRANCH" "FETCH_HEAD"; then
+            warn "Could not switch existing clone to ${BETTERDESK_BRANCH}; recloning..."
+            rm -rf "$repo_dir"
+            git clone --depth 1 --branch "$BETTERDESK_BRANCH" \
+                "https://github.com/${BETTERDESK_REPO}.git" "$repo_dir"
+        fi
     else
         log "Cloning ${BETTERDESK_REPO} (${BETTERDESK_BRANCH})..."
         rm -rf "$repo_dir"
         git clone --depth 1 --branch "$BETTERDESK_BRANCH" \
             "https://github.com/${BETTERDESK_REPO}.git" "$repo_dir"
     fi
+
+    commit_sha=$(git -C "$repo_dir" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    log "Using ${BETTERDESK_REPO}@${BETTERDESK_BRANCH} (${commit_sha})"
 
     chmod +x "${repo_dir}/betterdesk.sh"
 

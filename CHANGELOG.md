@@ -8,6 +8,7 @@
 ## [3.5.43] — 2026-08-15
 
 ### Fixed
+- **Native installer used `main` when curling `/dev/install.sh` (#371):** `install.sh` on the Development channel now defaults to branch `dev`, prints the cloned commit SHA, and switches an existing `/opt/betterdesk/source` clone onto that branch. Module download also prints Go/GOPROXY diagnostics, keeps a 15s heartbeat, and prefers `GOTOOLCHAIN=local` so the step cannot hang silently while auto-fetching another toolchain.
 - **Support Agent generator builds (Linux + Windows):** Windows MSI/portable no longer fail when `winicon` ran against sealed `BDBR1` branding (`invalid character 'B'`). Linux `.deb` / `.rpm` / AppImage / tar.gz packaging now expects the default Wails single binary instead of missing X11/Wayland companions (`ENOENT` under `data/build-cache`). Fyne dual layout remains when those binaries are present. Ships via panel update (`agentBuildWorker.js` + agent-source `build.sh`); retry Client Builds after update. Refs #373.
 
 ---

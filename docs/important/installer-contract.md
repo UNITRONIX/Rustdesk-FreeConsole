@@ -18,6 +18,11 @@ result.
 | `betterdesk-support-agent/install.go` | Linux, Windows, macOS | Support-agent self-install/uninstall |
 | `scripts/installer-protocol-check.js` | Linux, Windows, Docker | Shared HTTP/HTTPS, redirect, SAN and TCP verification |
 
+`install.sh` embeds `BETTERDESK_INSTALLER_CHANNEL` so a one-line install from
+`.../dev/install.sh` clones `dev` and `.../main/install.sh` clones `main`.
+When releasing this file onto `main`, set that channel to `main` (operators can
+still override with `--branch` / `BETTERDESK_BRANCH`).
+
 The `build-betterdesk.*` wrappers and `betterdesk-server/deploy.sh` are
 development or migration tools. They must not silently replace the official
 installer lifecycle or be presented as the primary production installation

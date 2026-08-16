@@ -2662,24 +2662,54 @@ compile_go_server() {
     # Build
     print_info "Building BetterDesk server for $ARCH_NAME..."
     local output_name="betterdesk-server"
+    local go_bin
+    go_bin=$(command -v go)
+    print_info "Using $($go_bin version 2>/dev/null || echo 'unknown go')"
+    print_info "GOPROXY=${GOPROXY:-<default>} GOSUMDB=${GOSUMDB:-<default>} GOTOOLCHAIN=${GOTOOLCHAIN:-auto}"
+
+    # Prefer the already-validated local toolchain so `go mod download` does not
+    # hang while silently fetching another toolchain from the network.
+    export GOTOOLCHAIN="${GOTOOLCHAIN:-local}"
     
     # Download dependencies. Keep this visible and bounded: Go may otherwise
     # silently fetch the toolchain named in go.mod on hosts with an older Go.
     print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s)..."
     local module_download_status=0
+    local download_cmd=(go mod download -x)
+    if command -v stdbuf &> /dev/null; then
+        download_cmd=(stdbuf -oL -eL go mod download -x)
+    fi
+
+    # Heartbeat so idle SSH sessions see progress even when proxy/DNS stalls.
+    local heartbeat_pid=""
+    (
+        local elapsed=0
+        while true; do
+            sleep 15
+            elapsed=$((elapsed + 15))
+            echo "[install] still downloading Go modules… ${elapsed}s elapsed" >&2
+        done
+    ) &
+    heartbeat_pid=$!
+
     if command -v timeout &> /dev/null; then
-        if timeout "${GO_MODULE_DOWNLOAD_TIMEOUT}s" go mod download -x; then
+        if timeout --foreground "${GO_MODULE_DOWNLOAD_TIMEOUT}s" "${download_cmd[@]}"; then
             :
         else
             module_download_status=$?
         fi
     else
         print_warning "'timeout' command is unavailable; module download will run without a deadline"
-        if go mod download -x; then
+        if "${download_cmd[@]}"; then
             :
         else
             module_download_status=$?
         fi
+    fi
+
+    if [ -n "$heartbeat_pid" ]; then
+        kill "$heartbeat_pid" 2>/dev/null || true
+        wait "$heartbeat_pid" 2>/dev/null || true
     fi
 
     if [ "$module_download_status" -ne 0 ]; then
@@ -2688,7 +2718,7 @@ compile_go_server() {
         else
             print_error "Go module download failed (exit code ${module_download_status})"
         fi
-        print_error "Check DNS, outbound HTTPS, firewall and GOPROXY access, then retry"
+        print_error "Check DNS, outbound HTTPS to proxy.golang.org / sum.golang.org / go.dev, firewall and GOPROXY, then retry"
         return 1
     fi
     
