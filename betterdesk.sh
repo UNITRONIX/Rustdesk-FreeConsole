@@ -169,6 +169,8 @@ GO_MIN_VERSION="1.26.6"
 GO_DOWNLOAD_VERSION="1.26.6"
 # Maximum time allowed for the first module download on a native install.
 GO_MODULE_DOWNLOAD_TIMEOUT="${GO_MODULE_DOWNLOAD_TIMEOUT:-600}"
+# Short HTTPS probe before go mod download (fail fast on blocked proxy/DNS).
+GO_MODULE_PREFLIGHT_TIMEOUT="${GO_MODULE_PREFLIGHT_TIMEOUT:-20}"
 
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
@@ -2636,6 +2638,123 @@ install_golang() {
     fi
 }
 
+# Probe a fixed HTTPS host without executing response body (connectivity only).
+_go_probe_https() {
+    local url="$1"
+    local limit="${2:-$GO_MODULE_PREFLIGHT_TIMEOUT}"
+
+    if command -v curl &> /dev/null; then
+        # No -f: any HTTP response means the TCP/TLS path works (404 is fine).
+        curl -sS -o /dev/null --connect-timeout "$limit" --max-time "$limit" "$url"
+        return $?
+    fi
+    if command -v wget &> /dev/null; then
+        wget -q --spider --timeout="$limit" --tries=1 "$url"
+        return $?
+    fi
+    return 2
+}
+
+# Fail fast when proxy.golang.org / sum.golang.org are unreachable.
+_go_module_network_preflight() {
+    local limit="${GO_MODULE_PREFLIGHT_TIMEOUT}"
+    local probe_status=0
+
+    print_info "Checking HTTPS reachability of Go module endpoints (${limit}s)..."
+
+    if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
+        print_warning "Neither curl nor wget available; skipping Go module network preflight"
+        return 0
+    fi
+
+    if ! _go_probe_https "https://proxy.golang.org/" "$limit"; then
+        print_error "Cannot reach https://proxy.golang.org/ within ${limit}s"
+        probe_status=1
+    else
+        print_success "Reachable: proxy.golang.org"
+    fi
+
+    if ! _go_probe_https "https://sum.golang.org/" "$limit"; then
+        print_error "Cannot reach https://sum.golang.org/ within ${limit}s"
+        probe_status=1
+    else
+        print_success "Reachable: sum.golang.org"
+    fi
+
+    if [ "$probe_status" -ne 0 ]; then
+        print_error "Outbound HTTPS to the Go module proxy/checksum DB is blocked or timing out"
+        print_error "On cloud VMs check DNS, firewall/egress, IPv6 blackholes, and GOPROXY — then retry"
+        print_error "Override example: GOPROXY=https://proxy.golang.org,direct"
+        return 1
+    fi
+    return 0
+}
+
+# Run go mod download with a hard deadline. Avoid timeout --foreground (children
+# are not killed). Prefer GNU timeout -k; otherwise bash TERM/KILL fallback.
+_run_go_mod_download_bounded() {
+    local deadline="${GO_MODULE_DOWNLOAD_TIMEOUT}"
+    local kill_after=15
+    local status=0
+    local download_pid=""
+    local elapsed=0
+    local heartbeat_pid=""
+
+    # Heartbeat: no `local` here — plain subshell under set -e would exit immediately.
+    (
+        elapsed=0
+        while true; do
+            sleep 15
+            elapsed=$((elapsed + 15))
+            printf '[install] still downloading Go modules... %ss elapsed\n' "$elapsed" >&2
+        done
+    ) &
+    heartbeat_pid=$!
+
+    if command -v timeout &> /dev/null; then
+        # Time `go` directly (not stdbuf) so the process group receives TERM/KILL.
+        if timeout -k "${kill_after}s" "${deadline}s" go mod download -x; then
+            status=0
+        else
+            status=$?
+        fi
+    else
+        print_warning "'timeout' unavailable; using bash deadline (${deadline}s) for go mod download"
+        go mod download -x &
+        download_pid=$!
+        elapsed=0
+        while kill -0 "$download_pid" 2>/dev/null; do
+            if [ "$elapsed" -ge "$deadline" ]; then
+                print_error "Go module download exceeded ${deadline}s — sending SIGTERM"
+                kill -TERM "$download_pid" 2>/dev/null || true
+                sleep 2
+                if kill -0 "$download_pid" 2>/dev/null; then
+                    kill -KILL "$download_pid" 2>/dev/null || true
+                fi
+                wait "$download_pid" 2>/dev/null || true
+                status=124
+                break
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
+        if [ "$status" -ne 124 ]; then
+            if wait "$download_pid"; then
+                status=0
+            else
+                status=$?
+            fi
+        fi
+    fi
+
+    if [ -n "$heartbeat_pid" ]; then
+        kill "$heartbeat_pid" 2>/dev/null || true
+        wait "$heartbeat_pid" 2>/dev/null || true
+    fi
+
+    return "$status"
+}
+
 compile_go_server() {
     print_step "Compiling BetterDesk Go server..."
     
@@ -2664,56 +2783,29 @@ compile_go_server() {
     local output_name="betterdesk-server"
     local go_bin
     go_bin=$(command -v go)
-    print_info "Using $($go_bin version 2>/dev/null || echo 'unknown go')"
-    print_info "GOPROXY=${GOPROXY:-<default>} GOSUMDB=${GOSUMDB:-<default>} GOTOOLCHAIN=${GOTOOLCHAIN:-auto}"
 
-    # Prefer the already-validated local toolchain so `go mod download` does not
-    # hang while silently fetching another toolchain from the network.
+    # Prefer local toolchain + official proxy/sum defaults for this build step only.
+    # Operator-set GOPROXY/GOSUMDB/GOTOOLCHAIN still win.
     export GOTOOLCHAIN="${GOTOOLCHAIN:-local}"
-    
-    # Download dependencies. Keep this visible and bounded: Go may otherwise
-    # silently fetch the toolchain named in go.mod on hosts with an older Go.
-    print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s)..."
+    export GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
+    export GOSUMDB="${GOSUMDB:-sum.golang.org}"
+
+    print_info "Using $($go_bin version 2>/dev/null || echo 'unknown go')"
+    print_info "GOPROXY=${GOPROXY} GOSUMDB=${GOSUMDB} GOTOOLCHAIN=${GOTOOLCHAIN}"
+
+    if ! _go_module_network_preflight; then
+        return 1
+    fi
+
+    # Download dependencies. Keep this visible and hard-bounded.
+    print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s, kill-after: 15s)..."
     local module_download_status=0
-    local download_cmd=(go mod download -x)
-    if command -v stdbuf &> /dev/null; then
-        download_cmd=(stdbuf -oL -eL go mod download -x)
-    fi
-
-    # Heartbeat so idle SSH sessions see progress even when proxy/DNS stalls.
-    local heartbeat_pid=""
-    (
-        local elapsed=0
-        while true; do
-            sleep 15
-            elapsed=$((elapsed + 15))
-            echo "[install] still downloading Go modules… ${elapsed}s elapsed" >&2
-        done
-    ) &
-    heartbeat_pid=$!
-
-    if command -v timeout &> /dev/null; then
-        if timeout --foreground "${GO_MODULE_DOWNLOAD_TIMEOUT}s" "${download_cmd[@]}"; then
-            :
-        else
-            module_download_status=$?
-        fi
-    else
-        print_warning "'timeout' command is unavailable; module download will run without a deadline"
-        if "${download_cmd[@]}"; then
-            :
-        else
-            module_download_status=$?
-        fi
-    fi
-
-    if [ -n "$heartbeat_pid" ]; then
-        kill "$heartbeat_pid" 2>/dev/null || true
-        wait "$heartbeat_pid" 2>/dev/null || true
+    if ! _run_go_mod_download_bounded; then
+        module_download_status=$?
     fi
 
     if [ "$module_download_status" -ne 0 ]; then
-        if [ "$module_download_status" -eq 124 ]; then
+        if [ "$module_download_status" -eq 124 ] || [ "$module_download_status" -eq 137 ]; then
             print_error "Go module download timed out after ${GO_MODULE_DOWNLOAD_TIMEOUT}s"
         else
             print_error "Go module download failed (exit code ${module_download_status})"

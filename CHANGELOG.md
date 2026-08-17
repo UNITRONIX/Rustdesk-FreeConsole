@@ -8,6 +8,7 @@
 ## [3.5.45] — 2026-08-16
 
 ### Fixed
+- **Native install Go module download hang (#371):** Module download now probes `proxy.golang.org` / `sum.golang.org` before fetching, prints a working 15s heartbeat, and enforces a hard deadline with `timeout -k` (bash TERM/KILL fallback) so stalled cloud VMs fail with a clear error instead of sitting past the advertised timeout.
 - **Managed enrollment for viewer-only mobile (#375):** Clients that only log in and initiate sessions (no `RegisterPeer`/`RegisterPk`) now appear in `/registrations` when `ENROLLMENT_MODE=managed` — queued from successful `/api/login` and from PunchHole rejected with a valid account login token. Connection stays denied until operator approval. Locked mode still does not queue. Stock client “ID does not exist” for this case means the initiator is not enrolled, not a missing target.
 
 ### Changed
