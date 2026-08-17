@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.47] — 2026-08-17
+
 ### Fixed
 - **Config QR UX for unreachable hosts (#368):** Dashboard and Keys QR modals warn when the embedded host is `localhost` / loopback / `.local`. Keys QR and server-info now honour the same Dashboard `Client server address` session override (`?host=`). Ships via panel update.
 
@@ -2964,3 +2971,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.44]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.43...v3.5.44
 [3.5.45]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.44...v3.5.45
 [3.5.46]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.45...v3.5.46
+[3.5.47]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.46...v3.5.47
