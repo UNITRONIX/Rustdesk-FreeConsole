@@ -1058,6 +1058,12 @@
     color: var(--text-secondary);
 }
 
+.client-config-qr-modal p.client-config-qr-warn {
+    margin-top: var(--space-sm);
+    color: var(--accent-yellow, #b45309);
+    font-weight: 500;
+}
+
 @media (max-width: 1280px) {
     .dashboard-stats,
     .quick-actions {

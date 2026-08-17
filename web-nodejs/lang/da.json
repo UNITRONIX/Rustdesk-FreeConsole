@@ -192,7 +192,8 @@
         "intune_script_title": "Windows-implementeringsuddrag",
         "intune_script_hint": "Kør med administratorrettigheder efter RustDesk MSI er færdig. Bruger samme config-streng som Kopiér deploy-streng.",
         "deploy_string_not_ready": "Deploy-streng er ikke tilgængelig, før serverens offentlige nøgle er indlæst.",
-        "client_server_host_env_hint": "Offentlige ID-, relay- og API-endpoints er konfigureret under Indstillinger → Offentlige klient-endpoints. Ryd dem der for at bruge denne override igen."
+        "client_server_host_env_hint": "Offentlige ID-, relay- og API-endpoints er konfigureret under Indstillinger → Offentlige klient-endpoints. Ryd dem der for at bruge denne override igen.",
+        "client_config_qr_unreachable_host": "Denne QR indeholder localhost eller en .local-adresse. Telefoner kan normalt ikke nå den — indstil først Client server address (eller PANEL_PUBLIC_HOST) til en LAN-IP eller offentlig DNS."
     },
     "devices": {
         "title": "Enheder",
@@ -417,7 +418,8 @@
         "no_qr": "QR-kode er ikke tilgængelig",
         "download_success": "Nøglefil blev downloadet",
         "not_found": "Nøglen blev ikke fundet",
-        "api_not_found": "API nøgle ikke fundet"
+        "api_not_found": "API nøgle ikke fundet",
+        "qr_unreachable_host": "Denne QR indeholder localhost eller en .local-adresse. Telefoner kan normalt ikke nå den — indstil først Client server address på Dashboard (eller PANEL_PUBLIC_HOST) til en LAN-IP eller offentlig DNS."
     },
     "settings": {
         "title": "Indstillinger",

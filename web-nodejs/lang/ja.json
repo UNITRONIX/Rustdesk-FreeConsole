@@ -186,7 +186,8 @@
         "intune_script_title": "Windows デプロイスニペット",
         "intune_script_hint": "RustDesk MSI 完了後に管理者として実行します。「デプロイ文字列をコピー」と同じ config 文字列を使用します。",
         "deploy_string_not_ready": "サーバー公開鍵が読み込まれるまでデプロイ文字列は利用できません。",
-        "client_server_host_env_hint": "公開 ID・リレー・API は 設定 → 公開クライアントエンドポイント で設定されています。クリアするとこの上書きが使えます。"
+        "client_server_host_env_hint": "公開 ID・リレー・API は 設定 → 公開クライアントエンドポイント で設定されています。クリアするとこの上書きが使えます。",
+        "client_config_qr_unreachable_host": "このQRには localhost または .local アドレスが含まれます。スマホからは通常到達できません — 先に Client server address（または PANEL_PUBLIC_HOST）を LAN IP か公開 DNS に設定してください。"
     },
     "devices": {
         "title": "デバイス",
@@ -411,7 +412,8 @@
         "no_qr": "QRコードは利用できません",
         "download_success": "キーファイルがダウンロードされました",
         "not_found": "キーが見つかりません",
-        "api_not_found": "API キーが見つかりません"
+        "api_not_found": "API キーが見つかりません",
+        "qr_unreachable_host": "このQRには localhost または .local アドレスが含まれます。スマホからは通常到達できません — 先にダッシュボードの Client server address（または PANEL_PUBLIC_HOST）を LAN IP か公開 DNS に設定してください。"
     },
     "settings": {
         "title": "設定",

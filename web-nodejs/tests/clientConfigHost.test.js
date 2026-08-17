@@ -66,4 +66,13 @@ describe('clientConfigHost', () => {
     it('stripRequestHost removes port from IPv4 host header', () => {
         expect(clientConfigHost.stripRequestHost('192.168.1.5:5000')).toBe('192.168.1.5');
     });
+
+    it('isPhoneUnreachableHost flags loopback and .local (#368)', () => {
+        expect(clientConfigHost.isPhoneUnreachableHost('localhost')).toBe(true);
+        expect(clientConfigHost.isPhoneUnreachableHost('127.0.0.1')).toBe(true);
+        expect(clientConfigHost.isPhoneUnreachableHost('::1')).toBe(true);
+        expect(clientConfigHost.isPhoneUnreachableHost('desk.local')).toBe(true);
+        expect(clientConfigHost.isPhoneUnreachableHost('203.0.113.10')).toBe(false);
+        expect(clientConfigHost.isPhoneUnreachableHost('desk.example.com')).toBe(false);
+    });
 });

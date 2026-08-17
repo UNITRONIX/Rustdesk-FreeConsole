@@ -192,7 +192,8 @@
         "intune_script_title": "Windows-käyttöönoton pätkä",
         "intune_script_hint": "Suorita ylläpitäjän oikeuksilla RustDesk MSI:n jälkeen. Käyttää samaa config-merkkijonoa kuin Kopioi deploy-merkkijono.",
         "deploy_string_not_ready": "Deploy-merkkijono ei ole saatavilla ennen kuin palvelimen julkinen avain on ladattu.",
-        "client_server_host_env_hint": "Julkinen ID-, relay- ja API-osoite on Asetukset → Julkiset asiakaspäätepisteet. Tyhjennä ne käyttääksesi tätä kenttää uudelleen."
+        "client_server_host_env_hint": "Julkinen ID-, relay- ja API-osoite on Asetukset → Julkiset asiakaspäätepisteet. Tyhjennä ne käyttääksesi tätä kenttää uudelleen.",
+        "client_config_qr_unreachable_host": "Tämä QR sisältää localhost- tai .local-osoitteen. Puhelimet eivät yleensä tavoita sitä — aseta ensin Client server address (tai PANEL_PUBLIC_HOST) LAN-IP:ksi tai julkiseksi DNS:ksi."
     },
     "devices": {
         "title": "Laitteet",
@@ -417,7 +418,8 @@
         "no_qr": "QR-koodi ei ole saatavilla",
         "download_success": "Avaintiedosto ladattu",
         "not_found": "Avainta ei löydy",
-        "api_not_found": "API-avainta ei löydy"
+        "api_not_found": "API-avainta ei löydy",
+        "qr_unreachable_host": "Tämä QR sisältää localhost- tai .local-osoitteen. Puhelimet eivät yleensä tavoita sitä — aseta ensin Client server address Dashboardissa (tai PANEL_PUBLIC_HOST) LAN-IP:ksi tai julkiseksi DNS:ksi."
     },
     "settings": {
         "title": "Asetukset",

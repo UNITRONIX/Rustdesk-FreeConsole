@@ -192,7 +192,8 @@
         "intune_script_title": "สnippets การ deploy บน Windows",
         "intune_script_hint": "รันด้วยสิทธิ์ผู้ดูแลหลัง MSI ของ RustDesk เสร็จ ใช้ config string เดียวกับคัดลอกสตริง deploy",
         "deploy_string_not_ready": "สตริง deploy จะใช้ไม่ได้จนกว่าจะโหลดคีย์สาธารณะของเซิร์ฟเวอร์",
-        "client_server_host_env_hint": "ID, relay และ API สาธารณะตั้งใน การตั้งค่า → จุดปลายทางไคลเอนต์สาธารณะ ล้างที่นั่นเพื่อใช้การแทนที่นี้อีกครั้ง"
+        "client_server_host_env_hint": "ID, relay และ API สาธารณะตั้งใน การตั้งค่า → จุดปลายทางไคลเอนต์สาธารณะ ล้างที่นั่นเพื่อใช้การแทนที่นี้อีกครั้ง",
+        "client_config_qr_unreachable_host": "QR นี้มี localhost หรือที่อยู่ .local โทรศัพท์มักเข้าไม่ถึง — ตั้ง Client server address (หรือ PANEL_PUBLIC_HOST) เป็น IP ใน LAN หรือ DNS สาธารณะก่อน"
     },
     "devices": {
         "title": "อุปกรณ์",
@@ -417,7 +418,8 @@
         "no_qr": "รหัส QR ไม่พร้อมใช���งาน",
         "download_success": "ดาวน์โหลดไฟล์คีย์แล้ว",
         "not_found": "ไม่พบคีย์",
-        "api_not_found": "ไม่พบคีย์ API"
+        "api_not_found": "ไม่พบคีย์ API",
+        "qr_unreachable_host": "QR นี้มี localhost หรือที่อยู่ .local โทรศัพท์มักเข้าไม่ถึง — ตั้ง Client server address บน Dashboard (หรือ PANEL_PUBLIC_HOST) เป็น IP ใน LAN หรือ DNS สาธารณะก่อน"
     },
     "settings": {
         "title": "การตั้งค่า",

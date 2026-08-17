@@ -190,7 +190,8 @@
         "intune_script_title": "Extrait de déploiement Windows",
         "intune_script_hint": "Exécutez en administrateur après l’installation MSI de RustDesk. Utilise la même chaîne que Copier la chaîne de déploiement.",
         "deploy_string_not_ready": "La chaîne de déploiement n’est pas disponible tant que la clé publique du serveur n’est pas chargée.",
-        "client_server_host_env_hint": "Les points de terminaison publics ID, relais et API sont définis dans Paramètres → Points de terminaison clients publics. Effacez-les pour réutiliser ce champ."
+        "client_server_host_env_hint": "Les points de terminaison publics ID, relais et API sont définis dans Paramètres → Points de terminaison clients publics. Effacez-les pour réutiliser ce champ.",
+        "client_config_qr_unreachable_host": "Ce QR contient localhost ou une adresse .local. Les téléphones ne peuvent généralement pas l’atteindre — définissez d’abord Client server address (ou PANEL_PUBLIC_HOST) sur une IP LAN ou un DNS public."
     },
     "devices": {
         "title": "Tableau de bord",
@@ -415,7 +416,8 @@
         "no_qr": "Code QR non disponible",
         "download_success": "Fichier de clé téléchargé",
         "not_found": "Introuvable",
-        "api_not_found": "API key not found"
+        "api_not_found": "API key not found",
+        "qr_unreachable_host": "Ce QR contient localhost ou une adresse .local. Les téléphones ne peuvent généralement pas l’atteindre — définissez d’abord Client server address sur le Dashboard (ou PANEL_PUBLIC_HOST) sur une IP LAN ou un DNS public."
     },
     "settings": {
         "title": "Tableau de bord",

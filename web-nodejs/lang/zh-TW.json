@@ -190,7 +190,8 @@
         "intune_script_title": "Windows 部署片段",
         "intune_script_hint": "RustDesk MSI 完成後以系統管理員身分執行。使用與「複製部署字串」相同的 config 字串。",
         "deploy_string_not_ready": "在載入伺服器公開金鑰之前，部署字串不可用。",
-        "client_server_host_env_hint": "公共 ID、中繼與 API 已於 設定 → 公共用戶端端點 設定。清除後可再次使用此覆寫欄位。"
+        "client_server_host_env_hint": "公共 ID、中繼與 API 已於 設定 → 公共用戶端端點 設定。清除後可再次使用此覆寫欄位。",
+        "client_config_qr_unreachable_host": "此 QR 包含 localhost 或 .local 位址。手機通常無法連線 — 請先將 Client server address（或 PANEL_PUBLIC_HOST）設為區網 IP 或公開 DNS。"
     },
     "devices": {
         "title": "設備",
@@ -415,7 +416,8 @@
         "no_qr": "二維碼不可用",
         "download_success": "密鑰文件已下載",
         "not_found": "未找到密鑰",
-        "api_not_found": "未找到 API 密鑰"
+        "api_not_found": "未找到 API 密鑰",
+        "qr_unreachable_host": "此 QR 包含 localhost 或 .local 位址。手機通常無法連線 — 請先在儀表板將 Client server address（或 PANEL_PUBLIC_HOST）設為區網 IP 或公開 DNS。"
     },
     "settings": {
         "title": "設置",

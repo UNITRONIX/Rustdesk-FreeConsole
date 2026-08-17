@@ -192,7 +192,8 @@
         "intune_script_title": "Đoạn triển khai Windows",
         "intune_script_hint": "Chạy với quyền quản trị sau khi MSI RustDesk hoàn tất. Dùng cùng chuỗi config như Sao chép chuỗi triển khai.",
         "deploy_string_not_ready": "Chuỗi triển khai chưa sẵn sàng cho đến khi tải khóa công khai của máy chủ.",
-        "client_server_host_env_hint": "ID, relay và API công khai được cấu hình tại Cài đặt → Điểm cuối client công khai. Xóa ở đó để dùng lại trường này."
+        "client_server_host_env_hint": "ID, relay và API công khai được cấu hình tại Cài đặt → Điểm cuối client công khai. Xóa ở đó để dùng lại trường này.",
+        "client_config_qr_unreachable_host": "QR này chứa localhost hoặc địa chỉ .local. Điện thoại thường không truy cập được — hãy đặt Client server address (hoặc PANEL_PUBLIC_HOST) thành IP LAN hoặc DNS công khai trước."
     },
     "devices": {
         "title": "Thiết bị",
@@ -417,7 +418,8 @@
         "no_qr": "Mã QR không có sẵn",
         "download_success": "Đã tải xuống tệp khóa",
         "not_found": "Không tìm thấy chìa khóa",
-        "api_not_found": "Không tìm thấy khóa API"
+        "api_not_found": "Không tìm thấy khóa API",
+        "qr_unreachable_host": "QR này chứa localhost hoặc địa chỉ .local. Điện thoại thường không truy cập được — hãy đặt Client server address trên Dashboard (hoặc PANEL_PUBLIC_HOST) thành IP LAN hoặc DNS công khai trước."
     },
     "settings": {
         "title": "Cài đặt",

@@ -186,7 +186,8 @@
         "intune_script_title": "Úryvek pro nasazení ve Windows",
         "intune_script_hint": "Spusťte s oprávněním správce po dokončení MSI RustDesk. Používá stejný config string jako Kopírovat deploy string.",
         "deploy_string_not_ready": "Deploy string není k dispozici, dokud není načten veřejný klíč serveru.",
-        "client_server_host_env_hint": "Veřejné ID, relay a API jsou nastaveny v Nastavení → Veřejné koncové body klientů. Vymažte je tam, abyste znovu mohli použít toto pole."
+        "client_server_host_env_hint": "Veřejné ID, relay a API jsou nastaveny v Nastavení → Veřejné koncové body klientů. Vymažte je tam, abyste znovu mohli použít toto pole.",
+        "client_config_qr_unreachable_host": "Tento QR obsahuje localhost nebo adresu .local. Telefony k ní obvykle nedosáhnou — nejprve nastavte Client server address (nebo PANEL_PUBLIC_HOST) na LAN IP nebo veřejné DNS."
     },
     "devices": {
         "title": "Zařízení",
@@ -411,7 +412,8 @@
         "no_qr": "QR kód není k dispozici",
         "download_success": "Soubor s klíčem byl stažen",
         "not_found": "Klíč nebyl nalezen",
-        "api_not_found": "Klíč API nebyl nalezen"
+        "api_not_found": "Klíč API nebyl nalezen",
+        "qr_unreachable_host": "Tento QR obsahuje localhost nebo adresu .local. Telefony k ní obvykle nedosáhnou — nejprve nastavte Client server address na Dashboardu (nebo PANEL_PUBLIC_HOST) na LAN IP nebo veřejné DNS."
     },
     "settings": {
         "title": "Nastavení",

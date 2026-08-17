@@ -186,7 +186,8 @@
         "intune_script_title": "Windows-implementatiefragment",
         "intune_script_hint": "Voer uit als beheerder na de RustDesk MSI. Gebruikt dezelfde config-string als Deploy-string kopiëren.",
         "deploy_string_not_ready": "Deploy-string is niet beschikbaar totdat de publieke serversleutel is geladen.",
-        "client_server_host_env_hint": "Openbare ID-, relay- en API-eindpunten staan in Instellingen → Openbare client-eindpunten. Leeg daar om dit veld weer te gebruiken."
+        "client_server_host_env_hint": "Openbare ID-, relay- en API-eindpunten staan in Instellingen → Openbare client-eindpunten. Leeg daar om dit veld weer te gebruiken.",
+        "client_config_qr_unreachable_host": "Deze QR bevat localhost of een .local-adres. Telefoons kunnen dit meestal niet bereiken — stel eerst Client server address (of PANEL_PUBLIC_HOST) in op een LAN-IP of openbare DNS."
     },
     "devices": {
         "title": "Apparaten",
@@ -411,7 +412,8 @@
         "no_qr": "QR-code niet beschikbaar",
         "download_success": "Sleutelbestand gedownload",
         "not_found": "Sleutel niet gevonden",
-        "api_not_found": "API-sleutel niet gevonden"
+        "api_not_found": "API-sleutel niet gevonden",
+        "qr_unreachable_host": "Deze QR bevat localhost of een .local-adres. Telefoons kunnen dit meestal niet bereiken — stel eerst Client server address op het Dashboard (of PANEL_PUBLIC_HOST) in op een LAN-IP of openbare DNS."
     },
     "settings": {
         "title": "Instellingen",

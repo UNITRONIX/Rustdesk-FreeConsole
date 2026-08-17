@@ -192,7 +192,8 @@
         "intune_script_title": "Fragment de implementare Windows",
         "intune_script_hint": "Rulați ca administrator după finalizarea MSI RustDesk. Folosește același șir ca Copiază șirul de deploy.",
         "deploy_string_not_ready": "Șirul de deploy nu este disponibil până când cheia publică a serverului este încărcată.",
-        "client_server_host_env_hint": "ID, relay și API public sunt în Setări → Endpoint-uri publice client. Goliți acolo pentru a folosi din nou acest câmp."
+        "client_server_host_env_hint": "ID, relay și API public sunt în Setări → Endpoint-uri publice client. Goliți acolo pentru a folosi din nou acest câmp.",
+        "client_config_qr_unreachable_host": "Acest QR conține localhost sau o adresă .local. Telefoanele de obicei nu o pot atinge — setați mai întâi Client server address (sau PANEL_PUBLIC_HOST) la un IP LAN sau DNS public."
     },
     "devices": {
         "title": "Dispozitive",
@@ -417,7 +418,8 @@
         "no_qr": "Codul QR nu este disponibil",
         "download_success": "Fișierul cheie a fost descărcat",
         "not_found": "Cheia nu a fost găsită",
-        "api_not_found": "Cheia API nu a fost găsită"
+        "api_not_found": "Cheia API nu a fost găsită",
+        "qr_unreachable_host": "Acest QR conține localhost sau o adresă .local. Telefoanele de obicei nu o pot atinge — setați mai întâi Client server address pe Dashboard (sau PANEL_PUBLIC_HOST) la un IP LAN sau DNS public."
     },
     "settings": {
         "title": "Setări",

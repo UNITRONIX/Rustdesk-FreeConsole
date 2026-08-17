@@ -192,7 +192,8 @@
         "intune_script_title": "Windows तैनाती स्निपेट",
         "intune_script_hint": "RustDesk MSI पूरा होने के बाद व्यवस्थापक के रूप में चलाएँ। डिप्लॉय स्ट्रिंग कॉपी करें जैसा ही config स्ट्रिंग उपयोग करता है।",
         "deploy_string_not_ready": "सर्वर की सार्वजनिक कुंजी लोड होने तक डिप्लॉय स्ट्रिंग उपलब्ध नहीं है।",
-        "client_server_host_env_hint": "सार्वजनिक ID, relay और API Settings → Public client endpoints में सेट हैं। इस ओवरराइड के लिए वहाँ खाली करें।"
+        "client_server_host_env_hint": "सार्वजनिक ID, relay और API Settings → Public client endpoints में सेट हैं। इस ओवरराइड के लिए वहाँ खाली करें।",
+        "client_config_qr_unreachable_host": "इस QR में localhost या .local पता है। फ़ोन आमतौर पर इसे पहुँच नहीं पाते — पहले Client server address (या PANEL_PUBLIC_HOST) को LAN IP या सार्वजनिक DNS पर सेट करें।"
     },
     "devices": {
         "title": "उपकरण",
@@ -417,7 +418,8 @@
         "no_qr": "क्यूआर कोड उपलब्ध नहीं है",
         "download_success": "कुंजी फ़ाइल डाउनलोड की गई",
         "not_found": "कुंजी प्राप्त नहीं हुई",
-        "api_not_found": "API कुंजी नहीं मिली"
+        "api_not_found": "API कुंजी नहीं मिली",
+        "qr_unreachable_host": "इस QR में localhost या .local पता है। फ़ोन आमतौर पर इसे पहुँच नहीं पाते — पहले Dashboard पर Client server address (या PANEL_PUBLIC_HOST) को LAN IP या सार्वजनिक DNS पर सेट करें।"
     },
     "settings": {
         "title": "सेटिंग्स",

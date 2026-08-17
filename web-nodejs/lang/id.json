@@ -192,7 +192,8 @@
         "intune_script_title": "Cuplikan deployment Windows",
         "intune_script_hint": "Jalankan sebagai admin setelah MSI RustDesk selesai. Menggunakan string config yang sama dengan Salin string deploy.",
         "deploy_string_not_ready": "String deploy tidak tersedia sampai kunci publik server dimuat.",
-        "client_server_host_env_hint": "Endpoint ID, relay, dan API publik dikonfigurasi di Pengaturan → Endpoint klien publik. Kosongkan di sana untuk override ini."
+        "client_server_host_env_hint": "Endpoint ID, relay, dan API publik dikonfigurasi di Pengaturan → Endpoint klien publik. Kosongkan di sana untuk override ini.",
+        "client_config_qr_unreachable_host": "QR ini memuat localhost atau alamat .local. Ponsel biasanya tidak dapat menjangkaunya — setel dulu Client server address (atau PANEL_PUBLIC_HOST) ke IP LAN atau DNS publik."
     },
     "devices": {
         "title": "Perangkat",
@@ -417,7 +418,8 @@
         "no_qr": "Kode QR tidak tersedia",
         "download_success": "File kunci diunduh",
         "not_found": "Kunci tidak ditemukan",
-        "api_not_found": "Kunci API tidak ditemukan"
+        "api_not_found": "Kunci API tidak ditemukan",
+        "qr_unreachable_host": "QR ini memuat localhost atau alamat .local. Ponsel biasanya tidak dapat menjangkaunya — setel dulu Client server address di Dashboard (atau PANEL_PUBLIC_HOST) ke IP LAN atau DNS publik."
     },
     "settings": {
         "title": "Pengaturan",

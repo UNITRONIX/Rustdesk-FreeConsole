@@ -186,7 +186,8 @@
         "intune_script_title": "Windows 部署片段",
         "intune_script_hint": "在 RustDesk MSI 完成后以管理员身份运行。使用与“复制部署字符串”相同的 config 字符串。",
         "deploy_string_not_ready": "在加载服务器公钥之前，部署字符串不可用。",
-        "client_server_host_env_hint": "公共 ID、中继和 API 已在 设置 → 公共客户端端点 中配置。清除后可再次使用此覆盖字段。"
+        "client_server_host_env_hint": "公共 ID、中继和 API 已在 设置 → 公共客户端端点 中配置。清除后可再次使用此覆盖字段。",
+        "client_config_qr_unreachable_host": "此二维码包含 localhost 或 .local 地址。手机通常无法访问 — 请先将 Client server address（或 PANEL_PUBLIC_HOST）设为局域网 IP 或公网 DNS。"
     },
     "devices": {
         "title": "设备",
@@ -411,7 +412,8 @@
         "no_qr": "二维码不可用",
         "download_success": "密钥文件已下载",
         "not_found": "未找到密钥",
-        "api_not_found": "未找到 API 密钥"
+        "api_not_found": "未找到 API 密钥",
+        "qr_unreachable_host": "此二维码包含 localhost 或 .local 地址。手机通常无法访问 — 请先在仪表盘将 Client server address（或 PANEL_PUBLIC_HOST）设为局域网 IP 或公网 DNS。"
     },
     "settings": {
         "title": "设置",

@@ -631,6 +631,10 @@ Start-Process -FilePath $RustDesk -ArgumentList @('--config', $CfgString) -Wait 
             return;
         }
 
+        const warn = clientConfig.phone_unreachable_host
+            ? `<p class="client-config-qr-warn">${escapeHtml(_('dashboard.client_config_qr_unreachable_host'))}</p>`
+            : '';
+
         Modal.show({
             title: _('dashboard.client_config_qr_title'),
             content: `
@@ -639,6 +643,7 @@ Start-Process -FilePath $RustDesk -ArgumentList @('--config', $CfgString) -Wait 
                         <img src="${escapeHtml(clientConfig.qr)}" alt="${escapeHtml(_('dashboard.client_config_qr_title'))}" width="300" height="300">
                     </div>
                     <p>${escapeHtml(_('dashboard.client_config_qr_hint'))}</p>
+                    ${warn}
                 </div>
             `,
             buttons: [

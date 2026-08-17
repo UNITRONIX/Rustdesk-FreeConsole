@@ -158,6 +158,7 @@ router.get('/api/dashboard/client-config', requireAuth, async (req, res) => {
                 client_server_host: endpoints.host,
                 endpoint_sources: endpoints.sources,
                 env_override_active: endpoints.env_override_active,
+                phone_unreachable_host: clientConfigHost.isPhoneUnreachableHost(endpoints.host),
                 qr
             }
         });

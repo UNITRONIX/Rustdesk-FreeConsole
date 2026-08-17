@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Config QR UX for unreachable hosts (#368):** Dashboard and Keys QR modals warn when the embedded host is `localhost` / loopback / `.local`. Keys QR and server-info now honour the same Dashboard `Client server address` session override (`?host=`). Ships via panel update.
+
 ### Changed
 - _(none yet)_
 

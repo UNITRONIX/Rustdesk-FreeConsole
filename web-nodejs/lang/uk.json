@@ -192,7 +192,8 @@
         "intune_script_title": "Фрагмент розгортання Windows",
         "intune_script_hint": "Запустіть від імені адміністратора після завершення MSI RustDesk. Використовує той самий config-рядок, що й Копіювати рядок розгортання.",
         "deploy_string_not_ready": "Рядок розгортання недоступний, доки не завантажено публічний ключ сервера.",
-        "client_server_host_env_hint": "Публічні ID, relay і API налаштовані в Налаштування → Публічні кінцеві точки клієнта. Очистіть там, щоб знову використати це поле."
+        "client_server_host_env_hint": "Публічні ID, relay і API налаштовані в Налаштування → Публічні кінцеві точки клієнта. Очистіть там, щоб знову використати це поле.",
+        "client_config_qr_unreachable_host": "Цей QR містить localhost або адресу .local. Телефони зазвичай не можуть її досягти — спочатку встановіть Client server address (або PANEL_PUBLIC_HOST) на LAN IP чи публічний DNS."
     },
     "devices": {
         "title": "Пристрої",
@@ -417,7 +418,8 @@
         "no_qr": "QR-код недоступний",
         "download_success": "Ключовий файл завантажено",
         "not_found": "Ключ не знайдено",
-        "api_not_found": "Ключ API не знайдено"
+        "api_not_found": "Ключ API не знайдено",
+        "qr_unreachable_host": "Цей QR містить localhost або адресу .local. Телефони зазвичай не можуть її досягти — спочатку встановіть Client server address на Dashboard (або PANEL_PUBLIC_HOST) на LAN IP чи публічний DNS."
     },
     "settings": {
         "title": "Налаштування",

@@ -186,7 +186,8 @@
         "intune_script_title": "Fragmento de despliegue en Windows",
         "intune_script_hint": "Ejecútelo como administrador tras finalizar el MSI de RustDesk. Usa la misma cadena que Copiar cadena de despliegue.",
         "deploy_string_not_ready": "La cadena de despliegue no está disponible hasta que se cargue la clave pública del servidor.",
-        "client_server_host_env_hint": "Los endpoints públicos de ID, relay y API están en Ajustes → Endpoints públicos del cliente. Bórrelos allí para volver a usar este campo."
+        "client_server_host_env_hint": "Los endpoints públicos de ID, relay y API están en Ajustes → Endpoints públicos del cliente. Bórrelos allí para volver a usar este campo.",
+        "client_config_qr_unreachable_host": "Este QR incluye localhost o una dirección .local. Los teléfonos suelen no poder alcanzarla: configure primero Client server address (o PANEL_PUBLIC_HOST) con una IP LAN o DNS público."
     },
     "devices": {
         "title": "Panel",
@@ -411,7 +412,8 @@
         "no_qr": "Código QR no disponible",
         "download_success": "Archivo de clave descargado",
         "not_found": "No encontrado",
-        "api_not_found": "Clave API no encontrada"
+        "api_not_found": "Clave API no encontrada",
+        "qr_unreachable_host": "Este QR incluye localhost o una dirección .local. Los teléfonos suelen no poder alcanzarla: configure primero Client server address en el Dashboard (o PANEL_PUBLIC_HOST) con una IP LAN o DNS público."
     },
     "settings": {
         "title": "Panel",

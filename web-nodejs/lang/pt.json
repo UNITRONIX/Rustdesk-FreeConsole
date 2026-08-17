@@ -186,7 +186,8 @@
         "intune_script_title": "Trecho de implantação Windows",
         "intune_script_hint": "Execute como administrador após o MSI do RustDesk. Usa a mesma string de Copiar string de implantação.",
         "deploy_string_not_ready": "A string de implantação só fica disponível após carregar a chave pública do servidor.",
-        "client_server_host_env_hint": "ID, relay e API públicos estão em Definições → Endpoints públicos do cliente. Limpe lá para usar este campo novamente."
+        "client_server_host_env_hint": "ID, relay e API públicos estão em Definições → Endpoints públicos do cliente. Limpe lá para usar este campo novamente.",
+        "client_config_qr_unreachable_host": "Este QR inclui localhost ou um endereço .local. Os telefones geralmente não o alcançam — defina primeiro Client server address (ou PANEL_PUBLIC_HOST) para um IP LAN ou DNS público."
     },
     "devices": {
         "title": "Dispositivos",
@@ -411,7 +412,8 @@
         "no_qr": "Código QR não disponível",
         "download_success": "Ficheiro da chave transferido",
         "not_found": "Chave não encontrada",
-        "api_not_found": "Chave de API não encontrada"
+        "api_not_found": "Chave de API não encontrada",
+        "qr_unreachable_host": "Este QR inclui localhost ou um endereço .local. Os telefones geralmente não o alcançam — defina primeiro Client server address no Dashboard (ou PANEL_PUBLIC_HOST) para um IP LAN ou DNS público."
     },
     "settings": {
         "title": "Configurações",

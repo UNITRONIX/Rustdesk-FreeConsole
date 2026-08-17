@@ -192,7 +192,8 @@
         "intune_script_title": "Windows dağıtım parçacığı",
         "intune_script_hint": "RustDesk MSI tamamlandıktan sonra yönetici olarak çalıştırın. Dağıtım dizesini kopyala ile aynı config dizesini kullanır.",
         "deploy_string_not_ready": "Sunucu genel anahtarı yüklenene kadar dağıtım dizesi kullanılamaz.",
-        "client_server_host_env_hint": "Genel ID, relay ve API Ayarlar → Genel istemci uç noktaları bölümünde. Bu alanı tekrar kullanmak için orayı temizleyin."
+        "client_server_host_env_hint": "Genel ID, relay ve API Ayarlar → Genel istemci uç noktaları bölümünde. Bu alanı tekrar kullanmak için orayı temizleyin.",
+        "client_config_qr_unreachable_host": "Bu QR localhost veya .local adresi içeriyor. Telefonlar genelde buna ulaşamaz — önce Client server address (veya PANEL_PUBLIC_HOST) değerini bir LAN IP veya genel DNS olarak ayarlayın."
     },
     "devices": {
         "title": "Cihazlar",
@@ -417,7 +418,8 @@
         "no_qr": "QR kodu mevcut değil",
         "download_success": "Anahtar dosyası indirildi",
         "not_found": "Anahtar bulunamadı",
-        "api_not_found": "API anahtarı bulunamadı"
+        "api_not_found": "API anahtarı bulunamadı",
+        "qr_unreachable_host": "Bu QR localhost veya .local adresi içeriyor. Telefonlar genelde buna ulaşamaz — önce Dashboard’daki Client server address (veya PANEL_PUBLIC_HOST) değerini bir LAN IP veya genel DNS olarak ayarlayın."
     },
     "settings": {
         "title": "Ayarlar",

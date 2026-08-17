@@ -27,6 +27,20 @@ function stripRequestHost(rawHost) {
     return firstHost;
 }
 
+/**
+ * Hosts that phones typically cannot reach when scanning a config QR (#368).
+ * Used for operator warnings only — does not change encoding.
+ * @param {string} host
+ * @returns {boolean}
+ */
+function isPhoneUnreachableHost(host) {
+    const h = String(host || '').trim().toLowerCase();
+    if (!h) return false;
+    if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]') return true;
+    if (h.endsWith('.local')) return true;
+    return false;
+}
+
 /** Same precedence as PUBLIC_*: non-empty process.env → durable → .env */
 function readPanelPublicHost() {
     return publicEndpoints.readPanelPublicHostValue();
@@ -120,4 +134,5 @@ module.exports = {
     resolveRustDeskEndpoints,
     stripRequestHost,
     readPanelPublicHost,
+    isPhoneUnreachableHost,
 };

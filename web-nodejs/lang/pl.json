@@ -186,7 +186,8 @@
         "intune_script_title": "Fragment wdrożenia Windows",
         "intune_script_hint": "Uruchom z uprawnieniami administratora po zakończeniu instalacji MSI RustDesk. Używa tego samego ciągu co Kopiuj ciąg wdrożenia.",
         "deploy_string_not_ready": "Ciąg wdrożenia jest niedostępny, dopóki nie zostanie wczytany klucz publiczny serwera.",
-        "client_server_host_env_hint": "Publiczne ID, relay i API są w Ustawienia → Publiczne endpointy klienta. Wyczyść tam, aby znów użyć tego pola."
+        "client_server_host_env_hint": "Publiczne ID, relay i API są w Ustawienia → Publiczne endpointy klienta. Wyczyść tam, aby znów użyć tego pola.",
+        "client_config_qr_unreachable_host": "Ten QR zawiera localhost lub adres .local. Telefony zwykle go nie osiągają — najpierw ustaw Client server address (lub PANEL_PUBLIC_HOST) na IP LAN albo publiczny DNS."
     },
     "devices": {
         "title": "Urządzenia",
@@ -411,7 +412,8 @@
         "no_qr": "Kod QR niedostępny",
         "download_success": "Plik klucza pobrany",
         "not_found": "Nie znaleziono klucza",
-        "api_not_found": "Nie znaleziono klucza API"
+        "api_not_found": "Nie znaleziono klucza API",
+        "qr_unreachable_host": "Ten QR zawiera localhost lub adres .local. Telefony zwykle go nie osiągają — najpierw ustaw Client server address na Dashboardzie (lub PANEL_PUBLIC_HOST) na IP LAN albo publiczny DNS."
     },
     "settings": {
         "title": "Ustawienia",

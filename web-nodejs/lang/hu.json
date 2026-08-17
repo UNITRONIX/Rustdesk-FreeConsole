@@ -192,7 +192,8 @@
         "intune_script_title": "Windows telepítési részlet",
         "intune_script_hint": "Futtassa rendszergazdaként a RustDesk MSI befejezése után. Ugyanazt a config stringet használja, mint a Telepítési string másolása.",
         "deploy_string_not_ready": "A telepítési string csak a szerver nyilvános kulcsa betöltése után érhető el.",
-        "client_server_host_env_hint": "A nyilvános ID, relay és API a Beállítások → Nyilvános kliens végpontok menüben van. Törölje ott a mezőket az override újbóli használatához."
+        "client_server_host_env_hint": "A nyilvános ID, relay és API a Beállítások → Nyilvános kliens végpontok menüben van. Törölje ott a mezőket az override újbóli használatához.",
+        "client_config_qr_unreachable_host": "Ez a QR localhostot vagy .local címet tartalmaz. A telefonok általában nem érik el — előbb állítsa a Client server address-t (vagy PANEL_PUBLIC_HOST-ot) LAN IP-re vagy nyilvános DNS-re."
     },
     "devices": {
         "title": "Eszközök",
@@ -417,7 +418,8 @@
         "no_qr": "A QR-kód nem elérhető",
         "download_success": "Kulcsfájl letöltve",
         "not_found": "A kulcs nem található",
-        "api_not_found": "A API kulcs nem található"
+        "api_not_found": "A API kulcs nem található",
+        "qr_unreachable_host": "Ez a QR localhostot vagy .local címet tartalmaz. A telefonok általában nem érik el — előbb állítsa a Dashboardon a Client server address-t (vagy PANEL_PUBLIC_HOST-ot) LAN IP-re vagy nyilvános DNS-re."
     },
     "settings": {
         "title": "Beállítások elemre",

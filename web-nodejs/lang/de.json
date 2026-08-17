@@ -186,7 +186,8 @@
         "intune_script_title": "Windows-Bereitstellungsausschnitt",
         "intune_script_hint": "Mit Administratorrechten nach Abschluss des RustDesk-MSI ausführen. Verwendet denselben Config-String wie Deploy-String kopieren.",
         "deploy_string_not_ready": "Deploy-String ist erst verfügbar, wenn der öffentliche Serverschlüssel geladen ist.",
-        "client_server_host_env_hint": "Öffentliche ID-, Relay- und API-Endpunkte sind unter Einstellungen → Öffentliche Client-Endpunkte konfiguriert. Dort leeren, um diese Überschreibung wieder zu nutzen."
+        "client_server_host_env_hint": "Öffentliche ID-, Relay- und API-Endpunkte sind unter Einstellungen → Öffentliche Client-Endpunkte konfiguriert. Dort leeren, um diese Überschreibung wieder zu nutzen.",
+        "client_config_qr_unreachable_host": "Dieser QR enthält localhost oder eine .local-Adresse. Telefone erreichen sie meist nicht — setzen Sie zuerst die Client-Serveradresse (oder PANEL_PUBLIC_HOST) auf eine LAN-IP oder öffentliches DNS."
     },
     "devices": {
         "title": "Dashboard",
@@ -411,7 +412,8 @@
         "no_qr": "QR-Code nicht verfügbar",
         "download_success": "Schlüsseldatei heruntergeladen",
         "not_found": "Device not found",
-        "api_not_found": "API-Schlüssel nicht gefunden"
+        "api_not_found": "API-Schlüssel nicht gefunden",
+        "qr_unreachable_host": "Dieser QR enthält localhost oder eine .local-Adresse. Telefone erreichen sie meist nicht — setzen Sie zuerst die Client-Serveradresse im Dashboard (oder PANEL_PUBLIC_HOST) auf eine LAN-IP oder öffentliches DNS."
     },
     "settings": {
         "title": "Dashboard",
