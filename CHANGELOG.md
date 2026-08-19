@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.49] — 2026-08-19
+
 ### Fixed
 - **Console SIGABRT on Node.js 24 (#377):** Production Docker console images now use pinned Node.js `22.23.2` while the Node.js 24 cleanup-hook backport is released and validated. `better-sqlite3` remains on 13.x; no statement-lifecycle refactor is required. Ships via the next AIO or split console image.
 
@@ -2986,3 +2993,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.46]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.45...v3.5.46
 [3.5.47]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.46...v3.5.47
 [3.5.48]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.47...v3.5.48
+[3.5.49]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.48...v3.5.49
