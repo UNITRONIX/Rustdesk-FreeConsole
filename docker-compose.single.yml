@@ -60,6 +60,9 @@ services:
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - SESSION_SECRET=${SESSION_SECRET:-}
       - DOCKER=true
+      # Optional: map betterdesk to host bind-mount owner (Synology etc.). Default 10001.
+      - PUID=${PUID:-10001}
+      - PGID=${PGID:-10001}
       # Database — defaults to SQLite; set via .env or command line for PostgreSQL
       - DB_TYPE=${DB_TYPE:-sqlite}
       - DATABASE_URL=${DATABASE_URL:-}

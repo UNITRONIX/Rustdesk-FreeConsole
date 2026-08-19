@@ -3,9 +3,13 @@
 # Fixes volume file permissions before dropping to non-root user
 set -e
 
+# shellcheck source=/dev/null
+. /ensure-app-user.sh
+ensure_betterdesk_user
+
 # Fix ownership of volume-mounted data directories.
 # Docker volumes preserve UID/GID from the host or previous container,
-# which may not match the betterdesk user (10001) in this container.
+# which may not match the betterdesk user (PUID/PGID, default 10001).
 if [ "$(id -u)" = "0" ]; then
     chown -R betterdesk:betterdesk /app/data 2>/dev/null || true
     # Fix permissions on sensitive files

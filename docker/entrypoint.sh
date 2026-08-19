@@ -3,6 +3,10 @@
 # Runs Go server + Node.js console via supervisord
 set -e
 
+# shellcheck source=/dev/null
+. /ensure-app-user.sh
+ensure_betterdesk_user
+
 echo "========================================"
 echo "  BetterDesk All-in-One Container"
 echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.5.47}"
@@ -43,8 +47,9 @@ mkdir -p /opt/rustdesk /app/data /var/log/betterdesk 2>/dev/null || true
 chown -R betterdesk:betterdesk /opt/rustdesk /app/data /var/log/betterdesk 2>/dev/null || true
 
 # Write a file as betterdesk. Fresh named volumes inherit image ownership
-# (UID 10001); with compose cap_drop:ALL root has no CAP_DAC_OVERRIDE and
-# cannot create files there (Permission denied on .api_key, issue #299).
+# (UID 10001 by default, or PUID after remap); with compose cap_drop:ALL root
+# has no CAP_DAC_OVERRIDE and cannot create files there (Permission denied on
+# .api_key, issue #299).
 write_as_betterdesk() {
     # usage: write_as_betterdesk <path> <content>
     _wad_path="$1"
@@ -101,11 +106,14 @@ fi
 export ENROLLMENT_MODE="${ENROLLMENT_MODE:-}"
 
 # Verify write access — SQLite WAL mode requires writable directory (Issue #78)
+_app_uid="${PUID:-10001}"
+_app_gid="${PGID:-10001}"
 if ! touch_as_betterdesk /opt/rustdesk/.write_test 2>/dev/null; then
     echo ""
-    echo "ERROR: /opt/rustdesk is NOT writable by the betterdesk user (UID 10001)."
+    echo "ERROR: /opt/rustdesk is NOT writable by the betterdesk user (UID ${_app_uid})."
     echo "  SQLite WAL mode requires write access to the database directory."
-    echo "  If using bind mounts, run: chown -R 10001:10001 /path/to/your/data"
+    echo "  If using bind mounts, either set PUID/PGID to the host owner, or run:"
+    echo "    chown -R ${_app_uid}:${_app_gid} /path/to/your/data"
     echo "  Or use Docker named volumes instead of bind mounts."
     echo ""
 fi

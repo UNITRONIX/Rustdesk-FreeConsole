@@ -209,6 +209,8 @@ Or containers fail to start with permission errors when using bind mounts.
 ### Cause
 SELinux-enabled systems (AlmaLinux, RHEL, CentOS, Rocky Linux) require special volume mount options or SELinux context changes for bind mounts.
 
+On Synology / NAS bind mounts, host folders are often owned by DSM UIDs that are **not** the image default `10001:10001`. Prefer setting `PUID`/`PGID` (see below) rather than Compose `user:`.
+
 ### ✅ Solutions
 
 **Option 1: Use Named Volumes (recommended)**
@@ -220,7 +222,19 @@ volumes:
   - console-data:/app/data         # Named volume - SELinux compatible
 ```
 
-**Option 2: Add `:z` flag for Bind Mounts**
+**Option 2: Set PUID/PGID for bind mounts (#376)**
+
+Map the in-container `betterdesk` user to the host directory owner (linuxserver-style). Defaults remain `10001:10001`.
+
+```yaml
+environment:
+  - PUID=1000013
+  - PGID=1000001
+```
+
+Restart the stack after changing these values so the entrypoint can remount ownership. Avoid Compose `user:` — it interferes with `su-exec`.
+
+**Option 3: Add `:z` flag for Bind Mounts (SELinux)**
 
 If you must use bind mounts (host paths), add the `:z` suffix:
 ```yaml
@@ -229,7 +243,7 @@ volumes:
   - /opt/console-data:/app/data:z
 ```
 
-**Option 3: Apply SELinux Context Manually**
+**Option 4: Apply SELinux Context Manually**
 ```bash
 # Apply container-compatible SELinux context to directories
 sudo chcon -Rt svirt_sandbox_file_t /path/to/data/directory
@@ -239,7 +253,7 @@ sudo chcon -Rt svirt_sandbox_file_t /opt/betterdesk
 sudo chcon -Rt svirt_sandbox_file_t /opt/console-data
 ```
 
-**Option 4: Temporarily Disable SELinux (not recommended for production)**
+**Option 5: Temporarily Disable SELinux (not recommended for production)**
 ```bash
 # Set SELinux to permissive mode temporarily
 sudo setenforce 0

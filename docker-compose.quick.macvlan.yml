@@ -52,6 +52,9 @@ services:
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
       - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
       - TZ=${TZ:-UTC}
+      # Optional: map betterdesk to host bind-mount owner (Synology etc.). Default 10001.
+      - PUID=${PUID:-10001}
+      - PGID=${PGID:-10001}
     networks:
       lan:
         ipv4_address: ${MACVLAN_IPV4:?Set MACVLAN_IPV4 e.g. 192.168.1.51}
@@ -108,6 +111,9 @@ services:
       - WS_HBBR_HOST=127.0.0.1
       - WS_HBBR_PORT=21117
       - DOCKER=true
+      # Optional: map betterdesk to host bind-mount owner (Synology etc.). Default 10001.
+      - PUID=${PUID:-10001}
+      - PGID=${PGID:-10001}
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=split
       - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.47}

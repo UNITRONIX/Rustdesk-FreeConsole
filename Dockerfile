@@ -65,6 +65,7 @@ RUN apk add --no-cache \
     tini \
     supervisor \
     su-exec \
+    shadow \
     && mkdir -p /var/log/supervisor \
     || { sleep 2 && apk add --no-cache \
     ca-certificates \
@@ -73,6 +74,7 @@ RUN apk add --no-cache \
     tini \
     supervisor \
     su-exec \
+    shadow \
     && mkdir -p /var/log/supervisor; }
 
 # Create betterdesk user and directories
@@ -104,10 +106,11 @@ RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
 COPY docker/supervisord.conf /etc/supervisor/conf.d/betterdesk.conf
 
 # ---- Entrypoint ----
+COPY docker/ensure-app-user.sh /ensure-app-user.sh
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/wait-panel-auth-db.sh /app/docker/wait-panel-auth-db.sh
 COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
-RUN chmod +x /entrypoint.sh /app/docker/wait-panel-auth-db.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /ensure-app-user.sh /entrypoint.sh /app/docker/wait-panel-auth-db.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 # Environment variables (defaults)
 ENV NODE_ENV=production

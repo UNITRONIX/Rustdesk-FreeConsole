@@ -54,6 +54,9 @@ services:
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - DOCKER=true
+      # Optional: map betterdesk to host bind-mount owner (Synology etc.). Default 10001.
+      - PUID=${PUID:-10001}
+      - PGID=${PGID:-10001}
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=single
       - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.47}

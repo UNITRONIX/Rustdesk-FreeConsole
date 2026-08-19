@@ -35,7 +35,8 @@ RUN apk add --no-cache \
     curl \
     tini \
     su-exec \
-    || { sleep 2 && apk add --no-cache sqlite curl tini su-exec; } \
+    shadow \
+    || { sleep 2 && apk add --no-cache sqlite curl tini su-exec shadow; } \
     && addgroup -g 10001 -S betterdesk \
     && adduser -u 10001 -S -G betterdesk betterdesk
 
@@ -52,10 +53,11 @@ ENV BETTERDESK_UPDATE_MODE=image
 RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
 
 # Copy entrypoint scripts
+COPY docker/ensure-app-user.sh /ensure-app-user.sh
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 COPY docker/console-entrypoint.sh /console-entrypoint.sh
 COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
-RUN chmod +x /app/docker-entrypoint.sh /console-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /ensure-app-user.sh /app/docker-entrypoint.sh /console-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 # Create data directories
 RUN mkdir -p /app/data /opt/rustdesk && \

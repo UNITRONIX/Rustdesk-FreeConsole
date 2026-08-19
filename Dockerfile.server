@@ -42,8 +42,9 @@ RUN apk add --no-cache \
     sqlite \
     tini \
     su-exec \
+    shadow \
     || { sleep 2 && apk add --no-cache \
-    ca-certificates curl sqlite tini su-exec; } \
+    ca-certificates curl sqlite tini su-exec shadow; } \
     && addgroup -g 10001 -S betterdesk \
     && adduser -u 10001 -S -G betterdesk betterdesk
 
@@ -60,9 +61,10 @@ ENV BETTERDESK_IMAGE_VERSION=${BETTERDESK_IMAGE_VERSION}
 RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /opt/rustdesk/.image-commit
 
 # Entrypoint script: fixes volume permissions, then drops to betterdesk user
+COPY docker/ensure-app-user.sh /ensure-app-user.sh
 COPY docker/server-entrypoint.sh /server-entrypoint.sh
 COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
-RUN chmod +x /server-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /ensure-app-user.sh /server-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 WORKDIR /opt/rustdesk
 

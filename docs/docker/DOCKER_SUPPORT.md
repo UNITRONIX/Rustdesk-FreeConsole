@@ -491,17 +491,22 @@ sudo cp /opt/rustdesk/db_v2.sqlite3 /opt/betterdesk-docker/data/
 sudo cp /opt/rustdesk/id_ed25519* /opt/betterdesk-docker/data/
 sudo cp /opt/rustdesk/.api_key /opt/betterdesk-docker/data/
 
-# Set permissions
-sudo chown -R 1000:1000 /opt/betterdesk-docker/data
+# Set permissions to the container app user (default PUID/PGID 10001)
+sudo chown -R 10001:10001 /opt/betterdesk-docker/data
+# Or, if you set PUID/PGID in compose/.env:
+# sudo chown -R "${PUID}:${PGID}" /opt/betterdesk-docker/data
 ```
 
 ### 4. Update docker-compose.yml
 
-Use bind mount instead of named volume:
+Use bind mount instead of named volume (paths are `/opt/rustdesk` and `/app/data`, not `/root`):
 
 ```yaml
 volumes:
-  - /opt/betterdesk-docker/data:/root
+  - /opt/betterdesk-docker/data:/opt/rustdesk
+environment:
+  - PUID=10001
+  - PGID=10001
 ```
 
 ### 5. Start Docker Services

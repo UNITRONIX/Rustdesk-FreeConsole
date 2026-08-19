@@ -10,6 +10,9 @@
 ### Fixed
 - **Config QR UX for unreachable hosts (#368):** Dashboard and Keys QR modals warn when the embedded host is `localhost` / loopback / `.local`. Keys QR and server-info now honour the same Dashboard `Client server address` session override (`?host=`). Ships via panel update.
 
+### Added
+- **Docker PUID/PGID (#376):** Optional `PUID`/`PGID` env vars (default `10001`) remap the `betterdesk` user at container start so Synology/NAS bind mounts match host ownership without Compose `user:` overrides. Ships via new GHCR image / `docker compose pull` (AIO + split). Set in compose or `.env`, then recreate containers.
+
 ### Changed
 - _(none yet)_
 

@@ -241,10 +241,26 @@ sudo netstat -tlnp | grep -E '21114|21115|21116|21117|21118|21119|5000'
 ```
 
 ### Permission issues
-```bash
-# Fix data directory permissions
-sudo chown -R 1000:1000 /volume1/docker/betterdesk/data
+
+Containers run as `betterdesk` with **UID/GID 10001** by default. On Synology bind mounts, set `PUID`/`PGID` to the DSM folder owner instead of forcing `chown` to 10001:
+
+```yaml
+environment:
+  - PUID=1000013   # id -u of the share owner
+  - PGID=1000001   # id -g of the share owner
 ```
+
+Or align the host directory with the container identity:
+
+```bash
+# Default image identity
+sudo chown -R 10001:10001 /volume1/docker/betterdesk/data
+
+# Or match whatever PUID/PGID you set in compose
+sudo chown -R "${PUID:-10001}:${PGID:-10001}" /volume1/docker/betterdesk/data
+```
+
+Do **not** use Compose `user:` — it breaks the entrypoint `su-exec` / volume-fix flow.
 
 ### Can't connect from RustDesk client
 1. Verify firewall rules allow the ports

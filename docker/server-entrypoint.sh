@@ -3,6 +3,10 @@
 # Fixes volume file permissions before dropping to non-root user
 set -e
 
+# shellcheck source=/dev/null
+. /ensure-app-user.sh
+ensure_betterdesk_user
+
 DATA_DIR="/opt/rustdesk"
 
 # Public Docker examples use ADMIN_*; the Go server seeds from INIT_ADMIN_*.
@@ -64,7 +68,7 @@ fi
 
 # Fix ownership of volume-mounted data directory.
 # Docker volumes preserve UID/GID from the host or previous container,
-# which may not match the betterdesk user (10001) in this container.
+# which may not match the betterdesk user (PUID/PGID, default 10001).
 # This is especially important for id_ed25519 (mode 600) — if owned by
 # a different UID, the server cannot read the private key.
 if [ "$(id -u)" = "0" ]; then

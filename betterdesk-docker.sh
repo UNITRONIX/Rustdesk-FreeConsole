@@ -1432,6 +1432,33 @@ docker_update_env_file() {
     fi
 }
 
+# Resolve container app UID/GID (PUID/PGID). Prefer process env, then compose .env, else 10001.
+resolve_docker_puid_pgid() {
+    local env_file val
+    DOCKER_PUID="${PUID:-}"
+    DOCKER_PGID="${PGID:-}"
+    env_file=$(docker_update_env_file)
+    if [ -z "$DOCKER_PUID" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+        val=$(grep -E '^PUID=' "$SCRIPT_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+        [ -n "$val" ] && DOCKER_PUID="$val"
+    fi
+    if [ -z "$DOCKER_PGID" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+        val=$(grep -E '^PGID=' "$SCRIPT_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+        [ -n "$val" ] && DOCKER_PGID="$val"
+    fi
+    if [ -z "$DOCKER_PUID" ] && [ -f "$env_file" ]; then
+        val=$(grep -E '^PUID=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+        [ -n "$val" ] && DOCKER_PUID="$val"
+    fi
+    if [ -z "$DOCKER_PGID" ] && [ -f "$env_file" ]; then
+        val=$(grep -E '^PGID=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+        [ -n "$val" ] && DOCKER_PGID="$val"
+    fi
+    DOCKER_PUID="${DOCKER_PUID:-10001}"
+    DOCKER_PGID="${DOCKER_PGID:-10001}"
+    export DOCKER_PUID DOCKER_PGID
+}
+
 read_update_github_branch_from_env() {
     local env_file
     env_file=$(docker_update_env_file)
@@ -1793,11 +1820,12 @@ repair_named_volume_permissions() {
         return 0
     fi
 
-    print_info "Repairing Docker volume permissions: $volume"
-    docker run --rm -v "$volume:/target" alpine:3.22 sh -c '
+    resolve_docker_puid_pgid
+    print_info "Repairing Docker volume permissions: $volume (uid=${DOCKER_PUID} gid=${DOCKER_PGID})"
+    docker run --rm -v "$volume:/target" -e "PUID=${DOCKER_PUID}" -e "PGID=${DOCKER_PGID}" alpine:3.22 sh -c '
         set -e
         mkdir -p /target
-        chown -R 10001:10001 /target
+        chown -R "${PUID}:${PGID}" /target
         chmod -R u+rwX,g+rwX /target
     ' >/dev/null 2>&1 || {
         print_warning "Could not repair volume $volume (Docker may need to pull alpine:3.22)"
@@ -1809,6 +1837,7 @@ repair_docker_permissions() {
     print_step "Repairing Docker data permissions..."
 
     auto_detect_docker_paths
+    resolve_docker_puid_pgid
 
     if [ -n "$DATA_DIR" ]; then
         create_data_directory "$DATA_DIR" || {
@@ -1816,9 +1845,9 @@ repair_docker_permissions() {
             return 1
         }
 
-        # Containers drop to uid/gid 10001. Keep secrets readable to the
+        # Containers drop to PUID/PGID (default 10001). Keep secrets readable to the
         # container user without making them world-readable.
-        chown -R 10001:10001 "$DATA_DIR" 2>/dev/null || true
+        chown -R "${DOCKER_PUID}:${DOCKER_PGID}" "$DATA_DIR" 2>/dev/null || true
         chmod 755 "$DATA_DIR" 2>/dev/null || true
         for secret in ".api_key" ".admin_credentials" "id_ed25519"; do
             if [ -f "$DATA_DIR/$secret" ]; then
@@ -1828,7 +1857,7 @@ repair_docker_permissions() {
         if [ -f "$DATA_DIR/id_ed25519.pub" ]; then
             chmod 644 "$DATA_DIR/id_ed25519.pub" 2>/dev/null || true
         fi
-        print_success "Host data directory permissions repaired: $DATA_DIR"
+        print_success "Host data directory permissions repaired: $DATA_DIR (uid=${DOCKER_PUID} gid=${DOCKER_PGID})"
     fi
 
     local repaired_volumes=0
@@ -2204,7 +2233,7 @@ do_reset_password() {
     # Single-container layout uses "betterdesk", not "betterdesk-console" (#299).
     local panel_container
     panel_container=$(resolve_panel_container)
-    # Run as betterdesk: auth.db is mode 0600 / UID 10001; root lacks CAP_DAC_OVERRIDE (#299).
+    # Run as betterdesk: auth.db is mode 0600 / owned by PUID (default 10001); root lacks CAP_DAC_OVERRIDE (#299).
     docker exec -u betterdesk "$panel_container" node /app/scripts/reset-password.js "$new_password" admin 2>/dev/null || {
         print_warning "reset-password.js failed, trying inline fallback..."
         docker exec -u betterdesk -e RESET_ADMIN_PASSWORD="$new_password" "$panel_container" node -e "

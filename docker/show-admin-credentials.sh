@@ -1,8 +1,9 @@
 #!/bin/sh
 # Print bootstrap admin credentials from the shared credentials file.
-# Docker quick-start: .admin_credentials is mode 0600 and owned by betterdesk (UID 10001).
-# docker compose exec runs as root, but cap_drop:ALL removes CAP_DAC_OVERRIDE, so root
-# cannot read the file. Re-exec as betterdesk when invoked as root (issue #195).
+# Docker quick-start: .admin_credentials is mode 0600 and owned by betterdesk
+# (UID from PUID, default 10001). docker compose exec runs as root, but
+# cap_drop:ALL removes CAP_DAC_OVERRIDE, so root cannot read the file.
+# Re-exec as betterdesk when invoked as root (issue #195).
 set -e
 
 if [ "$(id -u)" = "0" ]; then

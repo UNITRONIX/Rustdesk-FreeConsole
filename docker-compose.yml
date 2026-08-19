@@ -53,6 +53,9 @@ services:
       - BILLING_MAX_CLOCK_SKEW_MS=${BILLING_MAX_CLOCK_SKEW_MS:-2000}
       - BILLING_REQUIRE_SYNCED_CLOCK=${BILLING_REQUIRE_SYNCED_CLOCK:-1}
       - BILLING_TRUST_OS_NTP=${BILLING_TRUST_OS_NTP:-Y}
+      # Optional: map betterdesk to host bind-mount owner (Synology etc.). Default 10001.
+      - PUID=${PUID:-10001}
+      - PGID=${PGID:-10001}
     networks:
       - betterdesk-net
     restart: unless-stopped
@@ -112,6 +115,9 @@ services:
       - WS_HBBR_HOST=betterdesk-server
       - WS_HBBR_PORT=21117
       - DOCKER=true
+      # Optional: map betterdesk to host bind-mount owner (Synology etc.). Default 10001.
+      - PUID=${PUID:-10001}
+      - PGID=${PGID:-10001}
       # Optional: Set custom admin credentials for first run
       # - ADMIN_USERNAME=admin
       # - ADMIN_PASSWORD=YourSecurePassword123
