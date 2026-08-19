@@ -742,6 +742,46 @@ func TestRelayTransportMismatchHelper(t *testing.T) {
 	}
 }
 
+func TestWSSOnlyTargetPunchHoleResponseHasSocketAddr(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.peers.Put(&peer.Entry{
+		ID:         "WSSINIT1",
+		IP:         "198.51.100.101:51000",
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "WSSTGT1",
+		IP:         "203.0.113.101:52000",
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handlePunchHoleRequestTCP(
+		&pb.PunchHoleRequest{Id: "WSSTGT1", ForceRelay: true},
+		udpAddr("198.51.100.101", 51000),
+	)
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected PunchHoleResponse, got %+v", resp)
+	}
+	if len(phr.SocketAddr) == 0 {
+		t.Fatal("WSS-only target must receive a non-empty compatibility socket_addr")
+	}
+	addr, err := cryptopkg.DecodeAddr(phr.SocketAddr)
+	if err != nil {
+		t.Fatalf("decode socket_addr: %v", err)
+	}
+	if got, want := addr.String(), "203.0.113.101:52000"; got != want {
+		t.Fatalf("socket_addr = %q, want %q", got, want)
+	}
+	if got := phr.GetNatType(); got != pb.NatType_SYMMETRIC {
+		t.Fatalf("nat_type = %v, want SYMMETRIC", got)
+	}
+}
+
 func TestCancelPunchFallback(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.cfg.P2PFirst = true

@@ -45,6 +45,37 @@ func relayTransportMismatch(initiator, target peer.ConnType) bool {
 	return (initiator == peer.ConnWS) != (target == peer.ConnWS)
 }
 
+// encodePeerSocketAddr returns the address to place in PunchHoleResponse.
+// WebSocket-only peers do not have a UDPAddr, but RustDesk requires a
+// non-empty socket_addr before it will process the relay fields. Their
+// observed WS address is therefore used as a relay-compatibility address;
+// it is not expected to be reachable over UDP when relay is forced.
+func encodePeerSocketAddr(entry *peer.Entry) []byte {
+	if entry == nil {
+		return nil
+	}
+	if entry.UDPAddr != nil {
+		return crypto.EncodeAddr(entry.UDPAddr)
+	}
+	if strings.TrimSpace(entry.IP) == "" {
+		return nil
+	}
+
+	host, port, err := net.SplitHostPort(strings.TrimSpace(entry.IP))
+	if err != nil {
+		return nil
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil
+	}
+	portNumber, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return nil
+	}
+	return crypto.EncodeAddr(&net.UDPAddr{IP: ip, Port: int(portNumber)})
+}
+
 // isInboundOnlyDeviceType identifies agents that may be contacted by an
 // operator/client but must never start RustDesk P2P or relay sessions
 // themselves. Normalize common spelling variants because metadata has existed
@@ -831,10 +862,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	// The original Rust hbbs sends PunchHoleResponse (not PunchHoleSent) to the initiator.
 	// PunchHoleResponse has a 'pk' field for E2E key verification;
 	// PunchHoleSent does NOT have a pk field, so using it breaks E2E encryption.
-	var targetAddr []byte
-	if target.UDPAddr != nil {
-		targetAddr = crypto.EncodeAddr(target.UDPAddr)
-	}
+	targetAddr := encodePeerSocketAddr(target)
 
 	// Sign the target's PK with server's Ed25519 key for E2E verification.
 	var signedPk []byte
@@ -993,10 +1021,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 			}
 		}
 
-		var targetAddr []byte
-		if target.UDPAddr != nil {
-			targetAddr = crypto.EncodeAddr(target.UDPAddr)
-		}
+		targetAddr := encodePeerSocketAddr(target)
 
 		return &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_PunchHoleResponse{
@@ -1042,10 +1067,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	// Send immediate PunchHoleResponse to the TCP initiator — matching the UDP
 	// handler's behavior.  This includes the target's signed PK, socket address,
 	// relay server, and NAT type so the client can proceed immediately.
-	var targetAddr []byte
-	if target.UDPAddr != nil {
-		targetAddr = crypto.EncodeAddr(target.UDPAddr)
-	}
+	targetAddr := encodePeerSocketAddr(target)
 
 	phr := &pb.PunchHoleResponse{
 		SocketAddr:  targetAddr,
