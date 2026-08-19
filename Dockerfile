@@ -36,7 +36,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /betterdesk-server .
 
 # ============= Stage 2: Build Node.js console =============
-FROM node:24-alpine AS node-builder
+# TEMPORARY: Node 24.19.0 triggers a native better-sqlite3 cleanup-hook
+# assertion during Statement GC. Keep the production console on the latest
+# Node 22 LTS patch until the Node 24 backport is released and validated.
+FROM node:22.23.2-alpine3.24 AS node-builder
 
 WORKDIR /app
 
@@ -51,7 +54,7 @@ RUN npm ci --omit=dev
 # Note: supervisord requires root to manage child processes with user= directive.
 # Both betterdesk-server and betterdesk-console run as non-root 'betterdesk' user
 # via supervisord configuration (user=betterdesk).
-FROM node:24-alpine
+FROM node:22.23.2-alpine3.24
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"

@@ -28,7 +28,7 @@ Agents (`betterdesk-agent*`) are out of scope until support resumes.
 
 ## Done in audit follow-up (2026-07)
 
-- Node **24** (Docker, CI, installers); `engines` **>=22**
+- Node **24** (CI/client tooling); production console images temporarily pin Node **22.23.2** because of the Node.js 24 cleanup-hook crash tracked in #377; `engines` **>=22**
 - Alpine server runtime **3.22**; Go build image **1.26**
 - Patch bumps: axios, nodemailer, ws, pg; Go direct deps including `modernc.org/sqlite`
 - SNMP bridge: `pysnmplib` → **`pysnmp` >=7.1**

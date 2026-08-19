@@ -3164,7 +3164,9 @@ install_nodejs() {
         fi
     fi
     
-    print_step "Installing Node.js 24 LTS..."
+    # Keep new bare-metal console installs on Node 22 while Node 24.19.x
+    # cleanup-hook crashes affect native better-sqlite3 statement finalizers.
+    print_step "Installing Node.js 22 LTS..."
 
     # Detect OS and install Node.js. The NodeSource setup script is downloaded
     # to a temp file and validated before execution (H5 audit fix): we do NOT
@@ -3222,15 +3224,15 @@ install_nodejs() {
     # Detect OS and install Node.js
     if command -v apt-get &> /dev/null; then
         # Debian/Ubuntu - use NodeSource
-        _fetch_and_run_nodesource "https://deb.nodesource.com/setup_24.x" || return 1
+        _fetch_and_run_nodesource "https://deb.nodesource.com/setup_22.x" || return 1
         apt-get install -y -qq nodejs
     elif command -v dnf &> /dev/null; then
         # Fedora/RHEL 8+
-        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_24.x" || return 1
+        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_22.x" || return 1
         dnf install -y -q nodejs
     elif command -v yum &> /dev/null; then
         # RHEL/CentOS 7
-        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_24.x" || return 1
+        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_22.x" || return 1
         yum install -y -q nodejs
     elif command -v pacman &> /dev/null; then
         # Arch Linux

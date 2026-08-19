@@ -52,7 +52,7 @@ Tauri 2 **operator** desktop shell that hosts the panel remote UI. Vendored `wry
 CDAP client libraries and sample industrial/IoT bridges. SNMP bridge uses official **`pysnmp` 7.x** (not the legacy `pysnmplib` fork).
 
 ### Docker / install
-- Images: `node:24-alpine`, `golang:1.26-alpine`, server runtime `alpine:3.22+`
+- Console images: pinned `node:22.23.2-alpine3.24` temporarily for Node.js 24 cleanup-hook stability; CI/client tooling may still use Node 24. Go build image: `golang:1.26-alpine`; server runtime: `alpine:3.22+`
 - Compose files at repo root (`docker-compose*.yml`)
 - Updates: panel Settings → Updates (`updateService.js`) or `betterdesk.sh` / `betterdesk.ps1`
 

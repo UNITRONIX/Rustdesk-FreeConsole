@@ -11,7 +11,8 @@ BetterDesk supports **Linux (bare-metal)**, **Windows (PowerShell)**, and **Dock
 - 1 CPU core, 512 MB RAM minimum (2 cores, 2 GB recommended)
 - Root access (sudo)
 - Open ports: 21114-21119 TCP, 21116 UDP, 5000 TCP (web console)
-- Node.js 22+ (auto-installed by script; installer targets Node.js 24 LTS)
+- Node.js 22+ (auto-installed by script; installer targets Node.js 22 LTS while the Node.js 24 native cleanup-hook regression is resolved)
+- Existing bare-metal installations running Node.js 24.19.x should switch the console runtime to Node.js 22.x before restarting the service; the installer does not force-downgrade an existing Node installation.
 
 ### Windows
 - Windows 10/11 or Windows Server 2019+
