@@ -17,6 +17,7 @@
 
 [![Sponsor on GitHub](https://img.shields.io/badge/GitHub-Sponsor-181717?logo=github&logoColor=white&style=flat)](https://github.com/sponsors/UNITRONIX)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-%23FFDD00?logo=buy-me-a-coffee&logoColor=black&style=flat)](https://buymeacoffee.com/unitronix)
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white&style=flat)](https://discord.gg/MPp9hyyG97)
 
 **A clean-room RustDesk-compatible server written in Go — single binary replacing hbbs + hbbr — with full protocol support, TLS everywhere, PostgreSQL backend, CDAP (Custom Device API Protocol) for IoT/SCADA/network devices, and a modern Node.js web management console.**
 
@@ -1797,9 +1798,10 @@ The `archive/` directory (excluded from distribution via `.gitignore`) contains 
 
 ## 📞 Support
 
+- **Discord**: [Join the BetterDesk community](https://discord.gg/MPp9hyyG97) — chat, support, and announcements
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/UNITRONIX/Rustdesk-FreeConsole/discussions)
+- **Issues**: [GitHub Issues](https://github.com/UNITRONIX/BetterDesk/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/UNITRONIX/BetterDesk/discussions)
 
 ---
 
