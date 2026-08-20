@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Per-user device grants (`peerIds`) silently no-op (#380):** `POST`/`PATCH` `/api/users` accepted `peerIds` and returned success, but never wrote `user_peer_grants` because `getUserPeerGrants` / `setUserPeerGrants` (and strategy assignment helpers) were missing from the `database.js` facade. Ships via panel update.
+
 ### Changed
 - _(none yet)_
 

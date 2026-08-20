@@ -22,6 +22,11 @@ const mockDb = {
     deleteUser: jest.fn().mockResolvedValue(undefined),
     countAdmins: jest.fn().mockResolvedValue(2),
     logAction: jest.fn().mockResolvedValue(undefined),
+    getUserPeerGrants: jest.fn().mockResolvedValue([]),
+    setUserPeerGrants: jest.fn().mockResolvedValue(undefined),
+    getUserStrategyGuid: jest.fn().mockResolvedValue(''),
+    setUserStrategyAssignment: jest.fn().mockResolvedValue(''),
+    getAllFolders: jest.fn().mockResolvedValue([]),
 };
 
 const mockUserSync = {
@@ -68,6 +73,11 @@ describe('Users Routes', () => {
         ));
         mockDb.setUserGroupMemberships.mockResolvedValue([]);
         mockDb.createUser.mockResolvedValue({ id: 22, username: 'viewer1', role: 'viewer' });
+        mockDb.getUserPeerGrants.mockResolvedValue([]);
+        mockDb.setUserPeerGrants.mockResolvedValue(undefined);
+        mockDb.getUserStrategyGuid.mockResolvedValue('');
+        mockDb.setUserStrategyAssignment.mockResolvedValue('');
+        mockDb.getAllFolders.mockResolvedValue([]);
     });
 
     it('backfills Go users before returning the System Users list', async () => {
@@ -160,6 +170,64 @@ describe('Users Routes', () => {
         expect(res.status).toBe(200);
         expect(mockDb.createUser).toHaveBeenCalledWith('viewer1', 'hashed', 'viewer');
         expect(mockDb.setUserGroupMemberships).toHaveBeenCalledWith(22, ['volunteers']);
+    });
+
+    it('persists peerIds when creating a user (Issue #380)', async () => {
+        mockDb.getUserPeerGrants.mockResolvedValue(['1234567']);
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'global_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .post('/api/users')
+            .send({
+                username: 'viewer1',
+                password: 'StrongPass123!',
+                role: 'operator',
+                peerIds: ['1234567'],
+            });
+
+        expect(res.status).toBe(200);
+        expect(mockDb.setUserPeerGrants).toHaveBeenCalledWith(22, ['1234567']);
+        expect(res.body.data.peer_grants).toEqual(['1234567']);
+    });
+
+    it('persists peerIds when updating a user (Issue #380)', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 12,
+            username: 'operator1',
+            role: 'operator',
+            auth_provider: 'local',
+        });
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'super_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .patch('/api/users/12')
+            .send({ peerIds: ['1234567', '7654321'] });
+
+        expect(res.status).toBe(200);
+        expect(mockDb.setUserPeerGrants).toHaveBeenCalledWith(12, ['1234567', '7654321']);
+    });
+
+    it('returns peer_grants on the System Users list (Issue #380)', async () => {
+        mockDb.getUserPeerGrants.mockImplementation(async (userId) => (
+            Number(userId) === 12 ? ['1234567'] : []
+        ));
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'server_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).get('/api/users');
+
+        expect(res.status).toBe(200);
+        expect(mockDb.getUserPeerGrants).toHaveBeenCalled();
+        expect(res.body.data.users[1].peer_grants).toEqual(['1234567']);
+        expect(res.body.data.users[0].peer_grants).toEqual([]);
     });
 
     it('does not let global_admin create a super_admin user', async () => {

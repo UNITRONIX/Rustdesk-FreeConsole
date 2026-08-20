@@ -102,6 +102,11 @@ const facade = {
     countAdmins:      () => adapter.countAdmins(),
     resetAdminPassword: (hash) => adapter.resetAdminPassword(hash),
     deleteAllUsers:   () => adapter.deleteAllUsers(),
+    getUserPeerGrants: (userId) => adapter.getUserPeerGrants(userId),
+    setUserPeerGrants: (userId, peerIds) => adapter.setUserPeerGrants(userId, peerIds),
+    getUserStrategyGuid: (userId) => adapter.getUserStrategyGuid(userId),
+    setUserStrategyAssignment: (userId, strategyGuid) =>
+        adapter.setUserStrategyAssignment(userId, strategyGuid),
 
     // ---- TOTP ----
     saveTotpSecret: (userId, secret) => adapter.saveTotpSecret(userId, secret),
