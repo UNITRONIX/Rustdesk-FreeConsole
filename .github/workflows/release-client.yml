@@ -1,46 +1,36 @@
-# =============================================================================
-# BetterDesk Desktop Client — Build & Release (Multi-Platform)
-# =============================================================================
-# Builds Tauri desktop client for Windows, Linux, and macOS.
-# Desktop client is still in development — NOT triggered by git tags (v*).
-# Use workflow_dispatch only when explicitly testing a desktop release build.
-#
-# Artifacts:
-#   - Windows: NSIS installer (.exe)
-#   - Linux:   Debian package (.deb) + AppImage
-#   - macOS:   DMG bundle (.dmg)
-# =============================================================================
+# BetterDesk Desktop Client — full release artifacts
+# Builds the independent betterdesk-desktop Rust core + Flutter shell.
 
 name: Build & Release Desktop Client
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v3.0.0)'
+        description: 'Version tag for a manual test build (e.g., v3.5.49)'
         required: false
         default: ''
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 env:
-  CLIENT_DIR: rdclient-desktop
+  CLIENT_DIR: betterdesk-desktop
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Windows x64
-  # ---------------------------------------------------------------------------
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          node-version: 24
+          python-version: '3.12'
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -51,27 +41,41 @@ jobs:
       - name: Install Protobuf Compiler
         run: choco install protoc -y
 
-      - name: Install frontend dependencies
-        working-directory: ${{ env.CLIENT_DIR }}
-        run: npm install --no-audit --no-fund
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: dotnet tool install --global wix
 
-      - name: Build Tauri app
-        working-directory: ${{ env.CLIENT_DIR }}
-        run: npm run build
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-      - name: Upload Windows artifacts
+      - name: Build Windows EXE and MSI
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: python build.py build --target windows-x64
+
+      - name: Verify Windows release artifacts
+        shell: pwsh
+        run: |
+          $dist = "${{ env.CLIENT_DIR }}/dist"
+          $required = @("*.exe", "*.msi", "*portable.zip", "DESKTOP_CHECKSUMS.sha256")
+          foreach ($pattern in $required) {
+            if (-not (Get-ChildItem -Path $dist -Filter $pattern -File)) {
+              throw "Missing Windows desktop artifact: $pattern"
+            }
+          }
+
+      - name: Upload Windows release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: betterdesk-windows-x64
           path: |
-            ${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle/nsis/*.exe
+            ${{ env.CLIENT_DIR }}/dist/BetterDesk-Desktop-*
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # Linux x64
-  # ---------------------------------------------------------------------------
   build-linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -79,18 +83,33 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libstdc++-12-dev \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
             libssl-dev \
             libayatana-appindicator3-dev \
-            protobuf-compiler
+            protobuf-compiler \
+            rpm \
+            dpkg-dev
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Install AppImage tool
+        run: |
+          sudo curl -L \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
+            -o /usr/local/bin/appimagetool
+          sudo chmod +x /usr/local/bin/appimagetool
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          node-version: 24
+          python-version: '3.12'
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -98,68 +117,40 @@ jobs:
           toolchain: stable
           cache: true
 
-      - name: Install frontend dependencies
-        working-directory: ${{ env.CLIENT_DIR }}
-        run: npm install --no-audit --no-fund
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-      - name: Build Tauri app
+      - name: Build Linux DEB, RPM, AppImage and tar.gz
         working-directory: ${{ env.CLIENT_DIR }}
-        run: npm run build
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: python build.py build --target linux-x64
 
-      - name: Upload Linux artifacts
+      - name: Verify Linux release artifacts
+        run: |
+          set -euo pipefail
+          dist="${{ env.CLIENT_DIR }}/dist"
+          for pattern in "*.deb" "*.rpm" "*.AppImage" "*.tar.gz" "DESKTOP_CHECKSUMS.sha256"; do
+            compgen -G "$dist/$pattern" >/dev/null || {
+              echo "Missing Linux desktop artifact: $pattern" >&2
+              exit 1
+            }
+          done
+
+      - name: Upload Linux release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: betterdesk-linux-x64
           path: |
-            ${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle/deb/*.deb
-            ${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle/appimage/*.AppImage
+            ${{ env.CLIENT_DIR }}/dist/BetterDesk-Desktop-*
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # macOS (Universal: ARM64 + x64)
-  # ---------------------------------------------------------------------------
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-          cache: true
-
-      - name: Install Protobuf Compiler
-        run: brew install protobuf
-
-      - name: Install frontend dependencies
-        working-directory: ${{ env.CLIENT_DIR }}
-        run: npm install --no-audit --no-fund
-
-      - name: Build Tauri app
-        working-directory: ${{ env.CLIENT_DIR }}
-        run: npm run build
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: betterdesk-macos
-          path: |
-            ${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle/dmg/*.dmg
-          if-no-files-found: error
-
-  # ---------------------------------------------------------------------------
-  # Release — Combine all artifacts into a GitHub Release
-  # ---------------------------------------------------------------------------
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -169,18 +160,17 @@ jobs:
 
       - name: Generate checksums
         run: |
-          find . -type f \( -name "*.exe" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" \) | while read f; do
-            sha256sum "$f" >> CHECKSUMS.sha256
-          done
-          cat CHECKSUMS.sha256
+          find . -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.tar.gz" \) -print0 |
+            sort -z |
+            xargs -0 sha256sum > DESKTOP_CHECKSUMS.sha256
+          cat DESKTOP_CHECKSUMS.sha256
 
-      - name: Create GitHub Release
+      - name: Upload desktop artifacts to product release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: false
           files: |
-            betterdesk-windows-x64/*.exe
-            betterdesk-linux-x64/*.deb
-            betterdesk-linux-x64/*.AppImage
-            betterdesk-macos/*.dmg
-            CHECKSUMS.sha256
+            betterdesk-windows-x64/*
+            betterdesk-linux-x64/*
+            DESKTOP_CHECKSUMS.sha256

@@ -62,6 +62,8 @@ const ALLOWED_PATHS = new Set([
     '/api/software',
     '/api/software/client-download-link',
     // Security: server key distribution
+    '/api/health',
+    '/api/server/pubkey',
     '/api/server-key',
     '/api/server-key/fingerprint',
     // RustDesk PRO group endpoints (Flutter client queries after login)
@@ -114,6 +116,8 @@ const ALLOWED_METHODS = {
     '/api/users': 'GET',
     '/api/software': 'GET',
     '/api/software/client-download-link': 'GET',
+    '/api/health': 'GET',
+    '/api/server/pubkey': 'GET',
     '/api/server-key': 'GET',
     '/api/server-key/fingerprint': 'GET',
     '/api/group': '*',

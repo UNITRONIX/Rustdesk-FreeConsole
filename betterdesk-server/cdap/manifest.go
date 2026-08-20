@@ -153,16 +153,20 @@ var allowedWidgetTypes = map[string]bool{
 
 // Allowed capabilities.
 var allowedCapabilities = map[string]bool{
-	"telemetry":      true,
-	"commands":       true,
-	"alerts":         true,
-	"logs":           true,
-	"remote_desktop": true,
-	"video_stream":   true,
-	"audio":          true,
-	"clipboard":      true,
-	"file_transfer":  true,
-	"input_control":  true,
+	"telemetry":         true,
+	"commands":          true,
+	"alerts":            true,
+	"logs":              true,
+	"remote_desktop":    true,
+	"video_stream":      true,
+	"audio":             true,
+	"clipboard":         true,
+	"file_transfer":     true,
+	"input_control":     true,
+	"keyboard_input":    true,
+	"mouse_input":       true,
+	"multi_monitor":     true,
+	"unattended_access": true,
 }
 
 // maxWidgets is the hard limit on widget count per device.

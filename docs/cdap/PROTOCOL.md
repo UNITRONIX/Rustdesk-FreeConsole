@@ -1,13 +1,17 @@
 # CDAP Protocol Specification
 
-> Version 0.3.0 — Last updated with audio, clipboard, multi-monitor, codec negotiation
+> Version 0.4.0 — BetterDesk Desktop desktop-session interoperability
+>
+> The Go implementation in `betterdesk-server/cdap` is the normative wire
+> contract. This document describes the public subset used by native clients.
 
 ## Transport
 
 - **WebSocket** on port `21122`, path `/cdap`
 - Subprotocol: `cdap-v1`
 - Text frames: JSON messages
-- Binary frames: audio/video data with 1-byte type prefix
+- Binary frames: desktop media uses a 64-byte NUL-padded session ID followed by
+  the encoded payload. Do not use the legacy 1-byte prefix for desktop frames.
 
 ## Authentication
 
@@ -15,8 +19,8 @@
 {
   "type": "auth",
   "device_id": "CDAP-6A9A5452",
-  "auth_method": "api_key",
-  "credentials": "your-api-key-here",
+  "method": "api_key",
+  "token": "your-api-key-here",
   "protocol_version": "0.3.0"
 }
 ```
@@ -25,7 +29,7 @@ Server responds with:
 
 ```json
 {
-  "type": "auth_response",
+  "type": "auth_result",
   "success": true,
   "server_version": "3.0.0"
 }
@@ -40,20 +44,23 @@ Server responds with:
 
 ## Manifest Registration
 
-After auth, agent sends its manifest:
+After auth, the device sends a `register` message containing its manifest:
 
 ```json
 {
-  "type": "manifest",
-  "device": {
-    "id": "CDAP-6A9A5452",
-    "name": "Office Sensor Hub",
-    "type": "os_agent",
-    "version": "1.0.0",
-    "platform": "linux/amd64"
-  },
-  "capabilities": ["telemetry", "commands", "terminal", "file_transfer", "clipboard"],
-  "widgets": [
+  "type": "register",
+  "manifest": {
+    "manifest_version": "1.0",
+    "device": {
+      "name": "BetterDesk Desktop",
+      "type": "desktop",
+      "vendor": "BetterDesk"
+    },
+    "capabilities": [
+      "remote_desktop", "keyboard_input", "mouse_input",
+      "multi_monitor", "clipboard", "file_transfer", "audio"
+    ],
+    "widgets": [
     {
       "id": "sys_cpu",
       "type": "gauge",
@@ -83,7 +90,8 @@ After auth, agent sends its manifest:
       "confirm": true
     }
   ],
-  "heartbeat_interval": 15
+    "heartbeat_interval": 15
+  }
 }
 ```
 
@@ -93,8 +101,8 @@ After auth, agent sends its manifest:
 
 | Type | Description | Payload |
 |------|-------------|---------|
-| `auth` | Authentication request | `device_id`, `auth_method`, `credentials` |
-| `manifest` | Device manifest + widgets | `device`, `capabilities`, `widgets` |
+| `auth` | Authentication request | `device_id`, `method`, `token` or `username` + `password` |
+| `register` | Device manifest + widgets | `manifest: {...}` |
 | `heartbeat` | Periodic health check | `metrics: { cpu, memory, disk }`, `widget_values: {...}` |
 | `state_update` | Single widget value change | `widget_id`, `value` |
 | `bulk_update` | Multiple widget values | `values: { widget_id: value, ... }` |
@@ -119,7 +127,7 @@ After auth, agent sends its manifest:
 
 | Type | Description | Payload |
 |------|-------------|---------|
-| `auth_response` | Auth result | `success`, `error` |
+| `auth_result` | Auth result | `success`, `error`, `session_token?` |
 | `command` | Execute command | `command_id`, `command`, `args` |
 | `terminal_start` | Start terminal session | `session_id`, `shell`, `cols`, `rows` |
 | `terminal_input` | Terminal input data | `session_id`, `data` (base64) |
@@ -139,6 +147,19 @@ After auth, agent sends its manifest:
 | `keyframe_request` | Request video keyframe | — |
 | `quality_report` | Quality metrics from browser | `bandwidth_kb`, `latency_ms`, `frame_loss`, `fps` |
 | `ping` | Keepalive request | — |
+
+## Desktop Session
+
+`desktop_start` is sent to the authenticated device and includes
+`session_id`, `width`, `height`, `quality`, `fps`, `codecs`, and optional
+`view_only`. The device returns `desktop_frame` JSON messages with a base64
+JPEG for compatibility clients, or the binary fast path described above.
+
+The server forwards `desktop_input`, `desktop_resize`, `clipboard_set`,
+`file_*`, and `audio_input` to the device. The device may return
+`clipboard_update`, `file_*_response`, `audio_frame`, `desktop_meta`,
+`monitor_list`, and `desktop_end`. File access must remain bounded to an
+operator-approved root; a client must reject arbitrary host paths.
 
 ## Widget Types
 

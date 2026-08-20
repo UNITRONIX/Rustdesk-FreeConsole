@@ -233,6 +233,20 @@ const FILE_RULES = [
         extract: (content) => content.trim(),
         apply: (_content, version) => `${version}\n`,
     },
+    {
+        id: 'desktop-cargo',
+        path: 'betterdesk-desktop/Cargo.toml',
+        extract: (content) => content.match(/^version\s*=\s*"([^"]+)"/m)?.[1],
+        apply: (content, version) =>
+            content.replace(/^(version\s*=\s*")[^"]+(")/m, `$1${version}$2`),
+    },
+    {
+        id: 'desktop-flutter-pubspec',
+        path: 'betterdesk-desktop/flutter/pubspec.yaml',
+        extract: (content) => content.match(/^version:\s*([^\s+]+)/m)?.[1],
+        apply: (content, version) =>
+            content.replace(/^(version:\s*)[^\s+]+(\+[^\s]+)?/m, `$1${version}$2`),
+    },
 ];
 
 const CHANGELOG_PATH = 'CHANGELOG.md';

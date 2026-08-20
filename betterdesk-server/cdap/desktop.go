@@ -46,6 +46,7 @@ type DesktopStartPayload struct {
 	OperatorName string   `json:"operator_name,omitempty"`
 	Codecs       []string `json:"codecs,omitempty"`      // codecs the operator can decode
 	VideoCodec   string   `json:"video_codec,omitempty"` // operator codec preference ("auto" = let agent choose)
+	ViewOnly     bool     `json:"view_only,omitempty"`
 	// SessionGrant is present only for passive Support Agent targets. It is
 	// signed by the BetterDesk server and verified locally before consent.
 	SessionGrant string   `json:"session_grant,omitempty"`
@@ -404,7 +405,7 @@ func (g *Gateway) EndDesktopSession(ctx context.Context, sessionID, reason strin
 	}
 	data, _ := json.Marshal(endPayload)
 	msg := &Message{
-		Type:      "desktop_stop",
+		Type:      "desktop_end",
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Payload:   data,
 	}

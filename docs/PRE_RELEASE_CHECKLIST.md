@@ -36,7 +36,24 @@ Use this checklist before every tagged release to ensure quality and stability.
 - [ ] **Windows**: WebView2 runtime present; session connects
 - [ ] **Generator RdClient**: new bundle → 6 platform builds queue on build host with Rust/Tauri toolchain
 
-## 4. Desktop Client (Tauri — legacy betterdesk-mgmt)
+## 4. BetterDesk Desktop (native Rust + Flutter)
+
+- [ ] **Core tests**: `cd betterdesk-desktop && cargo test`
+- [ ] **Flutter tests**: `cd betterdesk-desktop/flutter && flutter test`
+- [ ] **Toolchain check**: `python betterdesk-desktop/build.py check`
+- [ ] **Windows artifacts**: EXE, portable ZIP and MSI are attached to the release
+- [ ] **Linux artifacts**: `.deb`, `.rpm`, AppImage and `.tar.gz` are attached
+- [ ] **Checksums**: `DESKTOP_CHECKSUMS.sha256` matches every desktop artifact
+- [ ] **Setup**: manual HTTPS URL, scheme-less auto-probe, explicit HTTP, deploy string and loopback URL work
+- [ ] **Security**: explicit HTTP is visibly reported as plaintext; invalid server key and URL credentials are rejected
+- [ ] **Tray**: closing the window hides it; tray menu restores or explicitly quits
+- [ ] **Elevation**: machine/security settings fail closed without UAC/polkit confirmation
+- [ ] **Identity**: durable device ID, secure Ed25519 key and rotating session password survive restart
+- [ ] **Remote desktop**: Windows capture, input, clipboard, bounded files, audio negotiation and monitor enumeration are exercised in both directions
+- [ ] **Interop**: BetterDesk Desktop ↔ BetterDesk server ↔ RustDesk peer and CDAP agent
+- [ ] **Performance**: UI remains responsive during connection, reconnect and transfers
+
+## 5. Desktop Client (Tauri — legacy betterdesk-mgmt)
 
 - [ ] **Install deps**: `cd betterdesk-mgmt && pnpm install`
 - [ ] **Frontend build**: `pnpm build` — no errors

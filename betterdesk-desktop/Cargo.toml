@@ -1,0 +1,51 @@
+[package]
+name = "betterdesk-desktop"
+version = "3.5.50"
+edition = "2021"
+description = "Independent BetterDesk Desktop operator client"
+license = "AGPL-3.0-only"
+authors = ["UNITRONIX"]
+build = "build.rs"
+
+[lib]
+name = "betterdesk_desktop"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "betterdesk_desktop_helper"
+path = "src/bin/betterdesk_desktop_helper.rs"
+
+[dependencies]
+anyhow = "1"
+arboard = "3.6.1"
+base64 = "0.22"
+crypto_box = "0.9"
+crypto_secretbox = "0.1"
+ed25519-dalek = "2"
+futures-util = "0.3"
+getrandom = "0.3"
+hex = "0.4"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
+keyring = "3"
+prost = "0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+prost-build = "0.13"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+strip = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

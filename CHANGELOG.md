@@ -11,7 +11,9 @@
 - **Per-user device grants (`peerIds`) silently no-op (#380):** `POST`/`PATCH` `/api/users` accepted `peerIds` and returned success, but never wrote `user_peer_grants` because `getUserPeerGrants` / `setUserPeerGrants` (and strategy assignment helpers) were missing from the `database.js` facade. Ships via panel update.
 
 ### Changed
-- _(none yet)_
+- **Native BetterDesk Desktop foundation:** Added the independent Rust core and Flutter operator shell with CDAP/RustDesk session paths, tray/background UX, administrator-only machine settings, Windows/Linux packaging (`build.py`), and release workflow artifacts (EXE/MSI/portable + DEB/RPM/AppImage/tar.gz). Version bump now includes desktop Cargo/Flutter manifests.
+- **CDAP desktop interop:** Documented protocol 0.4.0 (`register` / `auth_result` / binary desktop frames), added `view_only` on desktop start, `desktop_end` stop type, and expanded capability allowlist (`keyboard_input`, `mouse_input`, `multi_monitor`, `unattended_access`).
+- **WAN allowlist for desktop bootstrap:** Public console WAN paths now include `GET /api/health` and `GET /api/server/pubkey` so Desktop can probe and fetch the server key without a session cookie.
 
 ---
 
