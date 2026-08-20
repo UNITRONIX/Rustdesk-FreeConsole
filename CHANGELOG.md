@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.52] — 2026-08-20
+
 ### Fixed
 - **Per-user device grants (`peerIds`) silently no-op (#380):** `POST`/`PATCH` `/api/users` accepted `peerIds` and returned success, but never wrote `user_peer_grants` because `getUserPeerGrants` / `setUserPeerGrants` (and strategy assignment helpers) were missing from the `database.js` facade. Ships via panel update.
 
@@ -3013,3 +3020,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.49]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.48...v3.5.49
 [3.5.50]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.49...v3.5.50
 [3.5.51]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.50...v3.5.51
+[3.5.52]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.51...v3.5.52
