@@ -171,6 +171,10 @@ GO_DOWNLOAD_VERSION="1.26.6"
 GO_MODULE_DOWNLOAD_TIMEOUT="${GO_MODULE_DOWNLOAD_TIMEOUT:-600}"
 # Short HTTPS probe before go mod download (fail fast on blocked proxy/DNS).
 GO_MODULE_PREFLIGHT_TIMEOUT="${GO_MODULE_PREFLIGHT_TIMEOUT:-20}"
+# Set when preflight detects IPv4 OK but IPv6 broken (common on GCP VMs).
+GO_FORCE_IPV4=0
+# Toolchain for native compile (override with BETTERDESK_GOTOOLCHAIN; default local).
+BETTERDESK_GOTOOLCHAIN="${BETTERDESK_GOTOOLCHAIN:-local}"
 
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
@@ -2639,27 +2643,100 @@ install_golang() {
 }
 
 # Probe a fixed HTTPS host without executing response body (connectivity only).
+# Optional 3rd arg: curl IP family flag ("-4" or "-6"); empty = dual-stack default.
 _go_probe_https() {
     local url="$1"
     local limit="${2:-$GO_MODULE_PREFLIGHT_TIMEOUT}"
+    local ip_flag="${3:-}"
 
     if command -v curl &> /dev/null; then
         # No -f: any HTTP response means the TCP/TLS path works (404 is fine).
-        curl -sS -o /dev/null --connect-timeout "$limit" --max-time "$limit" "$url"
+        # shellcheck disable=SC2086
+        curl -sS -o /dev/null --connect-timeout "$limit" --max-time "$limit" $ip_flag "$url"
         return $?
     fi
     if command -v wget &> /dev/null; then
+        # wget has no reliable -4/-6 on all distros; dual-stack only.
         wget -q --spider --timeout="$limit" --tries=1 "$url"
         return $?
     fi
     return 2
 }
 
+# Read a sysctl value or echo "unknown".
+_go_sysctl_get() {
+    local key="$1"
+    if command -v sysctl &> /dev/null; then
+        sysctl -n "$key" 2>/dev/null || echo "unknown"
+    else
+        echo "unknown"
+    fi
+}
+
+# Temporarily disable IPv6 for Go dual-stack dials on broken-IPv6 VMs (save/restore).
+_go_ipv4_force_begin() {
+    GO_IPV4_SAVED_ALL=""
+    GO_IPV4_SAVED_DEFAULT=""
+    GO_IPV4_APPLIED=0
+
+    if [ "${GO_FORCE_IPV4:-0}" != "1" ]; then
+        return 0
+    fi
+    if ! command -v sysctl &> /dev/null; then
+        print_warning "Broken IPv6 detected but sysctl unavailable; cannot force IPv4 for Go"
+        return 0
+    fi
+
+    GO_IPV4_SAVED_ALL=$(_go_sysctl_get net.ipv6.conf.all.disable_ipv6)
+    GO_IPV4_SAVED_DEFAULT=$(_go_sysctl_get net.ipv6.conf.default.disable_ipv6)
+
+    if sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null 2>&1 \
+        && sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null 2>&1; then
+        GO_IPV4_APPLIED=1
+        print_info "Temporarily disabled IPv6 for Go module download (broken IPv6 path detected)"
+    else
+        print_warning "Could not disable IPv6 via sysctl; Go may still hang on AAAA dials"
+    fi
+}
+
+_go_ipv4_force_end() {
+    if [ "${GO_IPV4_APPLIED:-0}" != "1" ]; then
+        return 0
+    fi
+    if [ -n "${GO_IPV4_SAVED_ALL}" ] && [ "${GO_IPV4_SAVED_ALL}" != "unknown" ]; then
+        sysctl -w "net.ipv6.conf.all.disable_ipv6=${GO_IPV4_SAVED_ALL}" >/dev/null 2>&1 || true
+    fi
+    if [ -n "${GO_IPV4_SAVED_DEFAULT}" ] && [ "${GO_IPV4_SAVED_DEFAULT}" != "unknown" ]; then
+        sysctl -w "net.ipv6.conf.default.disable_ipv6=${GO_IPV4_SAVED_DEFAULT}" >/dev/null 2>&1 || true
+    fi
+    GO_IPV4_APPLIED=0
+    print_info "Restored previous IPv6 sysctl settings"
+}
+
+# Drop leftover partial/lock files from a previous Ctrl+C during go mod download.
+_go_clear_stale_module_partials() {
+    local modcache
+    modcache=$(go env GOMODCACHE 2>/dev/null || true)
+    if [ -z "$modcache" ] || [ ! -d "$modcache" ]; then
+        return 0
+    fi
+    local cleared=0
+    cleared=$(find "$modcache" \( -name '*.partial' -o -name '*.lock' \) 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${cleared:-0}" -gt 0 ] 2>/dev/null; then
+        print_warning "Removing ${cleared} stale Go module cache lock/partial file(s) from a prior interrupted download"
+        find "$modcache" \( -name '*.partial' -o -name '*.lock' \) -delete 2>/dev/null || true
+    fi
+}
+
 # Fail fast when proxy.golang.org / sum.golang.org are unreachable.
+# Prefer IPv4 probes; set GO_FORCE_IPV4=1 when IPv6 is broken but IPv4 works.
 _go_module_network_preflight() {
     local limit="${GO_MODULE_PREFLIGHT_TIMEOUT}"
     local probe_status=0
+    local ipv4_ok=0
+    local ipv6_ok=0
 
+    GO_FORCE_IPV4=0
     print_info "Checking HTTPS reachability of Go module endpoints (${limit}s)..."
 
     if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
@@ -2667,18 +2744,69 @@ _go_module_network_preflight() {
         return 0
     fi
 
-    if ! _go_probe_https "https://proxy.golang.org/" "$limit"; then
-        print_error "Cannot reach https://proxy.golang.org/ within ${limit}s"
-        probe_status=1
-    else
-        print_success "Reachable: proxy.golang.org"
-    fi
+    if command -v curl &> /dev/null; then
+        if _go_probe_https "https://proxy.golang.org/" "$limit" "-4"; then
+            ipv4_ok=1
+            print_success "Reachable via IPv4: proxy.golang.org"
+        else
+            print_error "Cannot reach https://proxy.golang.org/ via IPv4 within ${limit}s"
+        fi
 
-    if ! _go_probe_https "https://sum.golang.org/" "$limit"; then
-        print_error "Cannot reach https://sum.golang.org/ within ${limit}s"
-        probe_status=1
+        # Short IPv6 probe — failure here is common on GCP and is not fatal if IPv4 works.
+        if _go_probe_https "https://proxy.golang.org/" 5 "-6"; then
+            ipv6_ok=1
+            print_success "Reachable via IPv6: proxy.golang.org"
+        else
+            print_warning "IPv6 path to proxy.golang.org failed (will prefer IPv4 for Go if IPv4 works)"
+        fi
+
+        if [ "$ipv4_ok" -eq 1 ] && [ "$ipv6_ok" -eq 0 ]; then
+            GO_FORCE_IPV4=1
+            print_info "Broken IPv6 detected — Go module download will temporarily disable IPv6"
+        fi
+
+        if [ "$ipv4_ok" -ne 1 ]; then
+            # Last resort: dual-stack (some hosts lack curl -4).
+            if _go_probe_https "https://proxy.golang.org/" "$limit"; then
+                print_success "Reachable (dual-stack): proxy.golang.org"
+            else
+                probe_status=1
+            fi
+        fi
+
+        if ! _go_probe_https "https://sum.golang.org/" "$limit" "-4" \
+            && ! _go_probe_https "https://sum.golang.org/" "$limit"; then
+            print_error "Cannot reach https://sum.golang.org/ within ${limit}s"
+            probe_status=1
+        else
+            print_success "Reachable: sum.golang.org"
+        fi
+
+        # GET a tiny known proxy path so HEAD-only reachability cannot hide a hung download path.
+        if [ "$probe_status" -eq 0 ]; then
+            print_info "Probing Go module proxy GET (sample @v/list)..."
+            if ! curl -4 -sS -o /dev/null --connect-timeout "$limit" --max-time 30 \
+                "https://proxy.golang.org/github.com/google/uuid/@v/list"; then
+                print_error "Go module proxy GET probe failed within 30s"
+                print_error "HEAD may work while module downloads hang — check firewall/DPI/IPv6"
+                probe_status=1
+            else
+                print_success "Go module proxy GET probe OK"
+            fi
+        fi
     else
-        print_success "Reachable: sum.golang.org"
+        if ! _go_probe_https "https://proxy.golang.org/" "$limit"; then
+            print_error "Cannot reach https://proxy.golang.org/ within ${limit}s"
+            probe_status=1
+        else
+            print_success "Reachable: proxy.golang.org"
+        fi
+        if ! _go_probe_https "https://sum.golang.org/" "$limit"; then
+            print_error "Cannot reach https://sum.golang.org/ within ${limit}s"
+            probe_status=1
+        else
+            print_success "Reachable: sum.golang.org"
+        fi
     fi
 
     if [ "$probe_status" -ne 0 ]; then
@@ -2690,61 +2818,116 @@ _go_module_network_preflight() {
     return 0
 }
 
-# Run go mod download with a hard deadline. Avoid timeout --foreground (children
-# are not killed). Prefer GNU timeout -k; otherwise bash TERM/KILL fallback.
+# Kill a process group (negative PGID) with TERM then KILL.
+_go_kill_process_group() {
+    local pgid="$1"
+    local label="${2:-process group}"
+
+    if [ -z "$pgid" ] || [ "$pgid" -le 1 ] 2>/dev/null; then
+        return 0
+    fi
+    print_error "Stopping ${label} (PGID ${pgid}) with SIGTERM..."
+    kill -TERM -- "-${pgid}" 2>/dev/null || kill -TERM "$pgid" 2>/dev/null || true
+    sleep 2
+    if kill -0 "$pgid" 2>/dev/null; then
+        print_error "Still alive — sending SIGKILL to PGID ${pgid}"
+        kill -KILL -- "-${pgid}" 2>/dev/null || kill -KILL "$pgid" 2>/dev/null || true
+    fi
+}
+
+# Run go mod download with a hard bash process-group deadline (primary guard).
+# GNU timeout alone was insufficient on some cloud VMs (#371).
 _run_go_mod_download_bounded() {
     local deadline="${GO_MODULE_DOWNLOAD_TIMEOUT}"
     local kill_after=15
     local status=0
+    local waiter_pid=""
     local download_pid=""
+    local download_pgid=""
     local elapsed=0
     local heartbeat_pid=""
+    local pidfile=""
+    local use_setsid_w=0
 
-    # Heartbeat: no `local` here — plain subshell under set -e would exit immediately.
+    _go_ipv4_force_begin
+    trap '_go_ipv4_force_end' EXIT
+    _go_clear_stale_module_partials
+
+    pidfile=$(mktemp 2>/dev/null || echo "/tmp/betterdesk-gomod-$$.pid")
+    : > "$pidfile"
+
+    # Heartbeat — no `local` inside non-function subshell (set -e).
     (
         elapsed=0
         while true; do
             sleep 15
             elapsed=$((elapsed + 15))
-            printf '[install] still downloading Go modules... %ss elapsed\n' "$elapsed" >&2
+            printf 'ℹ  still downloading Go modules... %ss elapsed (watchdog active)\n' "$elapsed" >&2
         done
     ) &
     heartbeat_pid=$!
 
-    if command -v timeout &> /dev/null; then
-        # Time `go` directly (not stdbuf) so the process group receives TERM/KILL.
-        if timeout -k "${kill_after}s" "${deadline}s" go mod download -x; then
+    # Isolate go in its own session so TERM/KILL cannot hit the installer PGID.
+    # Child writes $$ then exec's go (same PID = session/process-group leader).
+    # Prefer setsid -w so the background waiter stays our child and wait(1) works.
+    if command -v setsid &> /dev/null && setsid -w true >/dev/null 2>&1; then
+        use_setsid_w=1
+        setsid -w bash -c 'echo $$ > "$1"; exec go mod download -x' _ "$pidfile" &
+        waiter_pid=$!
+    elif command -v setsid &> /dev/null; then
+        setsid bash -c 'echo $$ > "$1"; exec go mod download -x' _ "$pidfile" &
+        waiter_pid=$!
+    else
+        bash -c 'echo $$ > "$1"; exec go mod download -x' _ "$pidfile" &
+        waiter_pid=$!
+    fi
+
+    elapsed=0
+    while [ ! -s "$pidfile" ] && [ "$elapsed" -lt 50 ]; do
+        sleep 0.1
+        elapsed=$((elapsed + 1))
+    done
+    download_pid=$(tr -d ' \n\t' < "$pidfile" 2>/dev/null || true)
+    rm -f "$pidfile"
+    if [ -z "$download_pid" ]; then
+        download_pid="$waiter_pid"
+    fi
+    download_pgid="$download_pid"
+
+    print_info "go mod download started (PID ${download_pid}, PGID ${download_pgid}, deadline ${deadline}s)"
+
+    elapsed=0
+    while kill -0 "$download_pid" 2>/dev/null; do
+        if [ "$elapsed" -ge "$deadline" ]; then
+            print_error "Go module download exceeded ${deadline}s"
+            _go_kill_process_group "$download_pgid" "go mod download"
+            sleep "$kill_after"
+            if kill -0 "$download_pid" 2>/dev/null; then
+                kill -KILL "$download_pid" 2>/dev/null || true
+            fi
+            status=124
+            break
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    if [ "$status" -eq 124 ]; then
+        wait "$waiter_pid" 2>/dev/null || true
+    elif [ "$use_setsid_w" -eq 1 ] || [ "$waiter_pid" = "$download_pid" ]; then
+        if wait "$waiter_pid"; then
             status=0
         else
             status=$?
         fi
     else
-        print_warning "'timeout' unavailable; using bash deadline (${deadline}s) for go mod download"
-        go mod download -x &
-        download_pid=$!
-        elapsed=0
-        while kill -0 "$download_pid" 2>/dev/null; do
-            if [ "$elapsed" -ge "$deadline" ]; then
-                print_error "Go module download exceeded ${deadline}s — sending SIGTERM"
-                kill -TERM "$download_pid" 2>/dev/null || true
-                sleep 2
-                if kill -0 "$download_pid" 2>/dev/null; then
-                    kill -KILL "$download_pid" 2>/dev/null || true
-                fi
-                wait "$download_pid" 2>/dev/null || true
-                status=124
-                break
-            fi
-            sleep 1
-            elapsed=$((elapsed + 1))
-        done
-        if [ "$status" -ne 124 ]; then
-            if wait "$download_pid"; then
-                status=0
-            else
-                status=$?
-            fi
+        # setsid without -w: waiter already exited; go may be reparented — poll only.
+        if kill -0 "$download_pid" 2>/dev/null; then
+            status=1
+        else
+            status=0
         fi
+        wait "$waiter_pid" 2>/dev/null || true
     fi
 
     if [ -n "$heartbeat_pid" ]; then
@@ -2752,6 +2935,8 @@ _run_go_mod_download_bounded() {
         wait "$heartbeat_pid" 2>/dev/null || true
     fi
 
+    trap - EXIT
+    _go_ipv4_force_end
     return "$status"
 }
 
@@ -2784,9 +2969,10 @@ compile_go_server() {
     local go_bin
     go_bin=$(command -v go)
 
-    # Prefer local toolchain + official proxy/sum defaults for this build step only.
-    # Operator-set GOPROXY/GOSUMDB/GOTOOLCHAIN still win.
-    export GOTOOLCHAIN="${GOTOOLCHAIN:-local}"
+    # Force local toolchain for native compile so host GOTOOLCHAIN=auto cannot
+    # silently download another toolchain mid-install (hang risk on cloud VMs).
+    # Override with BETTERDESK_GOTOOLCHAIN if needed. GOPROXY/GOSUMDB still honour env.
+    export GOTOOLCHAIN="${BETTERDESK_GOTOOLCHAIN:-local}"
     export GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
     export GOSUMDB="${GOSUMDB:-sum.golang.org}"
 
@@ -2797,8 +2983,8 @@ compile_go_server() {
         return 1
     fi
 
-    # Download dependencies. Keep this visible and hard-bounded.
-    print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s, kill-after: 15s)..."
+    # Download dependencies. Keep this visible and hard-bounded (bash PGID watchdog).
+    print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s, kill-after: 15s, setsid watchdog)..."
     local module_download_status=0
     if ! _run_go_mod_download_bounded; then
         module_download_status=$?
@@ -2811,6 +2997,7 @@ compile_go_server() {
             print_error "Go module download failed (exit code ${module_download_status})"
         fi
         print_error "Check DNS, outbound HTTPS to proxy.golang.org / sum.golang.org / go.dev, firewall and GOPROXY, then retry"
+        print_error "On GCP/cloud VMs with broken IPv6, confirm IPv4 works: curl -4 -I https://proxy.golang.org/"
         return 1
     fi
     
