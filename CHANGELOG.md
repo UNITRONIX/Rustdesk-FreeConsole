@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.54] — 2026-08-21
+
 ### Fixed
 - **Peer grant / strategy scope no longer fail silently (#380 follow-up):** `POST`/`PATCH` `/api/users` reject with `500` *before* writing the user when peer-grant or strategy-assignment DB methods are missing (instead of `{success:true}` with empty grants). `PATCH` responses include refreshed `peer_grants` / `folder_ids` / `strategy_guid`. Unknown device IDs in `peerIds` are logged as warnings only. Facade parity tests cover required `database.js` exports. Ships via panel update.
 
@@ -3034,3 +3041,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.51]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.50...v3.5.51
 [3.5.52]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.51...v3.5.52
 [3.5.53]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.52...v3.5.53
+[3.5.54]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.53...v3.5.54
