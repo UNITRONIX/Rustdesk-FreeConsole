@@ -73,15 +73,71 @@ async function syncUserFolderAccess(db, username, folderIds) {
     return Array.from(selected);
 }
 
+function peerGrantsUnavailableError(action) {
+    const error = new Error(
+        `Per-user device grants are unavailable (database.${action} missing). Refusing to silently no-op.`
+    );
+    error.status = 500;
+    error.code = 'PEER_GRANTS_UNAVAILABLE';
+    return error;
+}
+
+/**
+ * Best-effort unknown-device warnings only — never blocks grant persistence.
+ * Caps log noise so a large peerIds payload cannot flood the console.
+ */
+async function warnUnknownPeerIds(db, peerIds) {
+    const ids = Array.isArray(peerIds) ? peerIds : [];
+    if (!ids.length) return;
+    const lookup = typeof db.getPeerById === 'function'
+        ? (id) => db.getPeerById(id)
+        : typeof db.getDeviceById === 'function'
+            ? (id) => db.getDeviceById(id)
+            : null;
+    if (!lookup) return;
+
+    const maxWarnings = 20;
+    let warned = 0;
+    for (const peerId of ids) {
+        if (warned >= maxWarnings) {
+            console.warn(
+                `[userScope] peer grant lookup capped after ${maxWarnings} warnings ` +
+                `(${ids.length - maxWarnings} remaining unchecked)`
+            );
+            break;
+        }
+        try {
+            const row = await lookup(peerId);
+            if (!row) {
+                console.warn(`[userScope] peer grant references unknown device id: ${peerId}`);
+                warned += 1;
+            }
+        } catch (err) {
+            console.warn(`[userScope] peer id lookup failed for ${peerId}:`, err.message);
+            warned += 1;
+        }
+    }
+}
+
 async function getUserPeerGrantIds(db, userId) {
-    if (!userId || typeof db.getUserPeerGrants !== 'function') return [];
+    if (!userId) return [];
+    // Read path stays soft: Users list / enrichment must not 500 if a method is missing.
+    if (typeof db.getUserPeerGrants !== 'function') {
+        console.error('[userScope] getUserPeerGrants missing on database facade — returning []');
+        return [];
+    }
     return db.getUserPeerGrants(userId);
 }
 
 async function syncUserPeerGrants(db, userId, peerIds) {
-    if (!userId || typeof db.setUserPeerGrants !== 'function') return [];
+    if (!userId) return [];
+    // Write path fails closed: never report success while dropping peerIds (#380).
+    if (typeof db.setUserPeerGrants !== 'function') {
+        throw peerGrantsUnavailableError('setUserPeerGrants');
+    }
     const normalized = normalizePeerIds(peerIds);
     await db.setUserPeerGrants(userId, normalized);
+    await warnUnknownPeerIds(db, normalized);
     return normalized;
 }
 
@@ -103,6 +159,7 @@ module.exports = {
     syncUserFolderAccess,
     getUserPeerGrantIds,
     syncUserPeerGrants,
+    warnUnknownPeerIds,
     countEffectiveScope,
     isDeviceScopeRestrictedDefault
 };

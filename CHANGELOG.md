@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Peer grant / strategy scope no longer fail silently (#380 follow-up):** `POST`/`PATCH` `/api/users` reject with `500` *before* writing the user when peer-grant or strategy-assignment DB methods are missing (instead of `{success:true}` with empty grants). `PATCH` responses include refreshed `peer_grants` / `folder_ids` / `strategy_guid`. Unknown device IDs in `peerIds` are logged as warnings only. Facade parity tests cover required `database.js` exports. Ships via panel update.
+
 ### Changed
 - _(none yet)_
 

@@ -200,6 +200,7 @@ describe('Users Routes', () => {
             role: 'operator',
             auth_provider: 'local',
         });
+        mockDb.getUserPeerGrants.mockResolvedValue(['1234567', '7654321']);
 
         const app = createTestApp();
         withAuth(app, { id: 1, username: 'admin', role: 'super_admin' });
@@ -211,6 +212,66 @@ describe('Users Routes', () => {
 
         expect(res.status).toBe(200);
         expect(mockDb.setUserPeerGrants).toHaveBeenCalledWith(12, ['1234567', '7654321']);
+        expect(res.body.data).toMatchObject({
+            id: 12,
+            username: 'operator1',
+            peer_grants: ['1234567', '7654321'],
+        });
+    });
+
+    it('returns 500 when peer grant setter is unavailable (no silent no-op)', async () => {
+        const previous = mockDb.setUserPeerGrants;
+        mockDb.setUserPeerGrants = undefined;
+
+        try {
+            const app = createTestApp();
+            withAuth(app, { id: 1, username: 'admin', role: 'global_admin' });
+            app.use(usersRoutes);
+
+            const res = await request(app)
+                .post('/api/users')
+                .send({
+                    username: 'viewer1',
+                    password: 'StrongPass123!',
+                    role: 'operator',
+                    peerIds: ['1234567'],
+                });
+
+            expect(res.status).toBe(500);
+            expect(res.body.success).toBe(false);
+            expect(String(res.body.error || '')).toMatch(/peer grants|setUserPeerGrants/i);
+            expect(mockDb.createUser).not.toHaveBeenCalled();
+        } finally {
+            mockDb.setUserPeerGrants = previous;
+        }
+    });
+
+    it('returns 500 when strategy assignment setter is unavailable', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 12,
+            username: 'operator1',
+            role: 'operator',
+            auth_provider: 'local',
+        });
+        const previous = mockDb.setUserStrategyAssignment;
+        mockDb.setUserStrategyAssignment = undefined;
+
+        try {
+            const app = createTestApp();
+            withAuth(app, { id: 1, username: 'admin', role: 'super_admin' });
+            app.use(usersRoutes);
+
+            const res = await request(app)
+                .patch('/api/users/12')
+                .send({ strategyGuid: 'strat-1', role: 'viewer' });
+
+            expect(res.status).toBe(500);
+            expect(res.body.success).toBe(false);
+            expect(String(res.body.error || '')).toMatch(/strategy|setUserStrategyAssignment/i);
+            expect(mockDb.updateUserRole).not.toHaveBeenCalled();
+        } finally {
+            mockDb.setUserStrategyAssignment = previous;
+        }
     });
 
     it('returns peer_grants on the System Users list (Issue #380)', async () => {
