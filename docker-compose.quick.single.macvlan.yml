@@ -32,7 +32,7 @@
 
 services:
   betterdesk:
-    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.5.60}
+    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.5.61}
     container_name: betterdesk
     hostname: betterdesk
     volumes:
@@ -59,7 +59,7 @@ services:
       - PGID=${PGID:-10001}
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=single
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.60}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.61}
       - AUTH_DB_PATH=/app/data/auth.db
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
