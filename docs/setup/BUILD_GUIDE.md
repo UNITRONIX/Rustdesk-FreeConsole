@@ -171,8 +171,8 @@ POST /api/peers/{id}/ban - Ban a device
 The project includes automated builds via GitHub Actions.
 
 ### Automatic Triggers
-- Changes to `hbbs-patch-v2/src/**` on the `main` branch
-- Changes to `.github/workflows/build.yml`
+- Go server builds on every push to `main` or `dev`, and on version tags (`v*`)
+- Other project workflows may have additional path-specific triggers
 
 ### Manual Trigger
 1. Go to Actions tab in GitHub
@@ -181,7 +181,17 @@ The project includes automated builds via GitHub Actions.
 4. Optionally select RustDesk version and release options
 
 ### Artifacts
-Built binaries are available as workflow artifacts for 30 days.
+The `Build & Release Go Server` workflow publishes one artifact per supported
+server target. Each artifact includes the binary and a JSON manifest containing
+the exact commit SHA, Go target, byte size and SHA-256. The panel uses an
+artifact only when its workflow run and manifest match the requested update
+commit; failed, in-progress or expired artifacts fall back to a local build.
+
+Tag runs also attach the binaries, per-binary manifests and
+`SERVER_CHECKSUMS.sha256` to the GitHub Release. For private repositories,
+native panel updates need `UPDATE_GITHUB_TOKEN` with read access to Actions
+artifacts and repository contents. Do not use a generic `latest` release asset
+as a substitute for an exact commit.
 
 ---
 

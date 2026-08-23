@@ -44,4 +44,26 @@ describe('agentBuildWorker pending rebuild flag', () => {
             db.listAgentBundles = origList;
         }
     });
+
+    it('syncs the pending SHA before requeueing agent bundles', async () => {
+        const updateService = require('../services/updateService');
+        const sync = jest.spyOn(updateService, 'syncAgentSourceAtSha')
+            .mockResolvedValue({ staged: 3, paths: 3 });
+        const worker = require('../services/agentBuildWorker');
+        const db = require('../services/database');
+        const origList = db.listAgentBundles;
+        db.listAgentBundles = async () => [];
+
+        try {
+            const remoteSHA = 'd'.repeat(40);
+            worker.markRebuildPending('test-sha', { remoteSHA });
+            const result = await worker.processPendingRebuildOnStartup();
+            expect(sync).toHaveBeenCalledWith(remoteSHA);
+            expect(result.source).toEqual({ staged: 3, paths: 3 });
+            expect(result.remoteSHA).toBe(remoteSHA);
+        } finally {
+            db.listAgentBundles = origList;
+            sync.mockRestore();
+        }
+    });
 });

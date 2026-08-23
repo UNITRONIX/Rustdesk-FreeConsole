@@ -6,12 +6,24 @@
 - Use `window.BetterDesk.cacheVersion` to distinguish the old Node.js process from the restarted one, and reload with a cache-busting query after update.
 - `GET /api/settings/updates/preflight?serverUpdate=1` when server files change — blocks install if Go/prebuilt unavailable.
 - After update, if server source changed but binary build/deploy failed, `applyUpdate` attempts **auto-rebuild** via `rebuildServerBinary` before leaving a stale marker.
+- Server binaries use the exact update commit: the panel checks the `release-server.yml` GitHub Actions run and its platform artifact first, then an exact Release asset with a manifest. A generic `releases/latest` binary is informational only and is never installed for a different SHA.
+- The artifact manifest contains commit, Go target, size and SHA-256. The panel validates all fields before moving the binary into the server source directory; missing/expired artifacts or failed jobs fall back to a local Go build.
 - Console update merges new keys from `web-nodejs/.env.example` into existing `.env` using `buildEnvSubstitutions()` (resolved paths, no raw `__PLACEHOLDER__` values).
 - After server updates, `patchServiceDefinitions()` sanitizes writable/NSSM units in place; protected Linux systemd units require the explicit root maintenance step below.
 - **Linux privilege boundary:** the panel never executes a repository JavaScript file through `sudo` and never writes root-owned systemd units or Go binaries. A root operator must run `sudo node web-nodejs/scripts/linux-ensure-console-user.js` after installation or after a privileged layout change; this installs the fixed root-owned update broker at `/usr/local/libexec/betterdesk/betterdesk-privileged-update.js`. The broker only permits `systemctl daemon-reload` and restart of `betterdesk-console` / `betterdesk-server`.
 - **Root-owned Go binary:** when the Go server target is not writable by the console user, the panel leaves the binary unchanged and reports the documented manual root deploy step. Do not add a sudoers rule for `linux-deploy-server-binary.js`, `linux-ensure-console-user.js`, or any script under the writable console tree.
 - **Migration:** a root operator must rerun the ensure script once to replace older broad sudoers entries and remove any legacy `ExecStartPre=+...linux-ensure-console-user.js` line from the console unit. Verify with `sudo visudo -cf /etc/sudoers.d/betterdesk-console-updates` and `sudo systemctl cat betterdesk-console`.
 - **Windows path root (#272):** `resolveProjectRoot()` must never resolve to a drive root (`C:\`). Default layout `C:\BetterDeskConsole` + `C:\BetterDesk` writes Scripts & Docker files under the console directory. `ensureParentDirForFile()` skips `mkdir` on filesystem roots (Node throws `EPERM` on `mkdir('C:\\')`). NSSM OpenService Access Denied when restarting `BetterDeskServer` is non-critical — restart the Go service manually or via `betterdesk.ps1` if needed.
+
+### Support Agent generator phase
+
+When an update changes Support Agent inputs, `applyUpdate()` records
+`.agent_rebuild_pending` with the deployed commit and returns without syncing
+or queueing agent builds. After the console restarts,
+`agentBuildWorker.processPendingRebuildOnStartup()` synchronizes the complete
+agent source tree first and then requeues non-revoked Support Agent bundles.
+The worker retries safely if either step fails, while Agent Client and RdClient
+workers remain independent.
 
 ## Issue #158 — server build / config preservation
 

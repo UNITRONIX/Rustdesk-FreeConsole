@@ -40,7 +40,11 @@ You can deselect platforms when creating or rebuilding a bundle (for example Win
 
 ### After a BetterDesk update
 
-When agent source changes, the panel syncs `agent-source/` and **requeues all non-revoked Support Agent bundles** immediately (and again on console restart as a safety net). Check Settings → Updates log for “Support Agent generator rebuild queued…”.
+When agent source changes, the panel records a pending Support Agent rebuild
+and completes the console/server update first. After the console restarts, the
+worker synchronizes `agent-source/` and **requeues all non-revoked Support Agent
+bundles** in the background. Check Settings → Updates and the Generator status
+for the deferred sync/build state.
 
 If a Support Agent signed profile is **incomplete or expired**, Rebuild / Retry / auto-requeue **re-issues** the profile (connection URLs + TTL) before compiling. You can still **Save** the bundle in Generator to refresh the profile manually.
 

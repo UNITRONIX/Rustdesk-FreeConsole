@@ -10,6 +10,7 @@ const NON_CRITICAL_UPDATE_FAILURES = new Set([
     'server-source',
     'npm install',
     'support-agent-source-sync',
+    'support-agent-rebuild-defer',
     // Installer / Docker root files — optional beside the console; EACCES/EPERM
     // on these must not block SHA save (Windows drive-root bug #272, Linux root-owned /opt).
     'betterdesk.sh',

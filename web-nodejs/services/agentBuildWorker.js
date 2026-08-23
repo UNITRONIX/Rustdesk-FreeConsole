@@ -263,6 +263,7 @@ let _running = false;
 let _activeBuilds = 0;
 let _pollHandle = null;
 let _lastBuildFinishedAt = 0;
+let _startupReady = false;
 
 function _buildOrderIndex(row) {
     const key = `${row.platform}/${row.arch}/${row.format}`;
@@ -559,15 +560,20 @@ async function requeueFailedToolchainBuilds() {
     return { requeued };
 }
 
-function markRebuildPending(reason = 'update') {
+function markRebuildPending(reason = 'update', meta = {}) {
     fs.mkdirSync(path.dirname(REBUILD_FLAG_FILE), { recursive: true });
     fs.writeFileSync(REBUILD_FLAG_FILE, JSON.stringify({
         reason,
         at: new Date().toISOString(),
+        remoteSHA: meta.remoteSHA || null,
     }));
 }
 
-/** On console startup, rebuild generator clients when an update left a pending flag. */
+/**
+ * On console startup, stage the exact deployed source before queueing builds.
+ * This is deliberately outside updateService.applyUpdate(): the console
+ * update can finish and restart before the potentially large agent sync runs.
+ */
 async function processPendingRebuildOnStartup() {
     if (!fs.existsSync(REBUILD_FLAG_FILE)) return null;
     let meta = {};
@@ -575,8 +581,18 @@ async function processPendingRebuildOnStartup() {
         meta = JSON.parse(fs.readFileSync(REBUILD_FLAG_FILE, 'utf8'));
     } catch (_) { /* use defaults */ }
 
-    // Delete the flag only after a successful requeue so a crash mid-requeue
-    // does not lose the pending rebuild.
+    const shaFile = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.update_sha');
+    const remoteSHA = meta.remoteSHA || (
+        fs.existsSync(shaFile) ? fs.readFileSync(shaFile, 'utf8').trim() : ''
+    );
+    let source = null;
+    if (remoteSHA) {
+        const updateService = require('./updateService');
+        source = await updateService.syncAgentSourceAtSha(remoteSHA);
+    }
+
+    // Delete the flag only after source sync and requeue both succeed so a
+    // crash mid-update does not lose the pending rebuild.
     const result = await requeueAllBundleBuilds();
     try {
         fs.unlinkSync(REBUILD_FLAG_FILE);
@@ -585,7 +601,12 @@ async function processPendingRebuildOnStartup() {
         `[agentBuildWorker] auto-rebuild queued for ${result.bundles} bundle(s)`
         + (meta.reason ? ` (reason: ${meta.reason})` : '')
     );
-    return { ...result, reason: meta.reason || 'pending' };
+    return {
+        ...result,
+        source,
+        remoteSHA: remoteSHA || null,
+        reason: meta.reason || 'pending',
+    };
 }
 
 /** Classify a build stderr / error_message for UI hints. */
@@ -792,36 +813,34 @@ async function reconcileAgentSourceDrift() {
         ? fs.readFileSync(shaFile, 'utf8').trim()
         : '';
 
-    if (deployedSha) {
-        try {
-            const updateService = require('./updateService');
-            const synced = await updateService.syncAgentSourceAtSha(deployedSha);
-            console.log(
-                `[agentBuildWorker] agent-source repaired from ${deployedSha.slice(0, 7)}`
-                + ` (${synced.staged}/${synced.paths} files)`
-            );
-        } catch (err) {
-            console.warn(`[agentBuildWorker] agent-source repair sync failed: ${err.message}`);
-        }
-    }
-
-    markRebuildPending('agent-source drift');
+    markRebuildPending('agent-source drift', { remoteSHA: deployedSha || null });
     return processPendingRebuildOnStartup();
 }
 
 function startWorker() {
     if (_pollHandle) return;
     console.log(`[agentBuildWorker] Go support-agent source=${SOURCE_ROOT} server=${SERVER_LIB_ROOT} go=${getGoBin()}`);
-    _ensureDirs().catch((e) => console.error('[agentBuildWorker] dir init failed:', e));
+    _startupReady = false;
     _pollHandle = setInterval(() => {
         _tick().catch((e) => console.error('[agentBuildWorker] tick error:', e.message));
     }, POLL_INTERVAL_MS);
-    processPendingRebuildOnStartup().catch((e) => {
-        console.error('[agentBuildWorker] pending rebuild failed:', e.message);
-    });
-    reconcileAgentSourceDrift().catch((e) => {
-        console.warn('[agentBuildWorker] agent-source drift check skipped:', e.message);
-    });
+    const prepareStartup = async () => {
+        try {
+            await _ensureDirs();
+            await processPendingRebuildOnStartup();
+            await reconcileAgentSourceDrift();
+            _startupReady = true;
+        } catch (e) {
+            console.error('[agentBuildWorker] startup preparation failed:', e.message);
+            _startupReady = false;
+            if (_pollHandle) {
+                setTimeout(() => {
+                    if (_pollHandle && !_startupReady) prepareStartup();
+                }, 30000);
+            }
+        }
+    };
+    prepareStartup();
     (async () => {
         try {
             await _ensureGoToolchain();
@@ -835,6 +854,7 @@ function startWorker() {
 
 function stopWorker() {
     if (_pollHandle) { clearInterval(_pollHandle); _pollHandle = null; }
+    _startupReady = false;
 }
 
 async function getReadyArtifact({ brandingHash, platform, arch, format }) {
@@ -856,6 +876,7 @@ async function _ensureDirs() {
 }
 
 async function _tick() {
+    if (!_startupReady) return;
     if (_running || _activeBuilds >= WORKER_CONCURRENCY) return;
     if (BUILD_COOLDOWN_MS > 0 && Date.now() - _lastBuildFinishedAt < BUILD_COOLDOWN_MS) {
         return;

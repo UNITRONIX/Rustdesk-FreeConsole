@@ -2,14 +2,16 @@
 # BetterDesk Go Server — Cross-Compile & Release
 # =============================================================================
 # Builds Go server binary for Linux (amd64, arm64) and Windows (amd64).
-# Triggers on version tag push (v*) or manual dispatch.
-# Attaches binaries + SHA256 checksums to GitHub Release.
+# Triggers on main/dev pushes, version tag pushes (v*) or manual dispatch.
+# Every run publishes commit-bound artifacts; tag runs also attach binaries +
+# SHA256 checksums to a GitHub Release.
 # =============================================================================
 
 name: Build & Release Go Server
 
 on:
   push:
+    branches: [main, dev]
     tags: ['v*']
 
   workflow_dispatch:
@@ -60,15 +62,31 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="$(tr -d '\r\n' < ../VERSION)"
+          BINARY_NAME="betterdesk-server-${{ matrix.suffix }}"
           go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" \
-            -o "betterdesk-server-${{ matrix.suffix }}" .
+            -o "${BINARY_NAME}" .
+          SHA256="$(sha256sum "${BINARY_NAME}" | awk '{print $1}')"
+          SIZE="$(stat -c '%s' "${BINARY_NAME}")"
+          cat > "${BINARY_NAME}.manifest.json" <<EOF
+          {
+            "commit": "${GITHUB_SHA}",
+            "version": "${VERSION}",
+            "goos": "${{ matrix.goos }}",
+            "goarch": "${{ matrix.goarch }}",
+            "asset": "${BINARY_NAME}",
+            "size": ${SIZE},
+            "sha256": "${SHA256}"
+          }
+          EOF
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: betterdesk-server-${{ matrix.suffix }}
-          path: ${{ env.SERVER_DIR }}/betterdesk-server-${{ matrix.suffix }}
+          path: |
+            ${{ env.SERVER_DIR }}/betterdesk-server-${{ matrix.suffix }}
+            ${{ env.SERVER_DIR }}/betterdesk-server-${{ matrix.suffix }}.manifest.json
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -121,7 +139,10 @@ jobs:
           generate_release_notes: true
           files: |
             betterdesk-server-linux-amd64/betterdesk-server-linux-amd64
+            betterdesk-server-linux-amd64/betterdesk-server-linux-amd64.manifest.json
             betterdesk-server-linux-arm64/betterdesk-server-linux-arm64
+            betterdesk-server-linux-arm64/betterdesk-server-linux-arm64.manifest.json
             betterdesk-server-windows-amd64.exe/betterdesk-server-windows-amd64.exe
+            betterdesk-server-windows-amd64.exe/betterdesk-server-windows-amd64.exe.manifest.json
             migrate-linux-amd64/migrate-linux-amd64
             SERVER_CHECKSUMS.sha256

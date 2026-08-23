@@ -3212,7 +3212,10 @@
         if (!statusEl) return;
 
         try {
-            const info = await Utils.api('/api/settings/updates/server-info');
+            const shaQuery = _updateState.remoteSHA
+                ? `?sha=${encodeURIComponent(_updateState.remoteSHA)}`
+                : '';
+            const info = await Utils.api(`/api/settings/updates/server-info${shaQuery}`);
             const hasGo = !!info.goAvailable && info.goMeetsMinimum !== false;
             const goNeedsUpgrade = !!info.goAvailable && info.goMeetsMinimum === false;
             const prebuilt = info.prebuilt || {};
@@ -3243,7 +3246,12 @@
                 const parts = [];
                 if (info.binaryPath) parts.push(`Binary: ${info.binaryPath}`);
                 if (info.sourcePresent) parts.push('Source: present');
-                if (hasDownload && prebuilt.releaseName) parts.push(`Release: ${prebuilt.releaseName}`);
+                if (hasDownload && prebuilt.source === 'github-actions') {
+                    parts.push(`GitHub Actions: ${prebuilt.runId || 'ready'}`);
+                } else if (hasDownload && prebuilt.releaseName) {
+                    parts.push(`Release: ${prebuilt.releaseName}`);
+                }
+                if (prebuilt.reason && !prebuilt.available) parts.push(prebuilt.reason);
                 if (info.goSource && info.goSource !== 'path') parts.push(`Go: ${info.goSource}`);
                 if (goNeedsUpgrade) parts.push(_('updates.toolchain_will_install'));
                 if (!hasGo && !hasDownload && canInstallGo) parts.push(_('updates.toolchain_will_install'));
@@ -3707,7 +3715,7 @@
             let preflightWarnings = [];
             try {
                 const pfUrl = hasServerUpdate
-                    ? '/api/settings/updates/preflight?serverUpdate=1'
+                    ? `/api/settings/updates/preflight?serverUpdate=1&sha=${encodeURIComponent(_updateState.remoteSHA)}`
                     : '/api/settings/updates/preflight';
                 const pf = await Utils.api(pfUrl);
                 if (pf && pf.ready === false && Array.isArray(pf.issues) && pf.issues.length) {
@@ -3839,7 +3847,9 @@
             const failed  = result.failed?.length || 0;
             const removed = result.removed?.length || 0;
             logUpdate(`${_('updates.applied')}: ${applied} · ${_('updates.failed')}: ${failed} · ${_('updates.removed')}: ${removed}`);
-            if (result.agentRebuildQueued) {
+            if (result.agentRebuildDeferred) {
+                logUpdate(`Support Agent rebuild deferred until the console restarts (${result.agentRebuildRemoteSHA?.slice(0, 7) || 'pending'}).`);
+            } else if (result.agentRebuildQueued) {
                 logUpdate(
                     _('updates.agent_rebuild_queued')
                         .replace('{{count}}', String(result.agentRebuildBundles ?? '?'))

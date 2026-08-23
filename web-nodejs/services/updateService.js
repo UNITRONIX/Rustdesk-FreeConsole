@@ -24,6 +24,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
+const AdmZip = require('adm-zip');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 const {
@@ -141,6 +143,10 @@ function setUpdateChannel(channelId) {
 
 // Optional GitHub personal-access token  (60 req/h without, 5 000 with)
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+const SERVER_WORKFLOW_FILE = '.github/workflows/release-server.yml';
+const MAX_SERVER_BINARY_BYTES = 256 * 1024 * 1024;
+const MAX_SERVER_MANIFEST_BYTES = 128 * 1024;
+const MAX_SERVER_ARTIFACT_BYTES = 512 * 1024 * 1024;
 
 /** @type {Map<string, { expires: number, data: unknown }>} */
 const GH_GET_CACHE = new Map();
@@ -1956,52 +1962,329 @@ function deployServerBinary(builtBinaryPath, targetPath) {
 }
 
 /**
- * Determine the expected binary asset name for this platform+arch on GitHub Releases.
- * @returns {string}
+ * Determine the expected binary names for this platform+arch.
+ * @returns {{ goos: string, goarch: string, suffix: string, assetName: string, binaryName: string }}
  */
+function getServerBinaryTarget() {
+    const goarch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+    const goos = IS_WINDOWS ? 'windows' : (process.platform === 'darwin' ? 'darwin' : 'linux');
+    const suffix = `${goos}-${goarch}${goos === 'windows' ? '.exe' : ''}`;
+    const assetName = `betterdesk-server-${suffix}`;
+    return {
+        goos,
+        goarch,
+        suffix,
+        assetName,
+        binaryName: IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server',
+    };
+}
+
 function getReleaseBinaryName() {
-    const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
-    if (IS_WINDOWS) return `betterdesk-server-windows-${arch}.exe`;
-    const os = process.platform === 'darwin' ? 'darwin' : 'linux';
-    return `betterdesk-server-${os}-${arch}`;
+    return getServerBinaryTarget().assetName;
+}
+
+function isAllowedGithubDownloadHost(hostname) {
+    const host = String(hostname || '').toLowerCase();
+    return host === 'api.github.com'
+        || host === 'github.com'
+        || host === 'raw.githubusercontent.com'
+        || host === 'objects.githubusercontent.com'
+        || host === 'release-assets.githubusercontent.com'
+        || host.endsWith('.blob.core.windows.net');
+}
+
+function downloadGithubBuffer(downloadUrl, { maxBytes = MAX_SERVER_BINARY_BYTES, accept = 'application/octet-stream' } = {}) {
+    if (!downloadUrl || typeof downloadUrl !== 'string') {
+        return Promise.reject(new Error('Invalid GitHub download URL'));
+    }
+
+    const follow = (target, redirects = 0) => {
+        if (redirects > 5) return Promise.reject(new Error('Too many GitHub download redirects'));
+        let url;
+        try {
+            url = new URL(target);
+        } catch (_e) {
+            return Promise.reject(new Error('Invalid GitHub download URL'));
+        }
+        if (url.protocol !== 'https:' || !isAllowedGithubDownloadHost(url.hostname)) {
+            return Promise.reject(new Error(`Blocked GitHub download host: ${url.hostname}`));
+        }
+
+        return new Promise((resolve, reject) => {
+            const headers = { 'User-Agent': USER_AGENT, Accept: accept };
+            // Signed artifact redirects do not need the API token. Never send
+            // the token to a storage host.
+            if (GITHUB_TOKEN && url.hostname.toLowerCase() === 'api.github.com') {
+                headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+            }
+            const req = https.get({
+                hostname: url.hostname,
+                path: url.pathname + url.search,
+                headers,
+            }, (res) => {
+                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    res.resume();
+                    return follow(new URL(res.headers.location, url).toString(), redirects + 1)
+                        .then(resolve, reject);
+                }
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    return reject(new Error(`GitHub download failed: HTTP ${res.statusCode}`));
+                }
+
+                const declaredSize = Number(res.headers['content-length'] || 0);
+                if (declaredSize > maxBytes) {
+                    res.resume();
+                    return reject(new Error(`GitHub download exceeds ${maxBytes} byte limit`));
+                }
+                const chunks = [];
+                let received = 0;
+                res.on('data', (chunk) => {
+                    received += chunk.length;
+                    if (received > maxBytes) {
+                        req.destroy(new Error(`GitHub download exceeds ${maxBytes} byte limit`));
+                        return;
+                    }
+                    chunks.push(chunk);
+                });
+                res.on('end', () => resolve(Buffer.concat(chunks)));
+                res.on('error', reject);
+            });
+            req.on('error', reject);
+            req.setTimeout(120000, () => {
+                req.destroy(new Error('GitHub download timeout (120s)'));
+            });
+        });
+    };
+
+    return follow(downloadUrl);
+}
+
+function commitsMatch(expected, actual) {
+    const left = String(expected || '').toLowerCase();
+    const right = String(actual || '').toLowerCase();
+    return /^[0-9a-f]{7,40}$/.test(left)
+        && /^[0-9a-f]{7,40}$/.test(right)
+        && (left === right || left.startsWith(right) || right.startsWith(left));
+}
+
+function validateServerBinaryManifest(manifest, binaryData, expected) {
+    if (!manifest || typeof manifest !== 'object') {
+        return 'Server binary manifest is missing or invalid';
+    }
+    if (!commitsMatch(expected.remoteSHA, manifest.commit)) {
+        return `Server binary commit mismatch (expected ${expected.remoteSHA}, got ${manifest.commit || 'missing'})`;
+    }
+    if (manifest.goos !== expected.goos || manifest.goarch !== expected.goarch) {
+        return `Server binary target mismatch (expected ${expected.goos}/${expected.goarch})`;
+    }
+    if (manifest.asset !== expected.assetName) {
+        return `Server binary asset mismatch (expected ${expected.assetName})`;
+    }
+    if (!Number.isSafeInteger(Number(manifest.size)) || Number(manifest.size) !== binaryData.length) {
+        return 'Server binary size does not match its manifest';
+    }
+    if (!/^[0-9a-f]{64}$/i.test(String(manifest.sha256 || ''))) {
+        return 'Server binary manifest has no valid SHA-256';
+    }
+    const actualSha = crypto.createHash('sha256').update(binaryData).digest('hex');
+    if (actualSha.toLowerCase() !== String(manifest.sha256).toLowerCase()) {
+        return 'Server binary SHA-256 does not match its manifest';
+    }
+    return null;
+}
+
+function getSafeZipEntryName(entryName) {
+    const normalized = String(entryName || '').replace(/\\/g, '/');
+    if (!normalized || normalized.startsWith('/') || /^[a-z]:\//i.test(normalized)) return null;
+    const parts = normalized.split('/');
+    if (parts.some((part) => part === '..' || part === '')) return null;
+    return normalized;
+}
+
+async function findSuccessfulServerWorkflowRun(remoteSHA) {
+    if (!/^[0-9a-f]{7,40}$/i.test(String(remoteSHA || ''))) return null;
+    const data = await ghGet(
+        `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/release-server.yml/runs`
+            + `?head_sha=${encodeURIComponent(remoteSHA)}&per_page=20`,
+        { bypassCache: true }
+    );
+    const runs = (data.workflow_runs || [])
+        .filter((run) => commitsMatch(remoteSHA, run.head_sha)
+            && run.status === 'completed'
+            && run.conclusion === 'success')
+        .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+    for (const run of runs) {
+        const jobsData = await ghGet(
+            `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runs/${encodeURIComponent(run.id)}/jobs?per_page=100`,
+            { bypassCache: true }
+        );
+        const jobs = jobsData.jobs || [];
+        const buildJobs = jobs.filter((job) => /^build(\s|\()/i.test(job.name || ''));
+        if (buildJobs.length > 0) {
+            const missingTarget = ['linux-amd64', 'linux-arm64', 'windows-amd64.exe']
+                .find((suffix) => !buildJobs.some((job) => (job.name || '').includes(suffix)));
+            if (missingTarget) continue;
+            if (buildJobs.some((job) => job.conclusion !== 'success')) continue;
+        }
+        return { ...run, jobs };
+    }
+    return null;
+}
+
+async function findWorkflowServerArtifact(remoteSHA, target) {
+    const run = await findSuccessfulServerWorkflowRun(remoteSHA);
+    if (!run) return null;
+    const artifactsData = await ghGet(
+        `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runs/${encodeURIComponent(run.id)}/artifacts?per_page=100`,
+        { bypassCache: true }
+    );
+    const artifactName = `betterdesk-server-${target.suffix}`;
+    const artifact = (artifactsData.artifacts || []).find((item) =>
+        item.name === artifactName && !item.expired && Number(item.size_in_bytes || 0) > 0
+    );
+    if (!artifact) return null;
+    return {
+        available: true,
+        exact: true,
+        source: 'github-actions',
+        downloadUrl: artifact.archive_download_url,
+        archive: true,
+        artifactName,
+        artifactId: artifact.id,
+        runId: run.id,
+        runUrl: run.html_url || null,
+        releaseName: run.display_title || run.name || null,
+        releaseTag: null,
+        assetSize: artifact.size_in_bytes || null,
+        commit: run.head_sha,
+    };
+}
+
+async function findExactReleaseAsset(remoteSHA, target) {
+    const releases = await ghGet(
+        `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=100`,
+        { bypassCache: true }
+    );
+    for (const release of releases || []) {
+        const binary = (release.assets || []).find((asset) => asset.name === target.assetName);
+        const manifestAsset = (release.assets || []).find(
+            (asset) => asset.name === `${target.assetName}.manifest.json`
+        );
+        if (!binary || !manifestAsset) continue;
+        try {
+            const manifestData = await downloadGithubBuffer(manifestAsset.browser_download_url, {
+                maxBytes: MAX_SERVER_MANIFEST_BYTES,
+                accept: 'application/octet-stream',
+            });
+            const manifest = JSON.parse(manifestData.toString('utf8'));
+            if (commitsMatch(remoteSHA, manifest.commit)
+                && manifest.goos === target.goos
+                && manifest.goarch === target.goarch
+                && manifest.asset === target.assetName) {
+                return {
+                    available: true,
+                    exact: true,
+                    source: 'release',
+                    downloadUrl: binary.browser_download_url,
+                    manifestUrl: manifestAsset.browser_download_url,
+                    manifest,
+                    archive: false,
+                    artifactName: null,
+                    artifactId: null,
+                    runId: null,
+                    runUrl: null,
+                    releaseName: release.name || release.tag_name,
+                    releaseTag: release.tag_name,
+                    assetSize: binary.size || null,
+                    commit: manifest.commit,
+                };
+            }
+        } catch (_e) {
+            // Ignore malformed or unavailable release candidates.
+        }
+    }
+    return null;
 }
 
 /**
  * Check if a pre-built binary is available on GitHub Releases.
- * Looks for the latest release, then for a binary asset matching the current OS/arch.
+ * For an update SHA, prefer an exact successful Actions run and then an
+ * exact Release asset. Without a SHA, return only an informational latest
+ * release candidate for the Settings diagnostics.
  *
- * @returns {Promise<{ available: boolean, downloadUrl: string|null, releaseName: string|null, releaseTag: string|null, assetSize: number|null }>}
+ * @returns {Promise<object>}
  */
-async function checkPrebuiltAvailable() {
+async function checkPrebuiltAvailable(remoteSHA = null) {
+    const target = getServerBinaryTarget();
+    const unavailable = {
+        available: false,
+        exact: false,
+        source: null,
+        downloadUrl: null,
+        manifestUrl: null,
+        archive: false,
+        artifactName: null,
+        artifactId: null,
+        runId: null,
+        runUrl: null,
+        releaseName: null,
+        releaseTag: null,
+        assetSize: null,
+        commit: null,
+        reason: null,
+        ...target,
+    };
     try {
-        const release = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`);
-        if (!release || !release.assets || !release.assets.length) {
-            return { available: false, downloadUrl: null, releaseName: null, releaseTag: null, assetSize: null };
-        }
-
-        const binaryName = getReleaseBinaryName();
-        // Also check common alternative names (without os-arch suffix for Windows)
-        const altNames = IS_WINDOWS
-            ? [binaryName, 'betterdesk-server.exe']
-            : [binaryName, `betterdesk-server-${process.platform === 'darwin' ? 'darwin' : 'linux'}`];
-
-        const asset = release.assets.find(a =>
-            altNames.some(name => a.name === name || a.name.toLowerCase() === name.toLowerCase())
-        );
-
-        if (asset) {
+        if (remoteSHA) {
+            try {
+                const workflowArtifact = await findWorkflowServerArtifact(remoteSHA, target);
+                if (workflowArtifact) return { ...unavailable, ...workflowArtifact, ...target };
+            } catch (err) {
+                unavailable.reason = `GitHub Actions lookup failed: ${err.message}`;
+            }
+            try {
+                const releaseAsset = await findExactReleaseAsset(remoteSHA, target);
+                if (releaseAsset) return { ...unavailable, ...releaseAsset, ...target };
+            } catch (err) {
+                unavailable.reason = unavailable.reason
+                    || `GitHub Release lookup failed: ${err.message}`;
+            }
             return {
-                available: true,
-                downloadUrl: asset.browser_download_url,
-                releaseName: release.name || release.tag_name,
-                releaseTag: release.tag_name,
-                assetSize: asset.size || null
+                ...unavailable,
+                reason: unavailable.reason || 'No verified binary was built for this commit',
             };
         }
 
-        return { available: false, downloadUrl: null, releaseName: release.name, releaseTag: release.tag_name, assetSize: null };
+        const release = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`);
+        if (!release || !release.assets || !release.assets.length) {
+            return { ...unavailable, reason: 'No GitHub Release is available' };
+        }
+
+        const asset = release.assets.find((item) => item.name === target.assetName);
+
+        if (asset) {
+            return {
+                ...unavailable,
+                available: true,
+                exact: false,
+                source: 'release',
+                downloadUrl: asset.browser_download_url,
+                releaseName: release.name || release.tag_name,
+                releaseTag: release.tag_name,
+                assetSize: asset.size || null,
+                reason: 'Latest release candidate; exact commit is checked during install',
+            };
+        }
+
+        return {
+            ...unavailable,
+            releaseName: release.name,
+            releaseTag: release.tag_name,
+            reason: `Release has no ${target.assetName} asset`,
+        };
     } catch (_e) {
-        return { available: false, downloadUrl: null, releaseName: null, releaseTag: null, assetSize: null };
+        return { ...unavailable, reason: 'GitHub Release lookup failed' };
     }
 }
 
@@ -2010,56 +2293,82 @@ async function checkPrebuiltAvailable() {
  * Validates the download is non-empty and reasonable size.
  *
  * @param {string} downloadUrl
+ * @param {object} expected
  * @returns {Promise<{ success: boolean, binaryPath: string|null, error?: string, size?: number }>}
  */
-async function downloadPrebuiltBinary(downloadUrl) {
-    if (!downloadUrl || typeof downloadUrl !== 'string' || !downloadUrl.startsWith('https://')) {
-        return { success: false, binaryPath: null, error: 'Invalid download URL' };
-    }
-
+async function downloadPrebuiltBinary(downloadUrl, expected = {}) {
+    const target = getServerBinaryTarget();
+    const metadata = { ...target, ...expected };
     const serverDir = resolveServerSourceRootForUpdate();
     fs.mkdirSync(serverDir, { recursive: true });
 
-    const binaryName = IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server';
-    const outputPath = path.join(serverDir, binaryName);
-
     try {
-        const data = await new Promise((resolve, reject) => {
-            const headers = { 'User-Agent': USER_AGENT, 'Accept': 'application/octet-stream' };
-            if (GITHUB_TOKEN) headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
-
-            const follow = (target, redirects = 0) => {
-                if (redirects > 5) return reject(new Error('Too many redirects'));
-                const url = new URL(target);
-                const mod = url.protocol === 'https:' ? https : require('http');
-                const req = mod.get({ hostname: url.hostname, path: url.pathname + url.search, headers }, (res) => {
-                    if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
-                        return follow(res.headers.location, redirects + 1);
-                    }
-                    if (res.statusCode !== 200) {
-                        return reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-                    }
-                    const chunks = [];
-                    res.on('data', c => chunks.push(c));
-                    res.on('end', () => resolve(Buffer.concat(chunks)));
-                });
-                req.on('error', reject);
-                req.setTimeout(120000, () => { req.destroy(); reject(new Error('Download timeout (120s)')); });
-            };
-            follow(downloadUrl);
+        const payload = await downloadGithubBuffer(downloadUrl, {
+            maxBytes: metadata.archive ? MAX_SERVER_ARTIFACT_BYTES : MAX_SERVER_BINARY_BYTES,
         });
+        let binaryData = payload;
+        let manifest = metadata.manifest || null;
 
-        // Sanity check: binary should be at least 1MB
-        if (!data || data.length < 1024 * 1024) {
-            return { success: false, binaryPath: null, error: `Downloaded file too small (${data ? data.length : 0} bytes) — likely not a valid binary` };
+        if (metadata.archive) {
+            const zip = new AdmZip(payload);
+            const entries = zip.getEntries();
+            for (const entry of entries) {
+                if (!getSafeZipEntryName(entry.entryName)) {
+                    return { success: false, binaryPath: null, error: 'Unsafe path in server artifact ZIP' };
+                }
+            }
+            const binaryEntry = entries.find((entry) =>
+                !entry.isDirectory && getSafeZipEntryName(entry.entryName)
+                    .split('/').pop() === metadata.assetName
+            );
+            const manifestEntry = entries.find((entry) =>
+                !entry.isDirectory && getSafeZipEntryName(entry.entryName)
+                    .split('/').pop() === `${metadata.assetName}.manifest.json`
+            );
+            if (!binaryEntry || !manifestEntry) {
+                return { success: false, binaryPath: null, error: 'Server artifact is missing binary or manifest' };
+            }
+            binaryData = binaryEntry.getData();
+            try {
+                manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
+            } catch (_e) {
+                return { success: false, binaryPath: null, error: 'Server artifact manifest is invalid JSON' };
+            }
+        } else if (metadata.manifestUrl && !manifest) {
+            const manifestData = await downloadGithubBuffer(metadata.manifestUrl, {
+                maxBytes: MAX_SERVER_MANIFEST_BYTES,
+            });
+            manifest = JSON.parse(manifestData.toString('utf8'));
         }
 
-        fs.writeFileSync(outputPath, data);
+        if (binaryData.length < 1024 * 1024) {
+            return { success: false, binaryPath: null, error: `Downloaded file too small (${binaryData.length} bytes) — likely not a valid binary` };
+        }
+        const manifestError = validateServerBinaryManifest(manifest, binaryData, metadata);
+        if (manifestError) {
+            return { success: false, binaryPath: null, error: manifestError };
+        }
+
+        const outputPath = path.join(serverDir, metadata.binaryName);
+        const temporaryPath = `${outputPath}.download-${process.pid}-${Date.now()}`;
+        fs.writeFileSync(temporaryPath, binaryData, { mode: 0o755 });
         if (!IS_WINDOWS) {
-            try { fs.chmodSync(outputPath, 0o755); } catch (_e) { /* ok */ }
+            try { fs.chmodSync(temporaryPath, 0o755); } catch (_e) { /* ok */ }
+        }
+        try {
+            fs.renameSync(temporaryPath, outputPath);
+        } catch (renameErr) {
+            try { fs.rmSync(temporaryPath, { force: true }); } catch (_e) { /* best effort */ }
+            throw renameErr;
         }
 
-        return { success: true, binaryPath: outputPath, size: data.length };
+        return {
+            success: true,
+            binaryPath: outputPath,
+            size: binaryData.length,
+            sha256: manifest.sha256,
+            commit: manifest.commit,
+        };
     } catch (err) {
         return { success: false, binaryPath: null, error: `Binary download failed: ${err.message}` };
     }
@@ -2101,8 +2410,8 @@ function getServerUpdateInfo() {
 /**
  * Check pre-built binary availability (async — called separately from getServerUpdateInfo).
  */
-async function getPrebuiltInfo() {
-    return checkPrebuiltAvailable();
+async function getPrebuiltInfo(remoteSHA = null) {
+    return checkPrebuiltAvailable(remoteSHA);
 }
 
 function getAutoUpdateComponents(changedData) {
@@ -2648,13 +2957,18 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         let prebuiltInfo = null;
 
         const getPrebuiltOnce = async () => {
-            if (!prebuiltInfo) prebuiltInfo = await checkPrebuiltAvailable();
+            if (!prebuiltInfo) prebuiltInfo = await checkPrebuiltAvailable(remoteSHA);
             return prebuiltInfo;
         };
 
-        // ---- Strategy: download Go toolchain on demand ----
-        // Triggered explicitly ('install-go') or by auto-fallback (no Go + no
-        // matching pre-built binary).
+        // In auto mode, an exact verified GitHub binary is faster than a local
+        // compile. A local build remains the fallback when the CI job/artifact
+        // is unavailable or does not match this update SHA.
+        let prebuilt = null;
+        if (strategy === 'auto' || strategy === 'download') {
+            prebuilt = await getPrebuiltOnce();
+        }
+
         let toolchainInstalled = false;
         if (strategy === 'install-go' && !goAvailable) {
             const tc = await installGoToolchain();
@@ -2669,25 +2983,20 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 goAvailable = true;
                 preferredGoBinPath = tc.binPath || null;
             }
-        } else if (strategy === 'auto' && !goAvailable) {
-            // Auto-fallback: only attempt toolchain install if no pre-built
-            // release is reachable. This keeps the default path light.
+        } else if (strategy === 'auto' && !prebuilt?.available && !goAvailable) {
             try {
-                const prebuilt = await getPrebuiltOnce();
-                if (!prebuilt.available || !prebuilt.downloadUrl) {
-                    const tc = await installGoToolchain();
-                    results.toolchainInstall = {
-                        success: tc.success,
-                        version: tc.version || null,
-                        error: tc.error || null,
-                        binPath: tc.binPath || null,
-                        autoTriggered: true
-                    };
-                    if (tc.success) {
-                        toolchainInstalled = true;
-                        goAvailable = true;
-                        preferredGoBinPath = tc.binPath || null;
-                    }
+                const tc = await installGoToolchain();
+                results.toolchainInstall = {
+                    success: tc.success,
+                    version: tc.version || null,
+                    error: tc.error || null,
+                    binPath: tc.binPath || null,
+                    autoTriggered: true
+                };
+                if (tc.success) {
+                    toolchainInstalled = true;
+                    goAvailable = true;
+                    preferredGoBinPath = tc.binPath || null;
                 }
             } catch (err) {
                 console.error('[UPDATE] auto-fallback toolchain install failed:', err.message);
@@ -2709,7 +3018,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         }
 
         const wantsCompile = strategy === 'compile' || strategy === 'install-go' || toolchainInstalled
-            || (strategy === 'auto' && goAvailable);
+            || (strategy === 'auto' && !prebuilt?.available && goAvailable);
 
         // Keep local Go server source in sync for every server update path.
         // Even when a pre-built binary is used, the next source build must not
@@ -2781,33 +3090,11 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
             // Try to get from GitHub Releases first
             let downloadResult = null;
-            const prebuilt = await getPrebuiltOnce();
-
             if (prebuilt.available && prebuilt.downloadUrl) {
-                downloadResult = await downloadPrebuiltBinary(prebuilt.downloadUrl);
-            }
-
-            // If release download failed, try direct raw download of the binary from the repo tree
-            if (!downloadResult || !downloadResult.success) {
-                const binaryName = IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server-linux-amd64';
-                const repoPath = `betterdesk-server/${binaryName}`;
-                try {
-                    console.log(`[UPDATE] Trying raw binary download from repo: ${repoPath}`);
-                    const data = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, repoPath);
-                    if (data && data.length > 1024 * 1024) {
-                        const serverDir = resolveServerSourceRootForUpdate();
-                        fs.mkdirSync(serverDir, { recursive: true });
-                        const outName = IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server';
-                        const outputPath = path.join(serverDir, outName);
-                        fs.writeFileSync(outputPath, data);
-                        if (!IS_WINDOWS) {
-                            try { fs.chmodSync(outputPath, 0o755); } catch (_e) { /* ok */ }
-                        }
-                        downloadResult = { success: true, binaryPath: outputPath, size: data.length };
-                    }
-                } catch (_e) {
-                    // Binary not in repo tree — expected
-                }
+                downloadResult = await downloadPrebuiltBinary(prebuilt.downloadUrl, {
+                    ...prebuilt,
+                    remoteSHA,
+                });
             }
 
             if (downloadResult && downloadResult.success) {
@@ -2816,12 +3103,20 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     duration: 0,
                     error: null,
                     method: 'download',
+                    source: prebuilt.source || null,
+                    runId: prebuilt.runId || null,
+                    releaseTag: prebuilt.releaseTag || null,
+                    commit: downloadResult.commit || prebuilt.commit || null,
+                    sha256: downloadResult.sha256 || null,
+                    verified: true,
                     size: downloadResult.size || 0
                 };
                 serverBinaryPath = downloadResult.binaryPath;
                 buildUsed = 'download';
             } else {
-                const errMsg = downloadResult?.error || 'No pre-built binary available and Go not installed';
+                const errMsg = downloadResult?.error
+                    || prebuilt?.reason
+                    || 'No verified pre-built binary available and Go not installed';
                 results.serverBuild = {
                     success: false,
                     duration: 0,
@@ -2959,39 +3254,25 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             fs.writeFileSync(versionDest, versionContent);
         } catch (_e) { /* non-critical */ }
 
-        // ---- Support Agent generator: stage source + queue only its bundles ----
+        // ---- Support Agent generator: defer to post-restart phase ----
         // Agent Client and RdClient use their own workers. Keeping this rebuild
         // scoped prevents a Support Agent source update from invalidating their
         // ready artifacts, while legacy "agent" rows normalize to Support Agent.
+        // The source tree can contain hundreds of files, so neither its sync nor
+        // the queue operation may delay completion of the console update.
         if (shouldQueueAgentRebuild(changedData)) {
             try {
                 const agentBuildWorker = require('./agentBuildWorker');
-                const stageResult = await agentBuildWorker.syncFullAgentSourceFromGitHub({
-                    remoteSHA,
-                    download: ghDownloadFile,
-                    listPaths: ghListRepoBlobPaths,
-                });
-                agentBuildWorker.markRebuildPending('in-app update');
-                // The worker's product-type filter deliberately requeues only
-                // Support Agent bundles. The flag remains a restart safety net.
-                let requeue = { bundles: 0 };
-                try {
-                    requeue = await agentBuildWorker.requeueAllBundleBuilds();
-                } catch (requeueErr) {
-                    console.warn(`[UPDATE] Immediate support-agent rebuild requeue failed: ${requeueErr.message}`);
-                }
-                results.agentSourcesStaged = stageResult.staged;
-                results.agentSourcePaths = stageResult.paths;
-                results.agentRebuildQueued = true;
-                results.agentRebuildBundles = requeue.bundles;
+                agentBuildWorker.markRebuildPending('in-app update', { remoteSHA });
+                results.agentRebuildDeferred = true;
+                results.agentRebuildRemoteSHA = remoteSHA;
                 results.agentRebuildProductType = 'support-agent';
                 console.log(
-                    `[UPDATE] Support Agent source tree synced (${stageResult.staged}/${stageResult.paths} file(s));`
-                    + ` rebuild queued for ${requeue.bundles} bundle(s)`
+                    `[UPDATE] Support Agent rebuild deferred until console startup at ${remoteSHA.slice(0, 7)}`
                 );
             } catch (err) {
-                results.failed.push({ file: 'support-agent-source-sync', error: err.message, nonCritical: true });
-                console.warn(`[UPDATE] Full support-agent source sync failed: ${err.message}`);
+                results.failed.push({ file: 'support-agent-rebuild-defer', error: err.message, nonCritical: true });
+                console.warn(`[UPDATE] Could not defer Support Agent rebuild: ${err.message}`);
             }
         }
 
@@ -3468,6 +3749,7 @@ async function runUpdatePreflight(opts = {}) {
     const issues = [];
     const warnings = [];
     const serverUpdateRequired = !!opts.serverUpdateRequired;
+    const remoteSHA = opts.remoteSHA || null;
 
     if (isImageBasedDockerDeployment()) {
         const hint = getDockerUpdateInstructions().commands.join(' && ');
@@ -3543,8 +3825,9 @@ async function runUpdatePreflight(opts = {}) {
     }
 
     let prebuiltAvailable = false;
+    let prebuilt = null;
     try {
-        const prebuilt = await checkPrebuiltAvailable();
+        prebuilt = await checkPrebuiltAvailable(remoteSHA);
         prebuiltAvailable = !!(prebuilt && prebuilt.available);
     } catch (_e) { /* optional */ }
 
@@ -3572,8 +3855,10 @@ async function runUpdatePreflight(opts = {}) {
         warnings,
         go: goInfo,
         prebuiltAvailable,
+        prebuilt,
         canBuildServer,
-        disk
+        disk,
+        remoteSHA
     };
 }
 
@@ -3603,6 +3888,11 @@ module.exports = {
     getRemoteHeadSHA,
     getServerUpdateInfo,
     getPrebuiltInfo,
+    checkPrebuiltAvailable,
+    downloadPrebuiltBinary,
+    getServerBinaryTarget,
+    validateServerBinaryManifest,
+    getSafeZipEntryName,
     installGoToolchain,
     checkGoAvailable,
     getServerBinaryStatus,

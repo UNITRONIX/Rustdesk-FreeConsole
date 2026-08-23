@@ -988,7 +988,8 @@ router.post('/api/settings/restore', requireAuth, requirePermission('server.conf
 router.get('/api/settings/updates/server-info', requireAuth, requirePermission('server.config'), async (_req, res) => {
     try {
         const info = updateService.getServerUpdateInfo();
-        const prebuilt = await updateService.getPrebuiltInfo();
+        const remoteSHA = typeof _req.query.sha === 'string' ? _req.query.sha : null;
+        const prebuilt = await updateService.getPrebuiltInfo(remoteSHA);
         res.json({ success: true, data: { ...info, prebuilt } });
     } catch (err) {
         console.error('Server info error:', err);
@@ -1028,7 +1029,8 @@ router.post('/api/settings/updates/install-go', requireAuth, requirePermission('
 router.get('/api/settings/updates/preflight', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
         const serverUpdateRequired = req.query.serverUpdate === '1' || req.query.serverUpdate === 'true';
-        const result = await updateService.runUpdatePreflight({ serverUpdateRequired });
+        const remoteSHA = typeof req.query.sha === 'string' ? req.query.sha : null;
+        const result = await updateService.runUpdatePreflight({ serverUpdateRequired, remoteSHA });
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('Update preflight error:', err);

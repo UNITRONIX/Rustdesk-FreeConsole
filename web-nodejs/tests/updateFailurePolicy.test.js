@@ -27,6 +27,7 @@ describe('updateFailurePolicy', () => {
         expect(isNonCriticalUpdateFailure('npm install')).toBe(true);
         expect(isNonCriticalUpdateFailure('betterdesk-server.service')).toBe(true);
         expect(isNonCriticalUpdateFailure('support-agent-source-sync')).toBe(true);
+        expect(isNonCriticalUpdateFailure('support-agent-rebuild-defer')).toBe(true);
     });
 
     test('detects phantom repair paths', () => {
