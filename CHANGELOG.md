@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.56] — 2026-08-23
+
 ### Fixed
 - **Relay pair timeout when the target is `connType=tcp` but still heartbeats on UDP (#382):** TCP `RegisterPk` (logged-in GUI) stamped `ConnTCP` and later UDP heartbeats did not restore `ConnUDP`. PunchHole/RequestRelay then called `sendToPeer`, which ignored `UDPAddr` and dropped the message (`TCPConn` is never set). The initiator connected to relay; the target never did. Delivery now prefers UDP when `UDPAddr` is set, heartbeats restore `ConnUDP` (without overriding WebSocket), and `"forwarded"` is logged only when a transport accepted the message. Ships via panel update (Go signal restart). Verify: WAN session to a logged-in native target reaches `[relay] Pair established`; server log shows PunchHole/RequestRelay forwarded; no `Pair timeout` for that UUID.
 - **Registration notifications in UX 3.5:** Pending LAN and managed enrollment requests now update the global badge, appear in the topbar notification center, and refresh the registrations page without opening the tab. The panel event stream has a polling fallback and remains restricted to users with `enrollment.approve`.
@@ -3055,3 +3062,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.53]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.52...v3.5.53
 [3.5.54]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.53...v3.5.54
 [3.5.55]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.54...v3.5.55
+[3.5.56]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.55...v3.5.56
