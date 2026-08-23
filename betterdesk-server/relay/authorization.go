@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ type AuthorizationRegistry struct {
 	tickets map[string]*relayAuthorization
 	used    map[string]time.Time
 	now     func() time.Time
+	waiters map[string]chan struct{} // one notification channel per UUID
 }
 
 type relayAuthorization struct {
@@ -33,6 +35,7 @@ func NewAuthorizationRegistry() *AuthorizationRegistry {
 		tickets: make(map[string]*relayAuthorization),
 		used:    make(map[string]time.Time),
 		now:     time.Now,
+		waiters: make(map[string]chan struct{}),
 	}
 }
 
@@ -80,7 +83,51 @@ func (r *AuthorizationRegistry) Authorize(uuid, initiatorID, targetID string) bo
 		targetID:    targetID,
 		expiresAt:   now.Add(config.RelayPairTimeout),
 	}
+	r.signalWaitersLocked(uuid)
 	return true
+}
+
+// WaitForAuthorization waits until signal authorizes uuid or ctx expires.
+// The check and notification channel are coordinated under the registry lock,
+// so authorization cannot race with waiter registration and get missed. Each
+// UUID has its own channel, avoiding unrelated authorization wakeups.
+func (r *AuthorizationRegistry) WaitForAuthorization(ctx context.Context, uuid string) bool {
+	if uuid == "" {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	for {
+		r.mu.Lock()
+		now := r.now()
+		r.pruneLocked(now)
+		if _, used := r.used[uuid]; used {
+			r.mu.Unlock()
+			return false
+		}
+		if _, authorized := r.tickets[uuid]; authorized {
+			r.mu.Unlock()
+			return true
+		}
+		if r.waiters == nil {
+			r.waiters = make(map[string]chan struct{})
+		}
+		waiter := r.waiters[uuid]
+		if waiter == nil {
+			waiter = make(chan struct{})
+			r.waiters[uuid] = waiter
+		}
+		r.mu.Unlock()
+
+		select {
+		case <-waiter:
+		case <-ctx.Done():
+			r.removeWaiter(uuid, waiter)
+			return false
+		}
+	}
 }
 
 // Claim reserves one of the two connections needed for an authorized relay
@@ -136,7 +183,26 @@ func (r *AuthorizationRegistry) RevokeForPeer(peerID string) {
 		if ticket.initiatorID == peerID || ticket.targetID == peerID {
 			delete(r.tickets, uuid)
 			r.used[uuid] = ticket.expiresAt
+			r.signalWaitersLocked(uuid)
 		}
+	}
+}
+
+func (r *AuthorizationRegistry) signalWaitersLocked(uuid string) {
+	if r.waiters == nil {
+		return
+	}
+	if waiter := r.waiters[uuid]; waiter != nil {
+		delete(r.waiters, uuid)
+		close(waiter)
+	}
+}
+
+func (r *AuthorizationRegistry) removeWaiter(uuid string, waiter chan struct{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if current := r.waiters[uuid]; current == waiter {
+		delete(r.waiters, uuid)
 	}
 }
 

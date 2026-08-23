@@ -28,6 +28,7 @@ const (
 
 	// Relay constants
 	RelayPairTimeout  = 30 * time.Second // Wait for second connection in relay pairing
+	RelayAuthWait     = 2 * time.Second  // Allow signal to authorize a just-arrived relay UUID
 	RelayIdleTimeout  = 30 * time.Second // Close relay after inactivity
 	CheckRelayTimeout = 3 * time.Second  // Relay health check interval
 

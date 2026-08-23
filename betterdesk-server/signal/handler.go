@@ -1376,7 +1376,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	}
 
 	// Store the UUID so we can recover it if target responds with empty UUID.
-	s.storePendingUUID(targetID, relayUUID)
+	s.storePendingUUID(targetID, raddr, relayUUID)
 	s.sendToPeer(targetID, relayReq)
 
 	// Sign the target's PK for E2E encryption verification
@@ -1525,7 +1525,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		},
 	}
 	// Store the UUID so we can recover it if target responds with empty UUID.
-	s.storePendingUUID(targetID, relayUUID)
+	s.storePendingUUID(targetID, raddr, relayUUID)
 	if s.sendToPeer(targetID, reqRelay) {
 		log.Printf("[signal] RequestRelay (TCP): forwarded to %s (connType=%s) secure=%v", targetID, target.ConnType, msg.Secure)
 	}
@@ -1587,11 +1587,23 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 
 	// Look up the target peer to get its public key and sign it (matching Rust's get_pk).
 	targetID := rr.GetId()
+	senderID := s.peerIDForAddr(senderAddr)
+	if targetID != "" && senderID != "" && targetID != senderID {
+		log.Printf("[signal] RelayResponse forward: refusing target=%q from registered peer=%q", targetID, senderID)
+		return
+	}
+	if targetID != "" && senderID == "" && !s.relayResponseSourceMatchesTarget(targetID, senderAddr) {
+		log.Printf("[signal] RelayResponse forward: refusing target=%q from unexpected source=%s", targetID, senderAddr)
+		return
+	}
 
 	// Fallback: if id field is empty (common with some RustDesk client versions),
 	// identify the sender by their IP address in the peer map.
 	if targetID == "" && senderAddr != nil {
-		if n := s.peers.CountByIP(senderAddr.IP); n > 1 {
+		if senderID != "" {
+			targetID = senderID
+			log.Printf("[signal] RelayResponse forward: resolved sender %s to registered peer %s", senderAddr, targetID)
+		} else if n := s.peers.CountByIP(senderAddr.IP); n > 1 {
 			log.Printf("[signal] RelayResponse forward: ambiguous IP lookup for %s (%d peers) — cannot resolve empty id", senderAddr.IP, n)
 		} else if entry := s.peers.FindByIP(senderAddr.IP); entry != nil {
 			targetID = entry.ID
@@ -1604,7 +1616,7 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 	// is critical for relay pairing — the target may have connected to relay with
 	// that UUID, but the old RustDesk client doesn't echo it back.
 	if rr.Uuid == "" {
-		if storedUUID := s.getPendingUUID(targetID); storedUUID != "" {
+		if storedUUID := s.getPendingUUID(targetID, initiatorAddr); storedUUID != "" {
 			rr.Uuid = storedUUID
 			log.Printf("[signal] RelayResponse from %s has empty UUID — recovered original %s from pending store", senderAddr, storedUUID[:8])
 		} else {
@@ -1694,6 +1706,29 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 	}
 
 	log.Printf("[signal] RelayResponse: cannot deliver to %s (no TCP conn, no peer match, uuid=%s)", addrStr, rr.Uuid)
+}
+
+// relayResponseSourceMatchesTarget applies the strongest source correlation
+// available for legacy clients whose response has no registered TCP identity.
+// It deliberately checks the observed public IP only; an IP-only match is not
+// treated as a credential and ambiguous same-NAT cases remain rejected above.
+func (s *Server) relayResponseSourceMatchesTarget(targetID string, senderAddr *net.UDPAddr) bool {
+	if s == nil || s.peers == nil || senderAddr == nil || senderAddr.IP == nil {
+		return false
+	}
+	target := s.peers.Get(targetID)
+	if target == nil {
+		return false
+	}
+	if target.UDPAddr != nil && target.UDPAddr.IP != nil {
+		return target.UDPAddr.IP.Equal(senderAddr.IP)
+	}
+	host, _, err := net.SplitHostPort(target.IP)
+	if err != nil {
+		host = target.IP
+	}
+	targetIP := net.ParseIP(host)
+	return targetIP != nil && targetIP.Equal(senderAddr.IP)
 }
 
 // handleFetchLocalAddr forwards a local address fetch request to the target peer.
@@ -1858,7 +1893,7 @@ func (s *Server) sendRelayResponse(target *peer.Entry, raddr *net.UDPAddr, msg *
 	}
 	if target.UDPAddr != nil {
 		// Store the UUID so we can recover it if target responds with empty UUID.
-		s.storePendingUUID(target.ID, relayUUID)
+		s.storePendingUUID(target.ID, raddr, relayUUID)
 		s.sendUDP(reqRelay, target.UDPAddr)
 		log.Printf("[signal] sendRelayResponse: forwarded RequestRelay to target %s at %s (uuid=%s)", target.ID, target.UDPAddr, relayUUID[:8])
 	}

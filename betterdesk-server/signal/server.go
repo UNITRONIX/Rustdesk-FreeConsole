@@ -127,7 +127,9 @@ type Server struct {
 	// pendingRelayUUIDs tracks the UUID we send to each target when forwarding
 	// RequestRelay or PunchHole (force-relay). Some RustDesk clients respond with
 	// an empty UUID in RelayResponse — this map lets us recover the original UUID
-	// so relay pairing succeeds. Key=targetID, Value=*pendingUUID.
+	// so relay pairing succeeds. Key=targetID + initiator endpoint,
+	// Value=*pendingUUID. Including the endpoint prevents parallel sessions to
+	// one target from borrowing each other's UUID.
 	pendingRelayUUIDs sync.Map // map[string]*pendingUUID
 
 	// pendingPunches tracks P2P-first fallback timers per initiator address
@@ -1069,11 +1071,24 @@ func (s *Server) sendUDP(msg *pb.RendezvousMessage, addr *net.UDPAddr) bool {
 	return true
 }
 
+// pendingRelayKey isolates a target's relay UUIDs by the initiator endpoint.
+// RustDesk's socket_addr is the only stable correlation field available from
+// old clients that omit the UUID in RelayResponse.
+func pendingRelayKey(targetID string, initiatorAddr *net.UDPAddr) string {
+	if initiatorAddr == nil {
+		return targetID + "\x00"
+	}
+	return targetID + "\x00" + normalizeAddrKey(initiatorAddr.String())
+}
+
 // storePendingUUID stores a relay UUID that we sent/are sending to a target.
 // When the target responds with RelayResponse containing empty UUID, we can
 // look up this stored UUID to maintain relay pairing.
-func (s *Server) storePendingUUID(targetID, uuid string) {
-	s.pendingRelayUUIDs.Store(targetID, &pendingUUID{
+func (s *Server) storePendingUUID(targetID string, initiatorAddr *net.UDPAddr, uuid string) {
+	if targetID == "" || uuid == "" {
+		return
+	}
+	s.pendingRelayUUIDs.Store(pendingRelayKey(targetID, initiatorAddr), &pendingUUID{
 		uuid:      uuid,
 		createdAt: time.Now(),
 	})
@@ -1081,9 +1096,9 @@ func (s *Server) storePendingUUID(targetID, uuid string) {
 
 // getPendingUUID retrieves the pending UUID for a target device (without removing it).
 // The UUID remains available for subsequent retry attempts; cleanup happens via ticker.
-// Returns empty string if no pending UUID exists for this target.
-func (s *Server) getPendingUUID(targetID string) string {
-	if val, ok := s.pendingRelayUUIDs.Load(targetID); ok {
+// Returns empty string if no pending UUID exists for this target and initiator.
+func (s *Server) getPendingUUID(targetID string, initiatorAddr *net.UDPAddr) string {
+	if val, ok := s.pendingRelayUUIDs.Load(pendingRelayKey(targetID, initiatorAddr)); ok {
 		return val.(*pendingUUID).uuid
 	}
 	return ""

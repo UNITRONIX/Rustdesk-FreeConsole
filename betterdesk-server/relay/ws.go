@@ -137,12 +137,12 @@ func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uuid := rr.Uuid
-	if s.authorizations == nil || !s.authorizations.Claim(uuid) {
+	if !s.claimRelayUUID(uuid, r.RemoteAddr) {
 		log.Printf("[relay] WS unauthorized relay UUID from %s (rejecting)", r.RemoteAddr)
 		wsc.Close()
 		return
 	}
-	log.Printf("[relay] WS connection from %s for UUID %s", r.RemoteAddr, uuid)
+	log.Printf("[relay] WS connection from %s for UUID %s", r.RemoteAddr, relayUUIDLogID(uuid))
 
 	// Keep the raw WebSocket for message-preserving bidirectional copy.
 	// Do NOT wrap with websocket.NetConn + io.Copy: NetConn.Write creates a new
@@ -177,7 +177,7 @@ func (s *Server) startWSRelay(ws1, ws2 *websocket.Conn, addr1, addr2, uuid strin
 				ip = addr
 			}
 			if !s.sessionLimiter.Acquire(ip) {
-				log.Printf("[relay] Active session limit exceeded for %s (UUID %s)", ip, uuid)
+				log.Printf("[relay] Active session limit exceeded for %s (UUID %s)", ip, relayUUIDLogID(uuid))
 				_ = ws1.Close(websocket.StatusNormalClosure, "")
 				_ = ws2.Close(websocket.StatusNormalClosure, "")
 				return
@@ -195,7 +195,7 @@ func (s *Server) startWSRelay(ws1, ws2 *websocket.Conn, addr1, addr2, uuid strin
 	s.TotalRelayed.Add(1)
 
 	log.Printf("[relay] Pair established: %s <-> %s (UUID: %s, transport=ws)",
-		addr1, addr2, uuid)
+		addr1, addr2, relayUUIDLogID(uuid))
 
 	if s.onRelayStart != nil {
 		s.onRelayStart(uuid)
@@ -238,7 +238,7 @@ func (s *Server) startWSRelay(ws1, ws2 *websocket.Conn, addr1, addr2, uuid strin
 	}
 
 	s.ActiveSessions.Add(-1)
-	log.Printf("[relay] Session ended: UUID %s (active: %d)", uuid, s.ActiveSessions.Load())
+	log.Printf("[relay] Session ended: UUID %s (active: %d)", relayUUIDLogID(uuid), s.ActiveSessions.Load())
 }
 
 // copyWSMessages forwards complete WebSocket messages from src to dst.

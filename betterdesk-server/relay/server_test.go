@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -224,6 +225,86 @@ func TestRelayRejectsUnknownUUID(t *testing.T) {
 	if srv.ActiveSessions.Load() != 0 || srv.TotalRelayed.Load() != 0 {
 		t.Fatalf("unknown UUID must not create a session: active=%d total=%d",
 			srv.ActiveSessions.Load(), srv.TotalRelayed.Load())
+	}
+}
+
+func TestRelayAcceptsTargetBeforeLateAuthorization(t *testing.T) {
+	cfg := config.DefaultConfig()
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	cfg.RelayPort = port
+
+	registry := NewAuthorizationRegistry()
+	srv := New(cfg)
+	srv.SetAuthorizationRegistry(registry)
+	if err := srv.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+
+	const relayUUID = "late-signal-authorization-uuid"
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	targetConn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer targetConn.Close()
+	request := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RequestRelay{
+			RequestRelay: &pb.RequestRelay{Uuid: relayUUID},
+		},
+	}
+	if err := codec.WriteRawProto(targetConn, request); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		total, _ := srv.authWait.snapshot()
+		if total == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("target did not enter bounded authorization wait")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if !registry.Authorize(relayUUID, "INIT-LATE", "TARGET-LATE") {
+		t.Fatal("late signal authorization failed")
+	}
+
+	initiatorConn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer initiatorConn.Close()
+	if err := codec.WriteRawProto(initiatorConn, request); err != nil {
+		t.Fatal(err)
+	}
+
+	waitRelayPairing(t, srv)
+}
+
+func TestRelayAuthWaitTimesOutAndReleasesCapacity(t *testing.T) {
+	srv := New(config.DefaultConfig())
+	srv.ctx, srv.cancel = context.WithCancel(context.Background())
+	defer srv.cancel()
+
+	started := time.Now()
+	if srv.claimRelayUUID("never-authorized-server-uuid", "198.51.100.250:40000") {
+		t.Fatal("unknown relay UUID must be rejected")
+	}
+	if elapsed := time.Since(started); elapsed < config.RelayAuthWait ||
+		elapsed > config.RelayAuthWait+time.Second {
+		t.Fatalf("auth wait duration = %v, want approximately %v", elapsed, config.RelayAuthWait)
+	}
+	if total, _ := srv.authWait.snapshot(); total != 0 {
+		t.Fatalf("auth wait slots leaked: %d", total)
 	}
 }
 
