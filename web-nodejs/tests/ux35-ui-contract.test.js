@@ -17,6 +17,8 @@ describe('UX 3.5 mobile and accessibility contracts', () => {
     const sidebar = read('views', 'partials', 'ux35-sidebar.ejs');
     const layout = read('views', 'layouts', 'main.ejs');
     const automation = read('public', 'js', 'automation.js');
+    const appJs = read('public', 'js', 'app.js');
+    const notifCenter = read('public', 'js', 'notif-center.js');
 
     it('keeps classic mobile height rules out of the UX 3.5 scroll region', () => {
         assert.match(mobileCss, /\.app-layout \.main-content/);
@@ -60,5 +62,16 @@ describe('UX 3.5 mobile and accessibility contracts', () => {
         assert.match(layout, /<script defer src="\/js\/utils\.js/);
         assert.match(layout, /<script defer src="\/js\/ux35-shell\.js/);
         assert.match(layout, /<script defer src="\/js\/<%= script %>\.js/);
+    });
+
+    it('keeps registration notifications visible without opening the registrations page', () => {
+        assert.match(appJs, /\/ws\/panel-events/);
+        assert.match(appJs, /registrations:pending-changed/);
+        assert.match(appJs, /setInterval\(updateBadge, 15000\)/);
+        assert.match(notifCenter, /data\.unread_count/);
+        assert.match(notifCenter, /registration_pending/);
+        assert.match(topbar, /id="notif-badge"/);
+        assert.match(topbar, /href="\/registrations"/);
+        assert.match(sidebar, /id="reg-sidebar-badge"/);
     });
 });

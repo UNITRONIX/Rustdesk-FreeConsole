@@ -24,8 +24,8 @@ import (
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
-	pb "github.com/unitronix/betterdesk-server/proto"
 	"github.com/unitronix/betterdesk-server/policy"
+	pb "github.com/unitronix/betterdesk-server/proto"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/security"
 	"google.golang.org/protobuf/encoding/protowire"
@@ -74,6 +74,25 @@ func (pc *tcpPunchConn) writeProto(msg *pb.RendezvousMessage) error {
 		return pc.secure.WriteMessage(msg)
 	}
 	return codec.WriteRawProto(pc.conn, msg)
+}
+
+// tcpPunchConnForPeer returns a keep-alive TCP signal connection bound to peerID
+// (RegisterPk / punch session). Used to deliver PunchHole/RequestRelay to
+// TCP-only targets that have no UDP heartbeat.
+func (s *Server) tcpPunchConnForPeer(peerID string) *tcpPunchConn {
+	if s == nil || peerID == "" {
+		return nil
+	}
+	var found *tcpPunchConn
+	s.tcpPunchConns.Range(func(_, value any) bool {
+		pc, ok := value.(*tcpPunchConn)
+		if ok && pc != nil && pc.peerID == peerID {
+			found = pc
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // Server is the main signal server instance.
@@ -1032,16 +1051,22 @@ func (s *Server) cleanupTCPPunchConns() {
 	}
 }
 
-// sendUDP sends a protobuf message to a UDP address.
-func (s *Server) sendUDP(msg *pb.RendezvousMessage, addr *net.UDPAddr) {
+// sendUDP sends a protobuf message to a UDP address. Returns false when the
+// UDP socket is unavailable or the write fails (tests often have a nil udpConn).
+func (s *Server) sendUDP(msg *pb.RendezvousMessage, addr *net.UDPAddr) bool {
+	if s == nil || s.udpConn == nil || msg == nil || addr == nil {
+		return false
+	}
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		log.Printf("[signal] marshal error: %v", err)
-		return
+		return false
 	}
 	if _, err := s.udpConn.WriteToUDP(data, addr); err != nil {
 		log.Printf("[signal] UDP send to %s: %v", addr, err)
+		return false
 	}
+	return true
 }
 
 // storePendingUUID stores a relay UUID that we sent/are sending to a target.

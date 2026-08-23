@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
 	cryptopkg "github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
@@ -18,6 +19,7 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/relay"
+	"google.golang.org/protobuf/proto"
 )
 
 func newTestSignalServer(t *testing.T, mode string) (*Server, db.Database) {
@@ -1634,5 +1636,159 @@ func TestBannedTokenInitiatorRevokesSessionAndRelayTickets(t *testing.T) {
 	}
 	if relay.AuthorizeRelayPair(relayUUID, "TOKBAN1", "TGTBAN1") {
 		t.Fatal("banned peer relay ticket must remain revoked")
+	}
+}
+
+func attachTestUDPPair(t *testing.T, srv *Server) (*net.UDPConn, *net.UDPAddr) {
+	t.Helper()
+	send, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("listen send UDP: %v", err)
+	}
+	t.Cleanup(func() { send.Close() })
+	recv, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("listen recv UDP: %v", err)
+	}
+	t.Cleanup(func() { recv.Close() })
+	srv.udpConn = send
+	return recv, recv.LocalAddr().(*net.UDPAddr)
+}
+
+func readUDPRendezvous(t *testing.T, conn *net.UDPConn) *pb.RendezvousMessage {
+	t.Helper()
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 65535)
+	n, _, err := conn.ReadFromUDP(buf)
+	if err != nil {
+		t.Fatalf("UDP read: %v", err)
+	}
+	msg := &pb.RendezvousMessage{}
+	if err := proto.Unmarshal(buf[:n], msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return msg
+}
+
+func TestHandlePunchHoleRequestTCPForwardsUDPWhenConnTCP(t *testing.T) {
+	// #382: TCP RegisterPk stamps ConnTCP, but the OS service still heartbeats
+	// on UDP. PunchHole must reach the target UDP socket, not be dropped.
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.P2PFirst = false
+	recv, targetAddr := attachTestUDPPair(t, srv)
+
+	putOnlinePeer(srv, "INIT382", "127.0.0.1", 51000, peer.ConnTCP)
+	srv.peers.Put(&peer.Entry{
+		ID:         "TGT382",
+		UDPAddr:    targetAddr,
+		IP:         targetAddr.String(),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGT382"}, udpAddr("127.0.0.1", 51000))
+	if resp == nil || resp.GetPunchHoleResponse() == nil {
+		t.Fatalf("expected PunchHoleResponse, got %+v", resp)
+	}
+
+	got := readUDPRendezvous(t, recv)
+	if got.GetPunchHole() == nil {
+		t.Fatalf("expected PunchHole on target UDP, got %+v", got)
+	}
+}
+
+func TestHandleRequestRelayTCPForwardsUDPWhenConnTCP(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	recv, targetAddr := attachTestUDPPair(t, srv)
+
+	putOnlinePeer(srv, "INIT382R", "127.0.0.1", 51001, peer.ConnTCP)
+	srv.peers.Put(&peer.Entry{
+		ID:         "TGT382R",
+		UDPAddr:    targetAddr,
+		IP:         targetAddr.String(),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	const relayUUID = "382-relay-forward-uuid"
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGT382R",
+		Uuid: relayUUID,
+	}, udpAddr("127.0.0.1", 51001), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+
+	got := readUDPRendezvous(t, recv)
+	req := got.GetRequestRelay()
+	if req == nil {
+		t.Fatalf("expected RequestRelay on target UDP, got %+v", got)
+	}
+	if req.Uuid != relayUUID {
+		t.Fatalf("relay UUID = %q, want %q", req.Uuid, relayUUID)
+	}
+}
+
+func TestSendToPeerTCPWithoutTransportDrops(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.peers.Put(&peer.Entry{
+		ID:         "NOTRANS1",
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	ok := srv.sendToPeer("NOTRANS1", &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_PunchHole{PunchHole: &pb.PunchHole{}},
+	})
+	if ok {
+		t.Fatal("expected drop when ConnTCP has no UDPAddr, TCPConn, or punch conn")
+	}
+}
+
+func TestSendToPeerTCPPunchConn(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	client, server := net.Pipe()
+	t.Cleanup(func() { client.Close(); server.Close() })
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "TCPONLY1",
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.tcpPunchConns.Store("127.0.0.1:59999", &tcpPunchConn{
+		conn:      server,
+		createdAt: time.Now(),
+		peerID:    "TCPONLY1",
+	})
+
+	msg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RequestRelay{
+			RequestRelay: &pb.RequestRelay{Uuid: "punch-conn-uuid", Id: "TCPONLY1"},
+		},
+	}
+	errCh := make(chan error, 1)
+	var got *pb.RendezvousMessage
+	go func() {
+		m, err := codec.ReadRawProto(client, 2*time.Second)
+		got = m
+		errCh <- err
+	}()
+	if !srv.sendToPeer("TCPONLY1", msg) {
+		t.Fatal("expected delivery via tcpPunchConns")
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("ReadRawProto: %v", err)
+	}
+	if got.GetRequestRelay() == nil || got.GetRequestRelay().Uuid != "punch-conn-uuid" {
+		t.Fatalf("expected RequestRelay on punch conn, got %+v", got)
 	}
 }

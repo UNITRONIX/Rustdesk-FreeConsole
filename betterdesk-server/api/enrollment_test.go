@@ -14,6 +14,7 @@ import (
 
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 )
 
@@ -29,6 +30,46 @@ func signedEnrollmentHeaders(t *testing.T, privateKey ed25519.PrivateKey, method
 	headers.Set("X-BD-Enrollment-Nonce", nonce)
 	headers.Set("X-BD-Enrollment-Signature", base64.StdEncoding.EncodeToString(signature))
 	return headers
+}
+
+func TestManagedEnrollmentPublishesPendingEvent(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	cfg := config.DefaultConfig()
+	cfg.EnrollmentMode = config.EnrollmentModeManaged
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	bus := events.NewBus()
+	srv.SetEventBus(bus)
+	sub := bus.Subscribe(events.EventEnrollmentPending)
+	defer bus.Unsubscribe(sub)
+
+	body, _ := json.Marshal(map[string]any{
+		"device_id": "BD-PENDING-EVENT",
+		"uuid":      "pending-event-machine",
+		"hostname":  "pending-host",
+		"platform":  "linux",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.handleDeviceRegister(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	select {
+	case event := <-sub.Ch:
+		if event.Type != events.EventEnrollmentPending {
+			t.Fatalf("event type = %q, want %q", event.Type, events.EventEnrollmentPending)
+		}
+		if event.Data["device_id"] != "BD-PENDING-EVENT" {
+			t.Fatalf("event device_id = %q", event.Data["device_id"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pending enrollment event")
+	}
 }
 
 func TestDeviceRegisterIdentityConflict(t *testing.T) {

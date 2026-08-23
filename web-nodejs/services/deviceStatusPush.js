@@ -5,13 +5,15 @@
  * changes to browser clients in real time.
  *
  * Go server endpoint: GET /api/ws/events
- * Browser endpoint:   WS /ws/device-status
+ * Browser endpoints:  WS /ws/device-status (device status)
+ *                     WS /ws/panel-events (registration notifications)
  */
 
 'use strict';
 
 const WebSocket = require('ws');
 const db = require('./database');
+const { roleHasPermission } = require('../middleware/auth');
 
 const log = {
     info:  (...a) => console.log('[DeviceStatus]', ...a),
@@ -22,6 +24,19 @@ const log = {
 const PING_INTERVAL = 30000;
 const RECONNECT_BASE = 3000;
 const RECONNECT_MAX = 60000;
+
+let panelEventBroadcaster = null;
+
+/**
+ * Publish a local event to authenticated panel-event WebSocket clients.
+ * Registration routes use this for events created by Node.js itself (LAN
+ * discovery), while Go-originated events use the same browser channel below.
+ */
+function publishPanelEvent(data) {
+    if (typeof panelEventBroadcaster === 'function') {
+        panelEventBroadcaster(data);
+    }
+}
 
 /**
  * Initialize real-time device status push.
@@ -34,25 +49,44 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
     // Browser-facing WebSocket server
     const wss = new WebSocket.Server({ noServer: true });
     const clients = new Set();
+    const panelWss = new WebSocket.Server({ noServer: true });
+    const panelClients = new Set();
     const { registerUpgradeHandler } = require('./wsUpgradeRouter');
+
+    function authenticateUpgrade(req, socket, head, targetWss, authorize) {
+        sessionMiddleware(req, {}, () => {
+            if (!req.session || !req.session.userId) {
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+            if (authorize && !authorize(req)) {
+                socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+            targetWss.handleUpgrade(req, socket, head, (ws) => {
+                targetWss.emit('connection', ws, req);
+            });
+        });
+    }
 
     // Handle upgrade requests via shared router (#295)
     registerUpgradeHandler(
         httpServer,
         (pathname) => pathname === '/ws/device-status',
-        (req, socket, head) => {
-            // Authenticate via session
-            sessionMiddleware(req, {}, () => {
-                if (!req.session || !req.session.userId) {
-                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                    socket.destroy();
-                    return;
-                }
-                wss.handleUpgrade(req, socket, head, (ws) => {
-                    wss.emit('connection', ws, req);
-                });
-            });
-        }
+        (req, socket, head) => authenticateUpgrade(req, socket, head, wss)
+    );
+    registerUpgradeHandler(
+        httpServer,
+        (pathname) => pathname === '/ws/panel-events',
+        (req, socket, head) => authenticateUpgrade(
+            req,
+            socket,
+            head,
+            panelWss,
+            (request) => roleHasPermission(request.session?.user?.role, 'enrollment.approve')
+        )
     );
 
     wss.on('connection', (ws) => {
@@ -75,6 +109,25 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
         });
     });
 
+    panelWss.on('connection', (ws) => {
+        panelClients.add(ws);
+
+        const pingTimer = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) ws.ping();
+            else clearInterval(pingTimer);
+        }, PING_INTERVAL);
+
+        ws.on('close', () => {
+            panelClients.delete(ws);
+            clearInterval(pingTimer);
+        });
+
+        ws.on('error', () => {
+            panelClients.delete(ws);
+            clearInterval(pingTimer);
+        });
+    });
+
     // Broadcast to all connected browser clients
     function broadcast(data) {
         const text = JSON.stringify(data);
@@ -84,6 +137,17 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
             }
         }
     }
+
+    function broadcastPanelEvent(data) {
+        const text = JSON.stringify(data);
+        for (const ws of panelClients) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(text);
+            }
+        }
+    }
+
+    panelEventBroadcaster = broadcastPanelEvent;
 
     // Connect to Go server event bus
     let retryDelay = RECONNECT_BASE;
@@ -129,6 +193,34 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
                         old_id: oldId,
                         new_id: newId,
                         source: payload.source || '',
+                        timestamp: event.timestamp || Date.now(),
+                    });
+                    return;
+                }
+
+                if (event.type === 'device_pending' || event.type === 'enrollment_pending') {
+                    broadcastPanelEvent({
+                        type: 'registration_pending',
+                        registration: payload,
+                        timestamp: event.timestamp || Date.now(),
+                    });
+                    return;
+                }
+
+                if (event.type === 'device_approved' || event.type === 'device_rejected' ||
+                    event.type === 'enrollment_rejection_cleared') {
+                    broadcastPanelEvent({
+                        type: 'registration_changed',
+                        registration: payload,
+                        timestamp: event.timestamp || Date.now(),
+                    });
+                    return;
+                }
+
+                if (event.type === 'help_request') {
+                    broadcastPanelEvent({
+                        type: 'help_request',
+                        ...payload,
                         timestamp: event.timestamp || Date.now(),
                     });
                     return;
@@ -181,4 +273,4 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
     return wss;
 }
 
-module.exports = { initDeviceStatusPush };
+module.exports = { initDeviceStatusPush, publishPanelEvent };

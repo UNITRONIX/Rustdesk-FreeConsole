@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+- **Relay pair timeout when the target is `connType=tcp` but still heartbeats on UDP (#382):** TCP `RegisterPk` (logged-in GUI) stamped `ConnTCP` and later UDP heartbeats did not restore `ConnUDP`. PunchHole/RequestRelay then called `sendToPeer`, which ignored `UDPAddr` and dropped the message (`TCPConn` is never set). The initiator connected to relay; the target never did. Delivery now prefers UDP when `UDPAddr` is set, heartbeats restore `ConnUDP` (without overriding WebSocket), and `"forwarded"` is logged only when a transport accepted the message. Ships via panel update (Go signal restart). Verify: WAN session to a logged-in native target reaches `[relay] Pair established`; server log shows PunchHole/RequestRelay forwarded; no `Pair timeout` for that UUID.
+- **Registration notifications in UX 3.5:** Pending LAN and managed enrollment requests now update the global badge, appear in the topbar notification center, and refresh the registrations page without opening the tab. The panel event stream has a polling fallback and remains restricted to users with `enrollment.approve`.
+
 ### Changed
 - _(none yet)_
 

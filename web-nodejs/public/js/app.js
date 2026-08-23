@@ -15,6 +15,7 @@
         initUserMenu();
         initRefreshButton();
         initRegistrationBadge();
+        initPanelEvents();
     }
 
     /**
@@ -191,14 +192,27 @@
      * Periodically fetch pending registration count for sidebar badge.
      */
     function initRegistrationBadge() {
-        const badge = document.getElementById('reg-sidebar-badge');
-        if (!badge) return;
+        const badges = () => [
+            document.getElementById('reg-sidebar-badge'),
+            document.getElementById('pending-count'),
+        ].filter(Boolean);
+        if (!badges().length) return;
 
         let badgeInterval = null;
 
+        function renderRegistrationCount(count) {
+            badges().forEach((badge) => {
+                badge.textContent = String(count);
+                badge.style.display = count > 0 ? '' : 'none';
+            });
+        }
+
         async function updateBadge() {
             try {
-                const resp = await fetch('/api/registrations/count');
+                const resp = await fetch('/api/registrations/count', {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' },
+                });
                 if (!resp.ok) {
                     if (resp.status === 401 && badgeInterval) {
                         clearInterval(badgeInterval);
@@ -207,14 +221,71 @@
                     return;
                 }
                 const data = await resp.json();
-                const count = data.count || 0;
-                badge.textContent = count;
-                badge.style.display = count > 0 ? '' : 'none';
+                const count = Number.isFinite(Number(data.count)) ? Number(data.count) : 0;
+                renderRegistrationCount(Math.max(0, count));
             } catch (_) { /* silent */ }
         }
 
         updateBadge();
-        badgeInterval = setInterval(updateBadge, 30000); // every 30s
+        badgeInterval = setInterval(updateBadge, 15000); // real-time fallback
+    }
+
+    /**
+     * Subscribe once per page to events produced by the Go event bus and
+     * Node.js LAN registration route. The notification center and the
+     * registrations page consume the normalized browser event.
+     */
+    function initPanelEvents() {
+        // The stream contains registration metadata, so only approvers need
+        // to open it. The server repeats this authorization check during the
+        // WebSocket upgrade.
+        if (typeof WebSocket !== 'function' ||
+            !document.getElementById('reg-sidebar-badge')) return;
+
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${proto}//${location.host}/ws/panel-events`;
+        let ws = null;
+        let retryDelay = 3000;
+
+        function connect() {
+            try {
+                ws = new WebSocket(wsUrl);
+            } catch (_) {
+                setTimeout(connect, retryDelay);
+                retryDelay = Math.min(retryDelay * 2, 60000);
+                return;
+            }
+
+            ws.onopen = () => {
+                retryDelay = 3000;
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'registration_pending' ||
+                        data.type === 'registration_changed') {
+                        window.dispatchEvent(new CustomEvent('registrations:pending-changed', {
+                            detail: data,
+                        }));
+                    }
+                    window.dispatchEvent(new CustomEvent('betterdesk:panel-event', {
+                        detail: data,
+                    }));
+                } catch (_) {}
+            };
+
+            ws.onclose = () => {
+                setTimeout(connect, retryDelay);
+                retryDelay = Math.min(retryDelay * 2, 60000);
+            };
+
+            ws.onerror = () => {
+                ws.close();
+            };
+        }
+
+        connect();
     }
     
 })();

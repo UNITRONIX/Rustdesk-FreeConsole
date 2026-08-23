@@ -591,32 +591,56 @@ func (s *Server) sendToWSPeer(id string, msg *pb.RendezvousMessage) error {
 	return wsc.WriteMessage(msg)
 }
 
-// sendToPeer sends a protobuf message to a peer using whatever transport it's connected on.
-func (s *Server) sendToPeer(id string, msg *pb.RendezvousMessage) {
+// sendToPeer delivers a protobuf message on the best available transport.
+// WebSocket peers stay on WS. Native peers with a UDP heartbeat address are
+// sent UDP even when ConnType was stamped TCP by RegisterPk (#382). Returns
+// true if a transport accepted the message.
+func (s *Server) sendToPeer(id string, msg *pb.RendezvousMessage) bool {
 	entry := s.peers.Get(id)
 	if entry == nil {
-		return
+		log.Printf("[signal] sendToPeer: peer %s not in map", id)
+		return false
 	}
 
-	switch entry.ConnType {
-	case peer.ConnUDP:
-		if entry.UDPAddr != nil {
-			s.sendUDP(msg, entry.UDPAddr)
-		}
-	case peer.ConnWS:
+	if entry.ConnType == peer.ConnWS {
 		if entry.WSConn != nil {
 			wsc, ok := entry.WSConn.(*codec.WSConn)
 			if ok {
 				if err := wsc.WriteMessage(msg); err != nil {
 					log.Printf("[signal] WS send to %s: %v", id, err)
+					return false
 				}
+				return true
 			}
 		}
-	case peer.ConnTCP:
-		if entry.TCPConn != nil {
-			if err := codec.WriteRawProto(entry.TCPConn, msg); err != nil {
-				log.Printf("[signal] TCP send to %s: %v", id, err)
-			}
-		}
+		log.Printf("[signal] sendToPeer: no WS transport for %s", id)
+		return false
 	}
+
+	if entry.UDPAddr != nil {
+		if s.sendUDP(msg, entry.UDPAddr) {
+			return true
+		}
+		log.Printf("[signal] sendToPeer: UDP send failed for %s (%s)", id, entry.UDPAddr)
+		return false
+	}
+
+	if pc := s.tcpPunchConnForPeer(id); pc != nil {
+		if err := pc.writeProto(msg); err != nil {
+			log.Printf("[signal] TCP punch send to %s: %v", id, err)
+			return false
+		}
+		return true
+	}
+
+	if entry.TCPConn != nil {
+		if err := codec.WriteRawProto(entry.TCPConn, msg); err != nil {
+			log.Printf("[signal] TCP send to %s: %v", id, err)
+			return false
+		}
+		return true
+	}
+
+	log.Printf("[signal] sendToPeer: no transport for %s (connType=%s)", id, entry.ConnType)
+	return false
 }

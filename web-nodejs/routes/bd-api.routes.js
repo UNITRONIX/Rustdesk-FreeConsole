@@ -916,7 +916,8 @@ router.delete('/help-requests/:id', requireDeviceAuth, requireOperatorRole, asyn
 //  helpRequests. Read state is persisted in notification_reads (per user).
 // ---------------------------------------------------------------------------
 
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, roleHasPermission } = require('../middleware/auth');
+const { listRegistrationNotifications } = require('../services/registrationNotifications');
 
 function sessionUserId(req) {
     return req.session?.userId ?? req.session?.user?.id ?? null;
@@ -934,6 +935,21 @@ function helpRequestToNotif(req, readIds) {
         kind: 'help_request',
         status: req.status,
     };
+}
+
+function canViewRegistrationNotifications(req) {
+    return roleHasPermission(req.session?.user?.role, 'enrollment.approve');
+}
+
+async function getRegistrationNotifications(req, readIds) {
+    if (!canViewRegistrationNotifications(req)) {
+        return [];
+    }
+    const result = await listRegistrationNotifications(db, betterdeskApi);
+    return result.items.map((item) => ({
+        ...item,
+        read: readIds.has(String(item.id)),
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -956,14 +972,17 @@ router.get('/notifications', requireAuth, async (req, res) => {
             .map(normalizeHelpRequest)
             .filter(Boolean);
 
-        const items = requests
+        const helpItems = requests
             .sort((a, b) => b.created_at - a.created_at)
             .map(r => helpRequestToNotif(r, readIds))
+        const registrationItems = await getRegistrationNotifications(req, readIds);
+        const allItems = [...helpItems, ...registrationItems]
+            .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+        const items = allItems
             .filter(n => (unreadOnly ? !n.read : true))
             .slice(0, limit);
 
-        const unreadCount = requests
-            .filter(r => !readIds.has(String(r.id))).length;
+        const unreadCount = allItems.filter((item) => !item.read).length;
 
         res.json({ success: true, items, unread_count: unreadCount });
     } catch (err) {
@@ -1009,7 +1028,11 @@ router.post('/notifications/read-all', requireAuth, async (req, res) => {
         const requests = (result.success ? (result.data || []) : [])
             .map(normalizeHelpRequest)
             .filter(Boolean);
-        await db.markAllNotificationsRead(userId, requests.map((r) => r.id));
+        const registrationItems = await getRegistrationNotifications(req, new Set());
+        await db.markAllNotificationsRead(userId, [
+            ...requests.map((r) => r.id),
+            ...registrationItems.map((item) => item.id),
+        ]);
 
         res.json({ success: true });
     } catch (err) {

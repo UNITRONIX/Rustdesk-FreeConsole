@@ -14,6 +14,7 @@ import (
 
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/events"
 )
 
 const (
@@ -175,11 +176,24 @@ func (s *Server) queueManagedViewerEnrollment(clientID, clientUUID, clientIP str
 	if peer, err := s.db.GetPeer(clientID); err == nil && peer != nil {
 		return
 	}
+	pendingKey := "pending_device_" + clientID
+	pendingValue, pendingErr := s.db.GetConfig(pendingKey)
+	alreadyPending := pendingErr == nil && pendingValue != ""
 	if err := s.storePendingDevice(&EnrollmentRequest{
 		DeviceID: clientID,
 		UUID:     strings.TrimSpace(clientUUID),
 	}, clientIP); err != nil {
 		log.Printf("[api] queueManagedViewerEnrollment: store pending %s: %v", clientID, err)
+		return
+	}
+	if !alreadyPending && s.eventBus != nil {
+		s.eventBus.Publish(events.Event{
+			Type: events.EventEnrollmentPending,
+			Data: map[string]string{
+				"device_id": clientID,
+				"ip":        clientIP,
+			},
+		})
 	}
 }
 

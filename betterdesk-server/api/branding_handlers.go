@@ -406,7 +406,7 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 		// Emit event for web panel real-time update
 		if s.eventBus != nil {
 			s.eventBus.Publish(events.Event{
-				Type: "device_pending",
+				Type: events.EventEnrollmentPending,
 				Data: map[string]string{
 					"device_id": req.DeviceID,
 					"hostname":  req.Hostname,

@@ -257,6 +257,12 @@ func (m *Map) UpdateHeartbeat(id string, addr *net.UDPAddr, serial int32) bool {
 		}
 		e.UDPAddr = addr
 		e.IP = newIP
+		// TCP RegisterPk can stamp ConnTCP before the OS service heartbeats
+		// (#327 / #382). A live UDP address means inbound PunchHole/RequestRelay
+		// must go over UDP — do not leave ConnType stuck on tcp.
+		if e.ConnType != ConnWS {
+			e.ConnType = ConnUDP
+		}
 	}
 	return true
 }

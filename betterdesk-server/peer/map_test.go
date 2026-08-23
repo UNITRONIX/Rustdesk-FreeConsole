@@ -411,6 +411,38 @@ func TestMapUpdateHeartbeatIPHistory(t *testing.T) {
 	}
 }
 
+func TestMapUpdateHeartbeatRestoresConnUDP(t *testing.T) {
+	m := NewMap()
+	m.Put(&Entry{ID: "TCP1", ConnType: ConnTCP, LastReg: time.Now()})
+	addr := &net.UDPAddr{IP: net.ParseIP("10.0.0.1"), Port: 9999}
+	if !m.UpdateHeartbeat("TCP1", addr, 1) {
+		t.Fatal("UpdateHeartbeat should return true")
+	}
+	e := m.Get("TCP1")
+	if e.ConnType != ConnUDP {
+		t.Errorf("ConnType: got %s, want udp", e.ConnType)
+	}
+	if e.UDPAddr == nil || e.UDPAddr.Port != 9999 {
+		t.Errorf("UDPAddr: got %v, want port 9999", e.UDPAddr)
+	}
+}
+
+func TestMapUpdateHeartbeatPreservesConnWS(t *testing.T) {
+	m := NewMap()
+	m.Put(&Entry{ID: "WS1", ConnType: ConnWS, LastReg: time.Now()})
+	addr := &net.UDPAddr{IP: net.ParseIP("10.0.0.1"), Port: 9999}
+	if !m.UpdateHeartbeat("WS1", addr, 1) {
+		t.Fatal("UpdateHeartbeat should return true")
+	}
+	e := m.Get("WS1")
+	if e.ConnType != ConnWS {
+		t.Errorf("ConnType: got %s, want ws", e.ConnType)
+	}
+	if e.UDPAddr == nil || e.UDPAddr.Port != 9999 {
+		t.Errorf("UDPAddr: got %v, want port 9999", e.UDPAddr)
+	}
+}
+
 func TestMapTotalCounters(t *testing.T) {
 	m := NewMap()
 
@@ -530,9 +562,9 @@ func TestMapFindByAddrExactPort(t *testing.T) {
 		LastReg: time.Now(),
 	})
 	m.Put(&Entry{
-		ID:      "B1",
-		IP:      "198.51.100.10:60001",
-		LastReg: time.Now(),
+		ID:       "B1",
+		IP:       "198.51.100.10:60001",
+		LastReg:  time.Now(),
 		ConnType: ConnTCP,
 	})
 

@@ -1049,8 +1049,9 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 			},
 		},
 	}
-	s.sendToPeer(targetID, punchHole)
-	log.Printf("[signal] PunchHole (TCP): forwarded to target %s (connType=%s)", targetID, target.ConnType)
+	if s.sendToPeer(targetID, punchHole) {
+		log.Printf("[signal] PunchHole (TCP): forwarded to target %s (connType=%s)", targetID, target.ConnType)
+	}
 
 	// Sign the target's PK with server's Ed25519 key for E2E verification.
 	var signedPk []byte
@@ -1525,8 +1526,9 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 	}
 	// Store the UUID so we can recover it if target responds with empty UUID.
 	s.storePendingUUID(targetID, relayUUID)
-	s.sendToPeer(targetID, reqRelay)
-	log.Printf("[signal] RequestRelay (TCP): forwarded to %s (connType=%s) secure=%v", targetID, target.ConnType, msg.Secure)
+	if s.sendToPeer(targetID, reqRelay) {
+		log.Printf("[signal] RequestRelay (TCP): forwarded to %s (connType=%s) secure=%v", targetID, target.ConnType, msg.Secure)
+	}
 
 	// Sign the target's PK for E2E encryption verification
 	var signedPk []byte

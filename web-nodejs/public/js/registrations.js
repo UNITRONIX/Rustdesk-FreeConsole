@@ -743,7 +743,15 @@
         loadPendingCount();
     });
 
-    // Refresh pending count every 15 seconds
-    setInterval(loadPendingCount, 15000);
+    // app.js owns the shared panel-event connection and dispatches this event
+    // on registration changes. Refresh both the count and visible rows so the
+    // page is current even when the request arrived on another route.
+    window.addEventListener('registrations:pending-changed', (event) => {
+        loadPendingCount();
+        if (event.detail?.type === 'registration_pending' ||
+            event.detail?.type === 'registration_changed') {
+            loadRegistrations();
+        }
+    });
 
 })();

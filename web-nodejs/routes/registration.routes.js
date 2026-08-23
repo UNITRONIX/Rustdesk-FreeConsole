@@ -30,6 +30,7 @@ const { requirePermission } = require('../middleware/auth');
 const betterdeskApi = require('../services/betterdeskApi');
 const deviceGroupService = require('../services/deviceGroupService');
 const serverBackend = require('../services/serverBackend');
+const { publishPanelEvent } = require('../services/deviceStatusPush');
 
 const ENROLLMENT_SETTING_RICH = 'enrollment_rich_approve';
 const ENROLLMENT_SETTING_TAG_PICKER = 'enrollment_tag_picker';
@@ -117,6 +118,22 @@ router.post('/register-request', async (req, res) => {
             public_key: (public_key || '').substring(0, 512),
             uuid: (uuid || '').substring(0, 64),
         });
+
+        if (registration.status === 'pending') {
+            publishPanelEvent({
+                type: 'registration_pending',
+                registration: {
+                    source: 'lan',
+                    id: registration.id,
+                    device_id: registration.device_id,
+                    hostname: registration.hostname,
+                    platform: registration.platform,
+                    ip: registration.ip_address,
+                    created_at: registration.created_at || registration.updated_at,
+                },
+                timestamp: Date.now(),
+            });
+        }
 
         res.json({
             success: true,

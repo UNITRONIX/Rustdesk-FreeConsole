@@ -57,26 +57,6 @@
             <span class="material-icons">refresh</span>
         </button>
 
-        <div class="notif-wrapper">
-            <button type="button" class="ux35-topbar-btn notif-btn" id="notif-btn" title="<%= _('notifications.title') %>"
-                    aria-label="<%= _('notifications.title') %>" aria-haspopup="true" aria-expanded="false">
-                <span class="material-icons">notifications</span>
-                <span class="notif-badge" id="notif-badge" hidden>0</span>
-            </button>
-            <div class="notif-dropdown" id="notif-dropdown" role="menu" hidden>
-                <div class="notif-header">
-                    <span><%= _('notifications.title') %></span>
-                    <button type="button" class="notif-mark-all" id="notif-mark-all"><%= _('notifications.mark_all_read') %></button>
-                </div>
-                <div class="notif-list" id="notif-list" aria-live="polite">
-                    <div class="notif-empty"><%= _('notifications.empty') %></div>
-                </div>
-                <div class="notif-footer">
-                    <a href="/help-requests" class="notif-see-all"><%= _('notifications.see_all') %></a>
-                </div>
-            </div>
-        </div>
-
         <button type="button" class="ux35-topbar-btn" id="ux35-theme-btn" title="<%= _('theme.title') || 'Theme' %>" aria-label="<%= _('theme.title') || 'Theme' %>">
             <span class="material-icons" id="ux35-theme-icon">dark_mode</span>
         </button>
@@ -119,6 +99,26 @@
                 </div>
             </div>
         </div>
+        </div>
+        <div class="notif-wrapper">
+            <button type="button" class="ux35-topbar-btn notif-btn" id="notif-btn" title="<%= _('notifications.title') %>"
+                    aria-label="<%= _('notifications.title') %>" aria-haspopup="true" aria-expanded="false">
+                <span class="material-icons">notifications</span>
+                <span class="notif-badge" id="notif-badge" hidden>0</span>
+            </button>
+            <div class="notif-dropdown" id="notif-dropdown" role="menu" hidden>
+                <div class="notif-header">
+                    <span><%= _('notifications.title') %></span>
+                    <button type="button" class="notif-mark-all" id="notif-mark-all"><%= _('notifications.mark_all_read') %></button>
+                </div>
+                <div class="notif-list" id="notif-list" aria-live="polite">
+                    <div class="notif-empty"><%= _('notifications.empty') %></div>
+                </div>
+                <div class="notif-footer">
+                    <a href="/help-requests" class="notif-see-all"><%= _('notifications.see_all') %></a>
+                    <a href="/registrations" class="notif-see-all"><%= _('nav.registrations') %></a>
+                </div>
+            </div>
         </div>
         <button type="button" class="ux35-topbar-btn ux35-topbar-actions-menu-btn" id="ux35-actions-menu-btn"
                 aria-label="<%= _('mobile_nav.more') || 'More actions' %>"
