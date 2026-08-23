@@ -38,6 +38,7 @@ const {
     requireDeviceToken,
     requireTokenDeviceMatch,
 } = require('../middleware/deviceAuth');
+const { doubleCsrfProtection } = require('../middleware/csrf');
 
 // ---------------------------------------------------------------------------
 //  Help requests & chat are stored on the Go server (single source of truth).
@@ -995,7 +996,7 @@ router.get('/notifications', requireAuth, async (req, res) => {
 //  POST /api/bd/notifications/:id/read — mark single notification read
 // ---------------------------------------------------------------------------
 
-router.post('/notifications/:id/read', requireAuth, async (req, res) => {
+router.post('/notifications/:id/read', doubleCsrfProtection, requireAuth, async (req, res) => {
     try {
         const userId = sessionUserId(req);
         if (!userId) {
@@ -1017,7 +1018,7 @@ router.post('/notifications/:id/read', requireAuth, async (req, res) => {
 //  POST /api/bd/notifications/read-all — mark all notifications read
 // ---------------------------------------------------------------------------
 
-router.post('/notifications/read-all', requireAuth, async (req, res) => {
+router.post('/notifications/read-all', doubleCsrfProtection, requireAuth, async (req, res) => {
     try {
         const userId = sessionUserId(req);
         if (!userId) {

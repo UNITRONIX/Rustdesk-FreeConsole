@@ -46,6 +46,7 @@ describe('RDFileTransfer static helpers', () => {
         expect(RDFileTransfer.joinLocalPath('/home/me/dl', 'proj/readme.txt'))
             .toBe('/home/me/dl/proj/readme.txt');
         expect(RDFileTransfer.joinLocalPath('/tmp/out', '')).toBe('/tmp/out');
+        expect(RDFileTransfer.joinLocalPath('', 'proj/readme.txt')).toBe('proj/readme.txt');
     });
 });
 

@@ -134,7 +134,7 @@ class RDFileTransfer {
 
     static joinLocalPath(base, relativePath) {
         const rel = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
-        if (!base) return rel.replace(/\//g, '/');
+        if (!base) return rel;
         const sep = base.includes('\\') ? '\\' : '/';
         if (!rel) return base;
         const parts = rel.split('/').filter(Boolean);

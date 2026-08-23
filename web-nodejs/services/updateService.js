@@ -3553,6 +3553,9 @@ function restoreFromBackup(backupName) {
         const target = resolveManifestTarget(backupFilePath);
         const src = resolvePathUnderRoot(backupPath, backupFilePath);
         const dest = resolvePathUnderRoot(target.targetRoot, target.filePath);
+        if (isProtectedRuntimePath(dest)) {
+            throw new Error(`Refusing to restore protected runtime path: ${backupFilePath}`);
+        }
         if (fs.existsSync(src)) {
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(src, dest);
@@ -3566,6 +3569,9 @@ function restoreFromBackup(backupName) {
         }
         const target = resolveManifestTarget(backupFilePath);
         const dest = resolvePathUnderRoot(target.targetRoot, target.filePath);
+        if (isProtectedRuntimePath(dest)) {
+            throw new Error(`Refusing to remove protected runtime path: ${backupFilePath}`);
+        }
         if (fs.existsSync(dest)) {
             fs.rmSync(dest, { force: true });
             removed++;

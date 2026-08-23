@@ -3,6 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const config = require('../config/config');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const {
     GITHUB_COMPARE_FILE_LIMIT,
@@ -11,6 +12,7 @@ const {
     getDownloadRetryDelayMs,
     ensureGoServerSignalRelayPorts,
     restoreServerBinaryBackup,
+    restoreFromBackup,
 } = require('../services/updateService');
 
 describe('updateService console sync helpers', () => {
@@ -106,5 +108,56 @@ describe('updateService console sync helpers', () => {
             restored: false,
             error: 'Server binary backup path failed validation',
         });
+    });
+
+    test('rejects traversal paths from a backup manifest', () => {
+        const backupRoot = path.join(config.dataDir, 'backups');
+        const backupName = `pre-update-${Date.now()}-${process.pid}`;
+        const backupPath = path.join(backupRoot, backupName);
+        fs.mkdirSync(backupPath, { recursive: true });
+        fs.writeFileSync(path.join(backupPath, 'manifest.json'), JSON.stringify({
+            files: ['../outside.txt'],
+        }));
+
+        try {
+            expect(() => restoreFromBackup(backupName))
+                .toThrow('Invalid path in backup manifest');
+        } finally {
+            fs.rmSync(backupPath, { recursive: true, force: true });
+        }
+    });
+
+    test('refuses to restore protected runtime files from a backup manifest', () => {
+        const backupRoot = path.join(config.dataDir, 'backups');
+        const backupName = `pre-update-${Date.now()}-${process.pid}`;
+        const backupPath = path.join(backupRoot, backupName);
+        fs.mkdirSync(backupPath, { recursive: true });
+        fs.writeFileSync(path.join(backupPath, 'manifest.json'), JSON.stringify({
+            files: ['console/.env'],
+        }));
+
+        try {
+            expect(() => restoreFromBackup(backupName))
+                .toThrow('Refusing to restore protected runtime path');
+        } finally {
+            fs.rmSync(backupPath, { recursive: true, force: true });
+        }
+    });
+
+    test('refuses to remove protected runtime files from a backup manifest', () => {
+        const backupRoot = path.join(config.dataDir, 'backups');
+        const backupName = `pre-update-${Date.now()}-${process.pid}`;
+        const backupPath = path.join(backupRoot, backupName);
+        fs.mkdirSync(backupPath, { recursive: true });
+        fs.writeFileSync(path.join(backupPath, 'manifest.json'), JSON.stringify({
+            removeOnRestore: ['console/.env'],
+        }));
+
+        try {
+            expect(() => restoreFromBackup(backupName))
+                .toThrow('Refusing to remove protected runtime path');
+        } finally {
+            fs.rmSync(backupPath, { recursive: true, force: true });
+        }
     });
 });

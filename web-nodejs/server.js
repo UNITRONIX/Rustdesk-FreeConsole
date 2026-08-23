@@ -140,6 +140,9 @@ const sessionMiddleware = session({
     }
 });
 app.use(sessionMiddleware);
+// Generate the double-submit token before routes that need route-level CSRF
+// protection, including the session-authenticated notification endpoints.
+app.use(csrfTokenProvider);
 
 // Cache version — changes on every restart/deployment, stable during runtime.
 // Used in ?v= query strings so browsers cache assets per deployment.
@@ -230,7 +233,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// CSRF protection — generate token for views, validate on POST/PUT/DELETE/PATCH.
+// CSRF protection — validate on POST/PUT/DELETE/PATCH.
 // Skip CSRF for device-facing API routes (/api/bd/*) — these MUST authenticate
 // via Bearer access token (session-cookie fallback is rejected in requireDeviceAuth).
 //
@@ -240,7 +243,6 @@ app.use((req, res, next) => {
 // non-browser HTTP client, so it is unsafe as a CSRF-bypass signal. Tauri
 // desktop clients receive the CSRF token via `csrfTokenProvider` and must
 // echo it back in the `X-CSRF-Token` header (csrf-csrf double-submit).
-app.use(csrfTokenProvider);
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/bd/')) {
         return next();

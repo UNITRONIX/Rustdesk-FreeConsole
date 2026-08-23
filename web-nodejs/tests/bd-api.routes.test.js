@@ -3,6 +3,8 @@
 const request = require('supertest');
 const express = require('express');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const { csrfTokenProvider } = require('../middleware/csrf');
 
 jest.mock('../services/authService', () => ({}));
 
@@ -83,21 +85,38 @@ describe('BD-API register rename guard', () => {
 
 describe('BD-API notification center', () => {
     let app;
+    const getCsrfCredentials = async () => {
+        const res = await request(app).get('/test-csrf');
+        const csrfCookie = (res.headers['set-cookie'] || [])
+            .find((cookie) => cookie.startsWith('__csrf'));
+        return {
+            token: res.body.token,
+            cookie: csrfCookie?.split(';', 1)[0],
+        };
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
         app = express();
         app.use(express.json());
+        app.use(cookieParser());
         app.use(session({
             secret: 'notification-test-secret',
             resave: false,
             saveUninitialized: true,
+            cookie: {
+                secure: true,
+                httpOnly: true,
+                sameSite: 'lax',
+            },
         }));
         app.use((req, _res, next) => {
             req.session.userId = 1;
             req.session.user = { id: 1, username: 'admin', role: 'admin' };
             next();
         });
+        app.use(csrfTokenProvider);
+        app.get('/test-csrf', (req, res) => res.json({ token: res.locals.csrfToken }));
         app.use('/api/bd', bdApiRoutes);
 
         db.getReadNotificationIds.mockResolvedValue(new Set());
@@ -148,16 +167,24 @@ describe('BD-API notification center', () => {
     it('does not expose registration notifications without enrollment permission', async () => {
         app = express();
         app.use(express.json());
+        app.use(cookieParser());
         app.use(session({
             secret: 'notification-test-secret',
             resave: false,
             saveUninitialized: true,
+            cookie: {
+                secure: true,
+                httpOnly: true,
+                sameSite: 'lax',
+            },
         }));
         app.use((req, _res, next) => {
             req.session.userId = 2;
             req.session.user = { id: 2, username: 'viewer', role: 'viewer' };
             next();
         });
+        app.use(csrfTokenProvider);
+        app.get('/test-csrf', (req, res) => res.json({ token: res.locals.csrfToken }));
         app.use('/api/bd', bdApiRoutes);
         db.getPendingRegistrations.mockResolvedValue([{
             id: 8,
@@ -173,6 +200,13 @@ describe('BD-API notification center', () => {
         expect(db.getPendingRegistrations).not.toHaveBeenCalled();
     });
 
+    it('rejects state changes without a CSRF token', async () => {
+        const res = await request(app).post('/api/bd/notifications/read-all');
+
+        expect(res.status).toBe(403);
+        expect(db.markAllNotificationsRead).not.toHaveBeenCalled();
+    });
+
     it('marks both help and registration notifications read', async () => {
         db.getPendingRegistrations.mockResolvedValue([{
             id: 9,
@@ -184,7 +218,11 @@ describe('BD-API notification center', () => {
             data: [{ id: 'help-1', created_at: '2026-08-23T11:00:00.000Z' }],
         });
 
-        const res = await request(app).post('/api/bd/notifications/read-all');
+        const csrf = await getCsrfCredentials();
+        const res = await request(app)
+            .post('/api/bd/notifications/read-all')
+            .set('Cookie', csrf.cookie)
+            .set('X-CSRF-Token', csrf.token);
 
         expect(res.status).toBe(200);
         expect(db.markAllNotificationsRead).toHaveBeenCalledWith(1, [

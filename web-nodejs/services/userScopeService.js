@@ -109,11 +109,11 @@ async function warnUnknownPeerIds(db, peerIds) {
         try {
             const row = await lookup(peerId);
             if (!row) {
-                console.warn(`[userScope] peer grant references unknown device id: ${peerId}`);
+                console.warn('[userScope] peer grant references unknown device id:', peerId);
                 warned += 1;
             }
         } catch (err) {
-            console.warn(`[userScope] peer id lookup failed for ${peerId}:`, err.message);
+            console.warn('[userScope] peer id lookup failed for', peerId, err.message);
             warned += 1;
         }
     }

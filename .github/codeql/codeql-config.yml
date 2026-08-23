@@ -63,6 +63,9 @@ query-filters:
       id: go/disabled-certificate-check
       paths:
         - betterdesk-agent/agent/agent.go
+        # API cert pinning uses VerifyPeerCertificate; development-only
+        # insecure TLS is additionally gated by !release and explicit opt-in.
+        - betterdesk-support-agent/apihttp.go
 
   # --- Test harness + global cookieParser (routes validate session/auth) ---
   - exclude:

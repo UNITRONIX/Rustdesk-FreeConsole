@@ -41,7 +41,10 @@ describe('userScopeService peer grants', () => {
         };
 
         await expect(userScopeService.warnUnknownPeerIds(db, ['1', 'missing'])).resolves.toBeUndefined();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('unknown device id: missing'));
+        expect(warn).toHaveBeenCalledWith(
+            '[userScope] peer grant references unknown device id:',
+            'missing'
+        );
         warn.mockRestore();
     });
 });
