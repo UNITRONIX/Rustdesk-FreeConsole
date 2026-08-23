@@ -3728,7 +3728,12 @@
         "option_advanced": "高级选项",
         "option_advanced_desc": "备份保留、Docker 部署、服务器重建和更新策略",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "更新安装已阻止",
+        "preflight_warnings_title": "安装前",
+        "install_blocked_hint": "在上面的问题解决之前，安装已禁用。",
+        "preflight_info_title": "安装前",
+        "preflight_info_note": "您可以安装更新 — 这些只是提示信息。"
     },
     "accessibility": {
         "title": "无障碍",

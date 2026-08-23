@@ -3657,7 +3657,12 @@
         "option_advanced": "고급 옵션",
         "option_advanced_desc": "백업 보존, Docker 배포, 서버 재빌드 및 업데이트 전략",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "업데이트 설치가 차단됨",
+        "preflight_warnings_title": "설치 전",
+        "install_blocked_hint": "위의 문제가 해결될 때까지 설치가 비활성화됩니다.",
+        "preflight_info_title": "설치 전",
+        "preflight_info_note": "업데이트를 설치할 수 있습니다 — 안내 메시지입니다."
     },
     "permissions": {
         "title": "권한",

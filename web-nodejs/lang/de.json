@@ -3657,7 +3657,12 @@
         "option_advanced": "Erweiterte Optionen",
         "option_advanced_desc": "Backup-Aufbewahrung, Docker-Bereitstellung, Server-Neuaufbau und Update-Strategie",
         "agent_rebuild_queued": "Support-Agent-Generator-Rebuild für {{count}} Bundle(s) in Warteschlange ({{staged}}/{{paths}} Quelldateien synchronisiert).",
-        "agent_source_sync_failed": "Support-Agent-Quellsynchronisation fehlgeschlagen — Generator-Rebuild möglicherweise unvollständig."
+        "agent_source_sync_failed": "Support-Agent-Quellsynchronisation fehlgeschlagen — Generator-Rebuild möglicherweise unvollständig.",
+        "preflight_blocked_title": "Update-Installation blockiert",
+        "preflight_warnings_title": "Vor der Installation",
+        "install_blocked_hint": "Die Installation ist deaktiviert, bis die oben genannten Probleme behoben sind.",
+        "preflight_info_title": "Vor der Installation",
+        "preflight_info_note": "Sie können das Update installieren — dies sind nur Hinweise."
     },
     "permissions": {
         "title": "Berechtigungen",

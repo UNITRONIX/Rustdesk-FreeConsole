@@ -3657,7 +3657,12 @@
         "option_advanced": "Geavanceerde opties",
         "option_advanced_desc": "Backupbewaring, Docker-implementatie, server herbouw en updatestrategie",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Update-installatie geblokkeerd",
+        "preflight_warnings_title": "Voor installatie",
+        "install_blocked_hint": "Installatie is uitgeschakeld totdat de bovenstaande problemen zijn opgelost.",
+        "preflight_info_title": "Voor installatie",
+        "preflight_info_note": "U kunt de update installeren — dit zijn alleen informatieve meldingen."
     },
     "permissions": {
         "title": "Machtigingen",

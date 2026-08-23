@@ -3657,7 +3657,12 @@
         "option_advanced": "Opções avançadas",
         "option_advanced_desc": "Retenção de backups, implantação Docker, reconstrução do servidor e estratégia de atualização",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Instalação da atualização bloqueada",
+        "preflight_warnings_title": "Antes de instalar",
+        "install_blocked_hint": "A instalação está desativada até que os problemas acima sejam resolvidos.",
+        "preflight_info_title": "Antes de instalar",
+        "preflight_info_note": "Pode instalar a atualização — estes avisos são informativos."
     },
     "permissions": {
         "title": "Permissões",

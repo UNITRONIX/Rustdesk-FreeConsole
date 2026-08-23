@@ -117,4 +117,33 @@ describe('updateService update channel', () => {
             statfs.mockRestore();
         }
     });
+
+    test('preflight stays ready when server update needs Go toolchain bootstrap', async () => {
+        const updateService = loadUpdateService({ dataDir });
+        const prebuiltSpy = jest.spyOn(updateService, 'checkPrebuiltAvailable')
+            .mockResolvedValue({ available: false });
+        const goSpy = jest.spyOn(updateService, 'checkGoAvailable')
+            .mockReturnValue({
+                available: true,
+                meetsMinimum: false,
+                needsUpgrade: true,
+                version: 'go version go1.20 linux/amd64',
+            });
+        const remoteSpy = jest.spyOn(updateService, 'getRemoteHeadSHA')
+            .mockResolvedValue({ sha: 'abc123def4567890abcdef1234567890abcdef12' });
+
+        try {
+            const pf = await updateService.runUpdatePreflight({
+                serverUpdateRequired: true,
+                remoteSHA: 'abc123def4567890abcdef1234567890abcdef12',
+            });
+            expect(pf.ready).toBe(true);
+            expect(pf.issues).toHaveLength(0);
+            expect(pf.warnings.join(' ')).toMatch(/toolchain/i);
+        } finally {
+            prebuiltSpy.mockRestore();
+            goSpy.mockRestore();
+            remoteSpy.mockRestore();
+        }
+    });
 });

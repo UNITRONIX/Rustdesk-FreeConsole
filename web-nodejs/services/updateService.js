@@ -2983,7 +2983,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 goAvailable = true;
                 preferredGoBinPath = tc.binPath || null;
             }
-        } else if (strategy === 'auto' && !prebuilt?.available && !goAvailable) {
+        } else if (strategy === 'auto' && !prebuilt?.available && (!goAvailable || goInfo.needsUpgrade)) {
             try {
                 const tc = await installGoToolchain();
                 results.toolchainInstall = {
@@ -3838,7 +3838,10 @@ async function runUpdatePreflight(opts = {}) {
     } catch (_e) { /* optional */ }
 
     const goInfo = checkGoAvailable();
-    const canBuildServer = prebuiltAvailable || (goInfo.available && goInfo.meetsMinimum);
+    const hasCompatibleGo = !!(goInfo.available && goInfo.meetsMinimum);
+    // applyUpdate can bootstrap a vendored Go toolchain when system Go is missing or too old.
+    const canBootstrapGoToolchain = true;
+    const canBuildServer = prebuiltAvailable || hasCompatibleGo || canBootstrapGoToolchain;
 
     if (!canBuildServer) {
         const msg = 'Neither a compatible Go toolchain nor a pre-built server binary is available';
@@ -3846,6 +3849,15 @@ async function runUpdatePreflight(opts = {}) {
             issues.push(`${msg} — server update cannot complete`);
         } else {
             warnings.push(`${msg} — server compile may fail (auto-rebuild will retry)`);
+        }
+    } else if (serverUpdateRequired && !prebuiltAvailable && !hasCompatibleGo) {
+        if (goInfo.available && goInfo.needsUpgrade) {
+            warnings.push(
+                `System Go (${goInfo.version || 'unknown'}) is below ${GO_MIN_VERSION}; `
+                + 'a compatible toolchain will be installed automatically during the update'
+            );
+        } else {
+            warnings.push('Go toolchain will be downloaded automatically during the update');
         }
     }
 

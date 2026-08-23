@@ -3657,7 +3657,12 @@
         "option_advanced": "詳細設定",
         "option_advanced_desc": "バックアップ保持、Docker デプロイ、サーバー再ビルド、更新戦略",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "アップデートのインストールがブロックされました",
+        "preflight_warnings_title": "インストール前",
+        "install_blocked_hint": "上記の問題が解決するまでインストールは無効です。",
+        "preflight_info_title": "インストール前",
+        "preflight_info_note": "更新をインストールできます — これらは参考情報です。"
     },
     "permissions": {
         "title": "権限",

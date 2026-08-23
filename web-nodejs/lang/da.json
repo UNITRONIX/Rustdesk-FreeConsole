@@ -3663,7 +3663,12 @@
         "option_advanced": "Avancerede indstillinger",
         "option_advanced_desc": "Backup-opbevaring, Docker-implementering, genopbygning af server og opdateringsstrategi",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Opdateringsinstallation blokeret",
+        "preflight_warnings_title": "Før installation",
+        "install_blocked_hint": "Installation er deaktiveret, indtil problemerne ovenfor er løst.",
+        "preflight_info_title": "Før installation",
+        "preflight_info_note": "Du kan installere opdateringen — dette er kun informationsmeddelelser."
     },
     "permissions": {
         "title": "Tilladelser",

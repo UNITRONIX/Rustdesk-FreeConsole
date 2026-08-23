@@ -3663,7 +3663,12 @@
         "option_advanced": "ตัวเลือกขั้นสูง",
         "option_advanced_desc": "การเก็บสำรอง การ deploy Docker การ rebuild เซิร์ฟเวอร์ และกลยุทธ์อัปเดต",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "การติดตั้งอัปเดตถูกบล็อก",
+        "preflight_warnings_title": "ก่อนติดตั้ง",
+        "install_blocked_hint": "การติดตั้งถูกปิดใช้งานจนกว่าจะแก้ไขปัญหาข้างต้น",
+        "preflight_info_title": "ก่อนติดตั้ง",
+        "preflight_info_note": "คุณสามารถติดตั้งอัปเดตได้ — นี่เป็นเพียงข้อความแจ้งข้อมูล"
     },
     "permissions": {
         "title": "สิทธิ์",

@@ -3664,7 +3664,12 @@
         "option_advanced": "خيارات متقدمة",
         "option_advanced_desc": "الاحتفاظ بالنسخ الاحتياطية، نشر Docker، إعادة بناء الخادم واستراتيجية التحديث",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "تثبيت التحديث محظور",
+        "preflight_warnings_title": "قبل التثبيت",
+        "install_blocked_hint": "التثبيت معطّل حتى يتم حل المشكلات أعلاه.",
+        "preflight_info_title": "قبل التثبيت",
+        "preflight_info_note": "يمكنك تثبيت التحديث — هذه الإشعارات للمعلومات فقط."
     },
     "permissions": {
         "title": "الأذونات",

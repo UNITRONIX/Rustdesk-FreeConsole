@@ -3663,7 +3663,12 @@
         "option_advanced": "Gelişmiş seçenekler",
         "option_advanced_desc": "Yedek saklama, Docker dağıtımı, sunucu yeniden derleme ve güncelleme stratejisi",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Güncelleme kurulumu engellendi",
+        "preflight_warnings_title": "Kurulumdan önce",
+        "install_blocked_hint": "Yukarıdaki sorunlar çözülene kadar kurulum devre dışıdır.",
+        "preflight_info_title": "Kurulumdan önce",
+        "preflight_info_note": "Güncellemeyi yükleyebilirsiniz — bunlar yalnızca bilgilendirme notlarıdır."
     },
     "permissions": {
         "title": "İzinler",

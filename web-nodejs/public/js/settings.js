@@ -28,7 +28,7 @@
         if (document.getElementById('tab-backup') && document.getElementById('tab-backup').style.display !== 'none') {
             initBackupSection();
         }
-        if (document.getElementById('tab-updates') && document.getElementById('tab-updates').style.display !== 'none') {
+        if (document.getElementById('update-check-btn')) {
             initUpdateSection();
         }
         if (document.getElementById('tab-advanced') && document.getElementById('tab-advanced').style.display !== 'none') {
@@ -2756,6 +2756,7 @@
     let _updateState = { remoteSHA: null, changedData: null };
     let _updateChannelSaved = null;
     let _updateChannelBusy = false;
+    let _updatePreflight = { ready: null, issues: [], warnings: [] };
 
     function renderUpdateHeroStatus(state, opts = {}) {
         const icon = document.getElementById('update-hero-icon');
@@ -3003,24 +3004,141 @@
         }
     }
     
+    function syncDockerInstallUi(dockerMode) {
+        const installBtn = document.getElementById('update-install-btn');
+        const installNote = document.getElementById('update-docker-install-note');
+        if (!installBtn) return;
+        if (dockerMode) {
+            installBtn.style.display = 'none';
+            installBtn.disabled = true;
+            if (installNote) installNote.style.display = '';
+        } else {
+            installBtn.style.display = '';
+            if (installNote) installNote.style.display = 'none';
+        }
+    }
+
+    function applyInstallButtonState(dockerMode) {
+        const installBtn = document.getElementById('update-install-btn');
+        const hint = document.getElementById('update-install-blocked-hint');
+        if (!installBtn || dockerMode) return;
+        const blocked = _updatePreflight.ready === false;
+        installBtn.disabled = blocked;
+        if (hint) hint.hidden = !blocked;
+        if (hint && blocked) {
+            hint.textContent = updateI18n(
+                'updates.install_blocked_hint',
+                'Install is disabled until the issues above are resolved.'
+            );
+        }
+    }
+
+    function updateI18n(key, fallback) {
+        const value = _(key);
+        return (typeof value === 'string' && value !== key) ? value : fallback;
+    }
+
+    function formatPreflightWarning(message) {
+        const text = String(message || '');
+        if (/toolchain will be (installed|downloaded)/i.test(text)
+            || /below\s+[\d.]+\s*;/i.test(text)) {
+            return updateI18n('updates.toolchain_will_install', 'Go toolchain will be installed or updated automatically during the update');
+        }
+        return text;
+    }
+
+    function renderUpdatePreflightBanner() {
+        const host = document.getElementById('update-alerts');
+        if (!host) return;
+        let banner = document.getElementById('update-preflight-banner');
+        const pf = _updatePreflight;
+        if (!pf || pf.ready === null) {
+            if (banner) banner.remove();
+            return;
+        }
+
+        const issues = Array.isArray(pf.issues) ? pf.issues : [];
+        const warnings = Array.isArray(pf.warnings) ? pf.warnings : [];
+        if (pf.ready && warnings.length === 0) {
+            if (banner) banner.remove();
+            return;
+        }
+
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'update-preflight-banner';
+            host.insertBefore(banner, host.firstChild);
+        }
+
+        const blocked = !pf.ready && issues.length > 0;
+        banner.className = blocked
+            ? 'update-stale-warning win11-updates-alert update-preflight-blocked'
+            : 'win11-updates-alert update-preflight-info';
+
+        const parts = [];
+        if (blocked) {
+            parts.push(`<strong>${Utils.escapeHtml(updateI18n('updates.preflight_blocked_title', 'Update install blocked'))}</strong>`);
+            parts.push(`<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;">${
+                issues.map((item) => `<li>${Utils.escapeHtml(item)}</li>`).join('')
+            }</ul>`);
+        }
+        if (warnings.length) {
+            const title = blocked
+                ? updateI18n('updates.preflight_warnings_title', 'Before installing')
+                : updateI18n('updates.preflight_info_title', 'Before installing');
+            parts.push(`<div style="margin-top:${blocked ? '8px' : '0'};font-size:12px;">`);
+            parts.push(`<strong>${Utils.escapeHtml(title)}</strong>`);
+            if (!blocked) {
+                parts.push(`<p style="margin:6px 0 0;font-size:12px;color:var(--text-secondary);">${Utils.escapeHtml(
+                    updateI18n('updates.preflight_info_note', 'You can install the update — these notices are informational.')
+                )}</p>`);
+            }
+            parts.push(`<ul style="margin:4px 0 0;padding-left:18px;">${
+                warnings.map((item) => `<li>${Utils.escapeHtml(formatPreflightWarning(item))}</li>`).join('')
+            }</ul></div>`);
+        }
+        banner.innerHTML = parts.join('');
+    }
+
+    async function refreshUpdatePreflight(dockerMode = false) {
+        if (dockerMode || !_updateState.remoteSHA) {
+            _updatePreflight = { ready: null, issues: [], warnings: [] };
+            renderUpdatePreflightBanner();
+            applyInstallButtonState(dockerMode);
+            return;
+        }
+
+        const hasServerUpdate = (_updateState.changedData?.grouped?.server || []).length > 0;
+        const url = hasServerUpdate
+            ? `/api/settings/updates/preflight?serverUpdate=1&sha=${encodeURIComponent(_updateState.remoteSHA)}`
+            : '/api/settings/updates/preflight';
+        try {
+            const pf = await Utils.api(url);
+            _updatePreflight = pf && typeof pf === 'object'
+                ? pf
+                : { ready: true, issues: [], warnings: [] };
+        } catch (_e) {
+            _updatePreflight = { ready: true, issues: [], warnings: [] };
+        }
+        renderUpdatePreflightBanner();
+        applyInstallButtonState(dockerMode);
+    }
+
     function renderDockerUpdatePanel(data) {
         const panel = document.getElementById('update-docker-info');
         const commandsEl = document.getElementById('update-docker-commands');
         const imagesEl = document.getElementById('update-docker-images');
-        const installNote = document.getElementById('update-docker-install-note');
-        const installBtn = document.getElementById('update-install-btn');
         const staleWarning = document.getElementById('update-stale-warning');
         const channelSelect = document.getElementById('update-channel-select');
         const channelHint = document.getElementById('update-channel-docker-hint');
         const dockerMode = data.deploymentMode === 'docker-image' || data.dockerImageMode;
 
+        syncDockerInstallUi(dockerMode);
         if (!panel) return dockerMode;
 
         if (dockerMode) {
             panel.style.display = '';
             if (staleWarning) staleWarning.style.display = 'none';
-            if (installBtn) installBtn.style.display = 'none';
-            if (installNote) installNote.style.display = '';
             if (channelSelect) {
                 channelSelect.disabled = true;
                 channelSelect.title = _('updates.channel_docker_blocked');
@@ -3043,8 +3161,6 @@
             }
         } else {
             panel.style.display = 'none';
-            if (installBtn) installBtn.style.display = '';
-            if (installNote) installNote.style.display = 'none';
             if (channelSelect) {
                 channelSelect.disabled = false;
                 channelSelect.removeAttribute('title');
@@ -3104,14 +3220,13 @@
                     const changes = await Utils.api(`/api/settings/updates/changes?sha=${data.remoteSHA}`);
                     _updateState.changedData = changes;
                     renderUpdateDetails(data, changes, dockerMode);
-                    if (installBtn) installBtn.disabled = dockerMode;
                 } catch (_e) {
                     const cl = document.getElementById('update-changelog');
                     if (cl) cl.innerHTML = `<p class="text-muted">${_('updates.changes_unavailable')}</p>`;
-                    if (installBtn) installBtn.disabled = dockerMode;
                 }
-                
+
                 if (detailsSection) detailsSection.style.display = '';
+                await refreshUpdatePreflight(dockerMode);
             } else {
                 if (statusBadge) {
                     const label = data.dockerShaUnknown ? _('updates.docker_sha_unknown') : _('updates.up_to_date');
@@ -3675,7 +3790,8 @@
 
     function enableUpdateInstallBtn() {
         const installBtn = document.getElementById('update-install-btn');
-        if (installBtn) installBtn.disabled = false;
+        if (!installBtn || !_updateState.remoteSHA) return;
+        applyInstallButtonState(false);
     }
 
     async function retryUpdateInstall() {

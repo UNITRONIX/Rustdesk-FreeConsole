@@ -3663,7 +3663,12 @@
         "option_advanced": "Розширені параметри",
         "option_advanced_desc": "Зберігання резервних копій, розгортання Docker, перебудова сервера та стратегія оновлень",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Встановлення оновлення заблоковано",
+        "preflight_warnings_title": "Перед встановленням",
+        "install_blocked_hint": "Встановлення вимкнено, доки не буде вирішено проблеми вище.",
+        "preflight_info_title": "Перед встановленням",
+        "preflight_info_note": "Ви можете встановити оновлення — це лише інформаційні повідомлення."
     },
     "permissions": {
         "title": "Дозволи",

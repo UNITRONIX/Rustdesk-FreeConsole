@@ -3664,6 +3664,9 @@
         "restart_complete": "Console restarted successfully",
         "restart_timeout": "The update was applied, but the browser could not confirm the restart automatically. Reload the console to verify the new version.",
         "no_version": "No update version selected. Check for updates first.",
+        "preflight_blocked_title": "Update install blocked",
+        "preflight_warnings_title": "Before installing",
+        "install_blocked_hint": "Install is disabled until the issues above are resolved.",
         "backups_title": "Update Backups",
         "backups_desc": "Pre-update backups created automatically before each update",
         "no_backups": "No update backups found",
@@ -3796,7 +3799,9 @@
         "channel_confirm_switch": "Switch update source from {from} to {to}? Your installed commit baseline stays the same until you run Check for updates.",
         "more_options": "More options",
         "option_advanced": "Advanced options",
-        "option_advanced_desc": "Backup retention, Docker deployment, server rebuild, and update strategy"
+        "option_advanced_desc": "Backup retention, Docker deployment, server rebuild, and update strategy",
+        "preflight_info_title": "Before installing",
+        "preflight_info_note": "You can install the update — these notices are informational."
     },
     "accessibility": {
         "title": "Accessibility",

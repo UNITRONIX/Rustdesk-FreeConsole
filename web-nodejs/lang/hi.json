@@ -3663,7 +3663,12 @@
         "option_advanced": "उन्नत विकल्प",
         "option_advanced_desc": "बैकअप रखना, Docker तैनाती, सर्वर पुनर्निर्माण और अपडेट रणनीति",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "अपडेट इंस्टॉल अवरुद्ध",
+        "preflight_warnings_title": "इंस्टॉल करने से पहले",
+        "install_blocked_hint": "ऊपर दिए गए मुद्दों के हल होने तक इंस्टॉल अक्षम है।",
+        "preflight_info_title": "इंस्टॉल करने से पहले",
+        "preflight_info_note": "आप अपडेट इंस्टॉल कर सकते हैं — ये केवल सूचनात्मक संदेश हैं।"
     },
     "permissions": {
         "title": "अनुमतियां",

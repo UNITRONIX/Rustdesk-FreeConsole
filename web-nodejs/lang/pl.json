@@ -3741,7 +3741,12 @@
         "option_advanced": "Opcje zaawansowane",
         "option_advanced_desc": "Retencja kopii zapasowych, wdrożenie Docker, przebudowa serwera i strategia aktualizacji",
         "agent_rebuild_queued": "Przebudowa generatora Support Agent w kolejce dla {{count}} pakietów (zsynchronizowano {{staged}}/{{paths}} plików źródłowych).",
-        "agent_source_sync_failed": "Synchronizacja źródeł Support Agent nie powiodła się — przebudowa generatora może być niepełna."
+        "agent_source_sync_failed": "Synchronizacja źródeł Support Agent nie powiodła się — przebudowa generatora może być niepełna.",
+        "preflight_blocked_title": "Instalacja aktualizacji zablokowana",
+        "preflight_warnings_title": "Przed instalacją",
+        "install_blocked_hint": "Instalacja jest wyłączona, dopóki nie rozwiążesz problemów wymienionych powyżej.",
+        "preflight_info_title": "Przed instalacją",
+        "preflight_info_note": "Możesz zainstalować aktualizację — to tylko informacja, nie błąd."
     },
     "accessibility": {
         "title": "Dostępność",

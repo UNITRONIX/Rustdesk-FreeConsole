@@ -3657,7 +3657,12 @@
         "option_advanced": "Upřesnit možnosti",
         "option_advanced_desc": "Retence záloh, nasazení Docker, přestavba serveru a strategie aktualizací",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Instalace aktualizace je zablokována",
+        "preflight_warnings_title": "Před instalací",
+        "install_blocked_hint": "Instalace je zakázána, dokud nejsou vyřešeny problémy výše.",
+        "preflight_info_title": "Před instalací",
+        "preflight_info_note": "Aktualizaci můžete nainstalovat — jde jen o informační upozornění."
     },
     "permissions": {
         "title": "Oprávnění",

@@ -3040,6 +3040,19 @@
     margin: 0;
 }
 
+.update-preflight-info {
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--win11-accent, #0067c0) 45%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--win11-accent, #0067c0) 10%, var(--bg-secondary, #161b22));
+    color: var(--text-primary);
+}
+
+.update-preflight-blocked {
+    border-color: color-mix(in srgb, #c42b1c 55%, transparent);
+    background: color-mix(in srgb, #c42b1c 8%, var(--bg-secondary, #161b22));
+}
+
 /* Available update card */
 .win11-updates-available {
     background: var(--win11-card-bg);

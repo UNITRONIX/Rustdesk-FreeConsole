@@ -3663,7 +3663,12 @@
         "option_advanced": "Lisäasetukset",
         "option_advanced_desc": "Varmuuskopioiden säilytys, Docker-käyttöönotto, palvelimen uudelleenrakennus ja päivitysstrategia",
         "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
-        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete.",
+        "preflight_blocked_title": "Päivityksen asennus estetty",
+        "preflight_warnings_title": "Ennen asennusta",
+        "install_blocked_hint": "Asennus on poistettu käytöstä, kunnes yllä olevat ongelmat on ratkaistu.",
+        "preflight_info_title": "Ennen asennusta",
+        "preflight_info_note": "Voit asentaa päivityksen — nämä ovat vain tiedoksi."
     },
     "permissions": {
         "title": "Käyttöoikeudet",
