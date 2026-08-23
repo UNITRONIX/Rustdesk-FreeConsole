@@ -9,7 +9,7 @@ use std::{
     thread,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use sha2::{Digest, Sha256};
 
@@ -34,6 +34,7 @@ pub fn status() -> String {
 }
 
 pub fn start(config_json: &str, device_id: &str, public_key: &str) -> bool {
+    crate::ensure_tls_provider();
     let Ok(mut running) = running_slot().lock() else {
         return false;
     };
@@ -89,12 +90,22 @@ fn register_blocking(
         .enable_all()
         .build()
         .context("create registration runtime")?;
-    runtime.block_on(RustDeskSession::register_device(
-        server_config,
-        device_id,
-        uuid,
-        public_key,
-    ))
+    runtime.block_on(async {
+        let (mut rendezvous, keep_alive) =
+            RustDeskSession::register_device_connection(server_config, device_id, uuid, public_key)
+                .await?;
+        set_status(format!("registered:keep_alive={keep_alive}"));
+
+        loop {
+            match rendezvous.next_binary().await? {
+                Some(bytes) if bytes.is_empty() => {
+                    rendezvous.send_raw(&[]).await?;
+                }
+                Some(_) => {}
+                None => bail!("registered signal connection closed"),
+            }
+        }
+    })
 }
 
 pub fn public_key_from_json(value: &str) -> Result<String> {

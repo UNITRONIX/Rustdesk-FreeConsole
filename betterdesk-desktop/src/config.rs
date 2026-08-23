@@ -30,6 +30,8 @@ pub struct ServerConfig {
     pub api_url: String,
     #[serde(default)]
     pub server_key: String,
+    #[serde(default)]
+    pub allow_untrusted_tls: bool,
 }
 
 impl Default for ServerConfig {
@@ -39,6 +41,7 @@ impl Default for ServerConfig {
             relay_server: String::new(),
             api_url: String::new(),
             server_key: String::new(),
+            allow_untrusted_tls: false,
         }
     }
 }
@@ -77,6 +80,7 @@ impl ServerConfig {
             relay_server: json.relay.unwrap_or_default(),
             api_url: json.api.unwrap_or_default(),
             server_key: json.key.unwrap_or_default(),
+            allow_untrusted_tls: false,
         };
         config.validate()?;
         Ok(config)
@@ -119,10 +123,11 @@ impl ServerConfig {
 
     /// Build the RustDesk-compatible WebSocket signal endpoint.
     ///
-    /// BetterDesk exposes native signal/relay WebSockets on ports 21118/21119,
-    /// while the HTTP API is on 21114 and the legacy Node proxy is on 21121.
+    /// BetterDesk exposes native signal/relay WebSockets on ports 21118/21119.
+    /// When the ID host is also a public HTTPS host without an explicit port,
+    /// use the reverse-proxy paths instead.
     pub fn rustdesk_signal_url(&self) -> Result<Url, ConfigError> {
-        websocket_host_url(&self.id_server, &self.api_url, 21118, "/")
+        websocket_host_url(&self.id_server, &self.api_url, 21118, "/ws/id")
     }
 
     /// Build the RustDesk-compatible WebSocket relay endpoint.
@@ -132,7 +137,7 @@ impl ServerConfig {
         } else {
             &self.relay_server
         };
-        websocket_host_url(source, &self.api_url, 21119, "/")
+        websocket_host_url(source, &self.api_url, 21119, "/ws/relay")
     }
 
     /// Build the native BetterDesk CDAP WebSocket endpoint.
@@ -221,16 +226,32 @@ fn websocket_host_url(
     path: &str,
 ) -> Result<Url, ConfigError> {
     let mut url = parse_endpoint_url(host_value)?;
-    // BetterDesk production signal/relay listeners are commonly TLS-enabled
-    // even when the Go HTTP API remains plain HTTP on :21114. Prefer WSS for
-    // the dedicated RustDesk ports; the API scheme must not control them.
-    let scheme = if scheme_source.trim_start().starts_with("ws://") {
-        "ws"
+    let source_url = if scheme_source.trim().is_empty() {
+        None
     } else {
-        "wss"
+        Some(parse_endpoint_url(scheme_source)?)
+    };
+    let scheme = match source_url.as_ref().map(Url::scheme) {
+        Some("https" | "wss") => "wss",
+        Some("http" | "ws") => "ws",
+        _ => "ws",
     };
     url.set_scheme(scheme)
         .map_err(|_| ConfigError::InvalidUrl(host_value.to_owned()))?;
+    let use_reverse_proxy = source_url.as_ref().is_some_and(|source| {
+        url.port().is_none()
+            && source.port().is_none()
+            && source.host_str() == url.host_str()
+            && matches!(source.scheme(), "http" | "https")
+    });
+    if use_reverse_proxy {
+        url.set_port(None)
+            .map_err(|_| ConfigError::InvalidUrl(host_value.to_owned()))?;
+        url.set_path(path);
+        url.set_query(None);
+        url.set_fragment(None);
+        return Ok(url);
+    }
     let port = match url.port() {
         Some(21116) if default_port == 21118 => 21118,
         Some(21116) if default_port == 21119 => 21119,
@@ -240,7 +261,7 @@ fn websocket_host_url(
     };
     url.set_port(Some(port))
         .map_err(|_| ConfigError::InvalidUrl(host_value.to_owned()))?;
-    url.set_path(path);
+    url.set_path("/");
     url.set_query(None);
     url.set_fragment(None);
     Ok(url)
@@ -280,6 +301,7 @@ mod tests {
             relay_server: "desk.example.test:21117".into(),
             api_url: "https://desk.example.test:21114".into(),
             server_key: STANDARD.encode([7_u8; 32]),
+            allow_untrusted_tls: false,
         };
         let encoded = config.to_deploy_string().unwrap();
         assert_eq!(ServerConfig::from_deploy_string(&encoded).unwrap(), config);
@@ -292,16 +314,43 @@ mod tests {
     }
 
     #[test]
+    fn direct_signal_uses_plain_ws_when_api_is_plain_http() {
+        let config = ServerConfig {
+            id_server: "desk.example.test:21116".into(),
+            api_url: "http://desk.example.test:21114".into(),
+            ..Default::default()
+        };
+        let url = config.rustdesk_signal_url().unwrap();
+        assert_eq!(url.scheme(), "ws");
+        assert_eq!(url.port(), Some(21118));
+        assert_eq!(url.path(), "/");
+    }
+
+    #[test]
+    fn public_https_host_uses_reverse_proxy_signal_path() {
+        let config = ServerConfig {
+            id_server: "desk.example.test".into(),
+            api_url: "https://desk.example.test".into(),
+            ..Default::default()
+        };
+        let signal = config.rustdesk_signal_url().unwrap();
+        let relay = config.rustdesk_relay_url().unwrap();
+        assert_eq!(signal.as_str(), "wss://desk.example.test/ws/id");
+        assert_eq!(relay.as_str(), "wss://desk.example.test/ws/relay");
+    }
+
+    #[test]
     fn native_endpoints_use_betterdesk_service_ports() {
         let config = ServerConfig {
             id_server: "desk.example.test:21116".into(),
             relay_server: "desk.example.test:21117".into(),
             api_url: "http://desk.example.test:21114".into(),
             server_key: String::new(),
+            allow_untrusted_tls: false,
         };
         assert_eq!(config.rustdesk_signal_url().unwrap().port(), Some(21118));
         assert_eq!(config.rustdesk_relay_url().unwrap().port(), Some(21119));
-        assert_eq!(config.rustdesk_signal_url().unwrap().scheme(), "wss");
+        assert_eq!(config.rustdesk_signal_url().unwrap().scheme(), "ws");
         assert_eq!(config.cdap_url().unwrap().port(), Some(21122));
     }
 

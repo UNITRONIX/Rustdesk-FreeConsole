@@ -73,7 +73,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "betterdesk-desktop"
-version = "3.5.50"
+version = "3.5.55"
 dependencies = [
  "anyhow",
  "arboard",
@@ -88,6 +88,7 @@ dependencies = [
  "keyring",
  "prost",
  "prost-build",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
@@ -1259,6 +1260,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06"
 dependencies = [
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",

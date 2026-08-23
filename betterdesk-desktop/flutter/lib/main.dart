@@ -4,12 +4,13 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart' hide MenuItem;
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'account_api.dart';
 import 'native_core.dart';
 
 void main() async {
@@ -69,6 +70,7 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
   String relayServer = '';
   String apiUrl = '';
   String serverKey = '';
+  bool allowUntrustedTls = false;
   String peerId = '';
   String status = 'idle';
   String statusMessage =
@@ -83,14 +85,52 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
   String registrationStatus = 'unavailable';
   DateTime? passwordRotatedAt;
   final List<PeerHistoryEntry> recentPeers = [];
+  String accountUsername = '';
+  String accountRole = '';
+  final List<BetterDeskDevice> accountDevices = [];
+  String accountMessage = '';
+  bool _accountBusy = false;
   bool _allowClose = false;
   bool _registrationWatcherActive = false;
+  bool _enrollmentFallbackInProgress = false;
+  bool _probeInProgress = false;
+  bool _unlockInProgress = false;
+  bool _adminOperationInProgress = false;
   static const _storage = FlutterSecureStorage();
+  static const _accountApi = BetterDeskAccountApi();
   static const passwordRotationPeriod = Duration(minutes: 15);
+  static const rotatingPasswordLength = 8;
 
   String get serverUrl => apiUrl;
   bool get configured => idServer.trim().isNotEmpty || apiUrl.trim().isNotEmpty;
-  bool get isBusy => status == 'connecting' || status == 'saving';
+  bool get isBusy => _probeInProgress || _unlockInProgress;
+  bool get unlockInProgress => _unlockInProgress;
+  bool get accountLoggedIn => accountUsername.isNotEmpty;
+  bool get accountBusy => _accountBusy;
+
+  String get registrationStatusLabel {
+    if (registrationStatus == 'idle') return 'Nie uruchomiono';
+    if (registrationStatus == 'registering') return 'Rejestracja w toku';
+    if (registrationStatus.startsWith('registered:')) return 'Zarejestrowane';
+    if (registrationStatus == 'pending_approval') {
+      return 'Oczekuje na akceptację';
+    }
+    if (registrationStatus
+        .contains('device registration refused with result 6')) {
+      return 'Serwer wymaga zgody na urządzenie';
+    }
+    if (registrationStatus.startsWith('failed:')) {
+      return 'Rejestracja nieudana';
+    }
+    if (registrationStatus.startsWith('invalid_')) {
+      return 'Nieprawidłowe dane';
+    }
+    if (registrationStatus == 'unavailable') return 'Wymaga konfiguracji';
+    if (registrationStatus == 'native_unavailable') {
+      return 'Brak modułu klienta';
+    }
+    return 'Niedostępne';
+  }
 
   Future<void> loadPersistentSettings() async {
     try {
@@ -99,6 +139,7 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
       relayServer = values['connection.relay_server'] ?? '';
       apiUrl = values['connection.api_url'] ?? '';
       serverKey = values['connection.server_key'] ?? '';
+      allowUntrustedTls = values['connection.allow_untrusted_tls'] == 'true';
       darkMode = values['ui.dark_mode'] == 'true';
       deviceId = values['identity.device_id'] ?? '';
       rotatingPassword = values['identity.rotating_password'] ?? '';
@@ -106,6 +147,9 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
       identityPublicKey = values['identity.public_key'] ?? '';
       passwordRotatedAt =
           DateTime.tryParse(values['identity.rotated_at'] ?? '');
+      accountUsername = values['account.username'] ?? '';
+      accountRole = values['account.role'] ?? '';
+      final accountToken = values['account.access_token'] ?? '';
       final history = values['peers.history'];
       if (history != null) {
         try {
@@ -123,6 +167,10 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
       await _migrateLegacySettings();
       if (configured) {
         await _ensureIdentity();
+        _startRegistration();
+        if (accountToken.isNotEmpty) {
+          unawaited(_restoreAccount(accountToken));
+        }
       }
     } catch (error) {
       status = 'failed';
@@ -160,6 +208,10 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
       await _storage.write(key: 'connection.relay_server', value: relayServer);
       await _storage.write(key: 'connection.api_url', value: apiUrl);
       await _storage.write(key: 'connection.server_key', value: serverKey);
+      await _storage.write(
+        key: 'connection.allow_untrusted_tls',
+        value: allowUntrustedTls.toString(),
+      );
     } catch (_) {
       status = 'failed';
       statusMessage =
@@ -170,7 +222,7 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
 
   Future<void> _ensureIdentity() async {
     final now = DateTime.now().toUtc();
-    final needsPassword = rotatingPassword.isEmpty ||
+    final needsPassword = rotatingPassword.length != rotatingPasswordLength ||
         passwordRotatedAt == null ||
         now.difference(passwordRotatedAt!) >= passwordRotationPeriod;
     if (deviceId.isEmpty) {
@@ -220,8 +272,11 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
   }
 
   bool _startRegistration() {
-    if (nativeCore == null ||
-        idServer.trim().isEmpty ||
+    if (nativeCore == null) {
+      registrationStatus = 'native_unavailable';
+      return false;
+    }
+    if (idServer.trim().isEmpty ||
         deviceId.trim().isEmpty ||
         identityPublicKey.trim().isEmpty) {
       registrationStatus = 'unavailable';
@@ -233,6 +288,7 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
         'relay_server': relayServer,
         'api_url': apiUrl,
         'server_key': serverKey,
+        'allow_untrusted_tls': allowUntrustedTls,
       },
       deviceId: deviceId,
       publicKey: identityPublicKey,
@@ -240,6 +296,25 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
     registrationStatus = nativeCore!.registrationStatus();
     _watchRegistration();
     return started;
+  }
+
+  Future<void> _prepareAndStartRegistration() async {
+    await _ensureIdentity();
+    _startRegistration();
+    notifyListeners();
+  }
+
+  void setAllowUntrustedTls(bool value) {
+    allowUntrustedTls = value;
+    status = 'idle';
+    statusMessage = value
+        ? 'Uwaga: certyfikat TLS nie będzie sprawdzany. Używaj tylko na serwerze testowym.'
+        : 'Weryfikacja certyfikatu TLS jest włączona.';
+    unawaited(_persistSettings());
+    notifyListeners();
+    if (configured) {
+      unawaited(_prepareAndStartRegistration());
+    }
   }
 
   void _watchRegistration() {
@@ -252,7 +327,10 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
           final next = nativeCore!.registrationStatus();
           registrationStatus = next;
           notifyListeners();
-          if (!next.startsWith('registering')) break;
+          if (!next.startsWith('registering')) {
+            await _submitPendingEnrollmentIfNeeded();
+            break;
+          }
         }
       } finally {
         _registrationWatcherActive = false;
@@ -260,23 +338,77 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
     }());
   }
 
-  bool unlockConnectionSettings() {
-    status = 'connecting';
-    statusMessage = 'Oczekiwanie na potwierdzenie administratora…';
-    notifyListeners();
-    final authorized =
-        nativeCore?.requestAdmin('change_server_endpoint') ?? false;
-    if (authorized) {
-      settingsUnlocked = true;
-      status = 'idle';
-      statusMessage = 'Ustawienia połączenia odblokowane przez UAC.';
-    } else {
-      status = 'admin_required';
-      statusMessage =
-          'Formularz wymaga potwierdzenia administratora przez UAC.';
+  Future<String> _waitForRegistration() async {
+    if (nativeCore == null) return registrationStatus;
+    for (var attempt = 0; attempt < 30; attempt++) {
+      if (!registrationStatus.startsWith('registering')) {
+        return registrationStatus;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      registrationStatus = nativeCore!.registrationStatus();
+      notifyListeners();
     }
+    return registrationStatus;
+  }
+
+  Future<void> _submitPendingEnrollmentIfNeeded() async {
+    if (_enrollmentFallbackInProgress ||
+        !registrationStatus.contains('result 6')) {
+      return;
+    }
+    final baseUri = _enrollmentBaseUri();
+    if (baseUri == null || deviceId.trim().isEmpty) return;
+    _enrollmentFallbackInProgress = true;
+    try {
+      final result = await _accountApi.requestEnrollment(
+        baseUri: baseUri,
+        deviceId: deviceId,
+        publicKey: identityPublicKey,
+      );
+      if (result.status == 'pending') {
+        registrationStatus = 'pending_approval';
+        status = 'pending_approval';
+        statusMessage =
+            'Urządzenie czeka na akceptację administratora w panelu BetterDesk.';
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep the signal result when the optional HTTP metadata endpoint is
+      // unavailable.
+    } finally {
+      _enrollmentFallbackInProgress = false;
+    }
+  }
+
+  Future<bool> unlockConnectionSettings() async {
+    if (_unlockInProgress) return false;
+    _unlockInProgress = true;
+    status = 'authorizing';
+    statusMessage = 'Potwierdź uprawnienia administratora w oknie Windows.';
     notifyListeners();
-    return authorized;
+    try {
+      final authorized =
+          await nativeCore?.requestAdminAsync('change_server_endpoint') ??
+              false;
+      if (authorized) {
+        settingsUnlocked = true;
+        status = 'idle';
+        statusMessage = 'Ustawienia zostały odblokowane.';
+      } else {
+        status = 'admin_required';
+        statusMessage = nativeCore == null
+            ? 'Brak lokalnego modułu uprawnień. Uruchom pełny pakiet klienta.'
+            : 'Uprawnienia nie zostały nadane.';
+      }
+      return authorized;
+    } catch (_) {
+      status = 'admin_required';
+      statusMessage = 'Nie udało się uzyskać uprawnień administratora.';
+      return false;
+    } finally {
+      _unlockInProgress = false;
+      notifyListeners();
+    }
   }
 
   Future<void> initializeTray() async {
@@ -328,7 +460,7 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
     notifyListeners();
     if (Platform.environment['FLUTTER_TEST'] != 'true') {
       unawaited(_persistSettings());
-      unawaited(_ensureIdentity());
+      unawaited(_prepareAndStartRegistration());
     }
     return true;
   }
@@ -343,12 +475,16 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
   }
 
   Future<void> probeServer() async {
-    if (!configured || isBusy) return;
+    if (!configured || _probeInProgress || _unlockInProgress) return;
+    _probeInProgress = true;
     status = 'connecting';
     statusMessage = 'Testowanie ID servera, relay i API…';
     notifyListeners();
 
     try {
+      if (nativeCore != null) {
+        await _ensureIdentity();
+      }
       final checks = <String>[];
       if (idServer.trim().isEmpty) {
         throw const FormatException('Podaj adres Serwer ID.');
@@ -364,8 +500,24 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
       if (apiUrl.trim().isNotEmpty) {
         checks.add(await _testApiEndpoint());
       }
-      if (_startRegistration()) {
-        checks.add('RegisterPk wysłany do kolejki rejestracji');
+      if (_startRegistration() || registrationStatus == 'registering') {
+        await _waitForRegistration();
+        await _submitPendingEnrollmentIfNeeded();
+        checks.add('rejestracja: $registrationStatusLabel');
+      }
+      if (registrationStatus == 'pending_approval') {
+        status = 'pending_approval';
+        statusMessage =
+            'Urządzenie czeka na akceptację administratora w panelu BetterDesk.';
+        return;
+      }
+      if (registrationStatus.startsWith('failed:')) {
+        final reason = registrationStatus.substring('failed:'.length).trim();
+        status = 'failed';
+        statusMessage = reason.isEmpty
+            ? 'Rejestracja na serwerze nie powiodła się.'
+            : 'Rejestracja na serwerze nie powiodła się: ${_safeError(reason)}';
+        return;
       }
       status = 'online';
       statusMessage = 'Połączenie poprawne: ${checks.join(', ')}.';
@@ -373,6 +525,8 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
     } catch (error) {
       status = 'failed';
       statusMessage = 'Test połączenia nieudany: ${_safeError(error)}';
+    } finally {
+      _probeInProgress = false;
     }
     notifyListeners();
   }
@@ -569,13 +723,150 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
   }
 
   void setPeer(String value) {
-    peerId = value.trim();
-    notifyListeners();
+    peerId = value;
   }
 
   void connectToPeer(String value) {
     setPeer(value);
     startSession();
+  }
+
+  Future<void> loginAccount({
+    required String username,
+    required String password,
+  }) async {
+    if (_accountBusy) return;
+    final baseUri = _accountBaseUri();
+    if (baseUri == null) {
+      accountMessage = 'Najpierw ustaw adres API BetterDesk.';
+      notifyListeners();
+      return;
+    }
+    if (baseUri.scheme != 'https' && !_isLoopbackHost(baseUri.host)) {
+      accountMessage = 'Logowanie do konta wymaga bezpiecznego HTTPS.';
+      notifyListeners();
+      return;
+    }
+    _accountBusy = true;
+    accountMessage = 'Logowanie…';
+    notifyListeners();
+    try {
+      final result = await _accountApi.login(
+        baseUri: baseUri,
+        username: username.trim(),
+        password: password,
+        deviceId: deviceId,
+      );
+      accountUsername = result.username;
+      accountRole = result.role;
+      await Future.wait([
+        _storage.write(key: 'account.access_token', value: result.accessToken),
+        _storage.write(key: 'account.username', value: result.username),
+        _storage.write(key: 'account.role', value: result.role),
+      ]);
+      await _syncAccountDevices(result.accessToken);
+      accountMessage = 'Zalogowano. Książka urządzeń jest aktualna.';
+    } on BetterDeskAccountException catch (error) {
+      accountMessage = _safeError(error);
+    } catch (_) {
+      accountMessage = 'Nie można połączyć z serwerem konta.';
+    } finally {
+      _accountBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> syncAccountDevices() async {
+    if (_accountBusy || !accountLoggedIn) return;
+    final token = await _storage.read(key: 'account.access_token');
+    if (token == null || token.isEmpty) {
+      await logoutAccount();
+      return;
+    }
+    _accountBusy = true;
+    accountMessage = 'Pobieranie urządzeń…';
+    notifyListeners();
+    try {
+      await _syncAccountDevices(token);
+      accountMessage = 'Książka urządzeń jest aktualna.';
+    } on BetterDeskAccountException catch (error) {
+      if (error.message.contains('Invalid') ||
+          error.message.contains('Unauthorized')) {
+        await logoutAccount();
+      } else {
+        accountMessage = _safeError(error);
+      }
+    } catch (_) {
+      accountMessage = 'Nie można pobrać książki urządzeń.';
+    } finally {
+      _accountBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> logoutAccount() async {
+    accountUsername = '';
+    accountRole = '';
+    accountDevices.clear();
+    accountMessage = 'Wylogowano.';
+    await Future.wait([
+      _storage.delete(key: 'account.access_token'),
+      _storage.delete(key: 'account.username'),
+      _storage.delete(key: 'account.role'),
+    ]);
+    notifyListeners();
+  }
+
+  Future<void> _syncAccountDevices(
+    String token, {
+    bool silent = false,
+  }) async {
+    final baseUri = _accountBaseUri();
+    if (baseUri == null) return;
+    final devices = await _accountApi.devices(
+      baseUri: baseUri,
+      accessToken: token,
+    );
+    accountDevices
+      ..clear()
+      ..addAll(devices);
+    if (!silent) notifyListeners();
+  }
+
+  Future<void> _restoreAccount(String token) async {
+    try {
+      await _syncAccountDevices(token, silent: true);
+    } catch (_) {
+      accountUsername = '';
+      accountRole = '';
+      accountDevices.clear();
+      accountMessage = 'Sesja konta wygasła. Zaloguj się ponownie.';
+      await _storage.delete(key: 'account.access_token');
+      notifyListeners();
+    }
+  }
+
+  Uri? _accountBaseUri() {
+    final raw = apiUrl.trim();
+    if (raw.isEmpty) return null;
+    final parsed = Uri.tryParse(
+      raw.contains('://') ? raw : 'https://$raw',
+    );
+    if (parsed == null || parsed.host.isEmpty) return null;
+    return parsed.replace(path: '', query: '', fragment: '');
+  }
+
+  Uri? _enrollmentBaseUri() {
+    final baseUri = _accountBaseUri();
+    if (baseUri == null || baseUri.port != 21121) return baseUri;
+    return baseUri.replace(port: 21114);
+  }
+
+  static bool _isLoopbackHost(String host) {
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '::1' ||
+        host == '[::1]';
   }
 
   void startSession() {
@@ -624,11 +915,37 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
     notifyListeners();
   }
 
-  void requestAdminSetting(String setting) {
-    status = 'admin_required';
-    statusMessage =
-        'Zmiana „$setting” wymaga potwierdzenia administratora przez UAC/polkit.';
+  Future<void> requestAdminSetting(
+    String operation, {
+    required String label,
+  }) async {
+    if (!settingsUnlocked) {
+      status = 'admin_required';
+      statusMessage = 'Najpierw odblokuj ustawienia przyciskiem powyżej.';
+      notifyListeners();
+      return;
+    }
+    if (_adminOperationInProgress) return;
+    _adminOperationInProgress = true;
+    status = 'authorizing';
+    statusMessage = 'Potwierdź zmianę ustawienia „$label”.';
     notifyListeners();
+    try {
+      final authorized =
+          await nativeCore?.requestAdminAsync(operation) ?? false;
+      status = authorized ? 'idle' : 'admin_required';
+      statusMessage = authorized
+          ? 'Ustawienie „$label” zostało odblokowane.'
+          : nativeCore == null
+              ? 'Brak lokalnego modułu uprawnień.'
+              : 'Zmiana ustawienia „$label” została anulowana.';
+    } catch (_) {
+      status = 'admin_required';
+      statusMessage = 'Nie udało się zmienić ustawienia „$label”.';
+    } finally {
+      _adminOperationInProgress = false;
+      notifyListeners();
+    }
   }
 
   void toggleTheme(bool value) {
@@ -669,9 +986,6 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
     }
   }
 
-  static bool _isLoopback(String host) =>
-      host == 'localhost' || host == '127.0.0.1' || host == '::1';
-
   String _fallbackDeviceId() {
     final random = math.Random.secure();
     return (100000000 + random.nextInt(900000000)).toString();
@@ -682,7 +996,7 @@ class AppController extends ChangeNotifier with TrayListener, WindowListener {
         'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@\$%';
     final random = math.Random.secure();
     return List.generate(
-      20,
+      rotatingPasswordLength,
       (_) => alphabet[random.nextInt(alphabet.length)],
     ).join();
   }
@@ -896,13 +1210,43 @@ class _TrayHint extends StatelessWidget {
   }
 }
 
-class _ConnectionCard extends StatelessWidget {
+class _ConnectionCard extends StatefulWidget {
   const _ConnectionCard({required this.controller});
   final AppController controller;
 
   @override
+  State<_ConnectionCard> createState() => _ConnectionCardState();
+}
+
+class _ConnectionCardState extends State<_ConnectionCard> {
+  late final TextEditingController _peerController;
+
+  @override
+  void initState() {
+    super.initState();
+    _peerController = TextEditingController(text: widget.controller.peerId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ConnectionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final externalValue = widget.controller.peerId;
+    if (externalValue != _peerController.text) {
+      _peerController.value = TextEditingValue(
+        text: externalValue,
+        selection: TextSelection.collapsed(offset: externalValue.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _peerController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final peerController = TextEditingController(text: controller.peerId);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(22),
@@ -920,8 +1264,11 @@ class _ConnectionCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: peerController,
-                    onChanged: controller.setPeer,
+                    controller: _peerController,
+                    onChanged: (value) {
+                      widget.controller.setPeer(value);
+                      setState(() {});
+                    },
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.computer_outlined),
                       hintText: 'ID urządzenia, np. BD-1234',
@@ -930,11 +1277,11 @@ class _ConnectionCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 FilledButton.icon(
-                  onPressed: controller.configured &&
-                          peerController.text.trim().isNotEmpty
-                      ? controller.startSession
+                  onPressed: widget.controller.configured &&
+                          _peerController.text.trim().isNotEmpty
+                      ? widget.controller.startSession
                       : null,
-                  icon: controller.isBusy
+                  icon: widget.controller.isBusy
                       ? const SizedBox.square(
                           dimension: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
@@ -945,7 +1292,7 @@ class _ConnectionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            _StatusLine(controller: controller),
+            _StatusLine(controller: widget.controller),
           ],
         ),
       ),
@@ -1067,10 +1414,220 @@ class PeersPage extends StatelessWidget {
         const SizedBox(height: 14),
         _ConnectionCard(controller: controller),
         const SizedBox(height: 16),
+        _AccountCard(controller: controller),
+        const SizedBox(height: 16),
         _IdentityCard(controller: controller),
         const SizedBox(height: 16),
         _RecentPeersCard(controller: controller),
       ],
+    );
+  }
+}
+
+class _AccountCard extends StatefulWidget {
+  const _AccountCard({required this.controller});
+
+  final AppController controller;
+
+  @override
+  State<_AccountCard> createState() => _AccountCardState();
+}
+
+class _AccountCardState extends State<_AccountCard> {
+  late final TextEditingController _usernameController;
+  late final TextEditingController _passwordController;
+  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController =
+        TextEditingController(text: widget.controller.accountUsername);
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    await widget.controller.loginAccount(
+      username: _usernameController.text,
+      password: _passwordController.text,
+    );
+    if (widget.controller.accountLoggedIn) {
+      _passwordController.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    if (controller.accountLoggedIn) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.account_circle_outlined,
+                      color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Konto BetterDesk',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        Text(
+                          '${controller.accountUsername}${controller.accountRole.isEmpty ? '' : ' · ${controller.accountRole}'}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Odśwież urządzenia',
+                    onPressed: controller.accountBusy
+                        ? null
+                        : controller.syncAccountDevices,
+                    icon: controller.accountBusy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                  ),
+                  TextButton(
+                    onPressed: controller.accountBusy
+                        ? null
+                        : controller.logoutAccount,
+                    child: const Text('Wyloguj'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (controller.accountDevices.isEmpty)
+                const Text('Brak urządzeń dostępnych dla tego konta.')
+              else ...[
+                Text('Urządzenia',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                ...controller.accountDevices.take(20).map(
+                      (device) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        leading: Icon(
+                          device.online ? Icons.circle : Icons.circle_outlined,
+                          size: 14,
+                          color: device.online ? Colors.green : Colors.grey,
+                        ),
+                        title: Text(
+                          device.hostname.isEmpty ? device.id : device.hostname,
+                        ),
+                        subtitle: Text(
+                          device.hostname.isEmpty
+                              ? device.id
+                              : '${device.id}${device.platform.isEmpty ? '' : ' · ${device.platform}'}',
+                        ),
+                        trailing: const Icon(Icons.arrow_forward),
+                        onTap: controller.isBusy
+                            ? null
+                            : () => controller.connectToPeer(device.id),
+                      ),
+                    ),
+              ],
+              if (controller.accountMessage.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(controller.accountMessage),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Konto BetterDesk',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            const Text(
+              'Zaloguj się, aby synchronizować książkę urządzeń i łączyć się jednym kliknięciem.',
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _usernameController,
+                    enabled: !controller.accountBusy,
+                    decoration: const InputDecoration(
+                      labelText: 'Nazwa użytkownika',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _login(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _passwordController,
+                    enabled: !controller.accountBusy,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Hasło',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        tooltip:
+                            _obscurePassword ? 'Pokaż hasło' : 'Ukryj hasło',
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _login(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: controller.accountBusy ||
+                          _usernameController.text.trim().isEmpty ||
+                          _passwordController.text.isEmpty
+                      ? null
+                      : _login,
+                  icon: controller.accountBusy
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login),
+                  label: const Text('Zaloguj'),
+                ),
+              ],
+            ),
+            if (controller.accountMessage.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(controller.accountMessage),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1147,7 +1704,7 @@ class _IdentityCard extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.cloud_done_outlined),
               title: const Text('Rejestracja w serwerze'),
-              subtitle: Text(controller.registrationStatus),
+              subtitle: Text(controller.registrationStatusLabel),
             ),
           ],
         ),
@@ -1209,36 +1766,79 @@ class _RecentPeersCard extends StatelessWidget {
   }
 }
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({required this.controller, super.key});
   final AppController controller;
 
   @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late final TextEditingController _idServerController;
+  late final TextEditingController _relayServerController;
+  late final TextEditingController _apiController;
+  late final TextEditingController _keyController;
+
+  @override
+  void initState() {
+    super.initState();
+    _idServerController =
+        TextEditingController(text: widget.controller.idServer);
+    _relayServerController =
+        TextEditingController(text: widget.controller.relayServer);
+    _apiController = TextEditingController(text: widget.controller.apiUrl);
+    _keyController = TextEditingController(text: widget.controller.serverKey);
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncField(_idServerController, widget.controller.idServer);
+    _syncField(_relayServerController, widget.controller.relayServer);
+    _syncField(_apiController, widget.controller.apiUrl);
+    _syncField(_keyController, widget.controller.serverKey);
+  }
+
+  void _syncField(TextEditingController field, String value) {
+    if (field.text == value) return;
+    field.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    _idServerController.dispose();
+    _relayServerController.dispose();
+    _apiController.dispose();
+    _keyController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    widget.controller.saveConnection(
+      idServerValue: _idServerController.text,
+      relayServerValue: _relayServerController.text,
+      apiUrlValue: _apiController.text,
+      serverKeyValue: _keyController.text,
+    );
+  }
+
+  void _test() {
+    unawaited(widget.controller.testConnection(
+      idServerValue: _idServerController.text,
+      relayServerValue: _relayServerController.text,
+      apiUrlValue: _apiController.text,
+      serverKeyValue: _keyController.text,
+    ));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final idServerController = TextEditingController(text: controller.idServer);
-    final relayServerController =
-        TextEditingController(text: controller.relayServer);
-    final apiController = TextEditingController(text: controller.apiUrl);
-    final keyController = TextEditingController(text: controller.serverKey);
-
-    void save() {
-      controller.saveConnection(
-        idServerValue: idServerController.text,
-        relayServerValue: relayServerController.text,
-        apiUrlValue: apiController.text,
-        serverKeyValue: keyController.text,
-      );
-    }
-
-    void test() {
-      controller.testConnection(
-        idServerValue: idServerController.text,
-        relayServerValue: relayServerController.text,
-        apiUrlValue: apiController.text,
-        serverKeyValue: keyController.text,
-      );
-    }
-
+    final controller = widget.controller;
+    final systemSettingsEnabled = controller.settingsUnlocked;
     return ListView(
       key: const ValueKey('settings-scroll'),
       padding: const EdgeInsets.fromLTRB(28, 16, 28, 32),
@@ -1249,10 +1849,10 @@ class SettingsPage extends StatelessWidget {
           _SettingsSection(
             title: 'Serwer ID/Pośredniczący',
             description:
-                'Pełna konfiguracja połączenia BetterDesk/RustDesk. Porty domyślne: ID 21116, relay 21117.',
+                'Podaj adresy serwera. Domyślne porty: ID 21116, relay 21117.',
             children: [
               TextField(
-                controller: idServerController,
+                controller: _idServerController,
                 decoration: const InputDecoration(
                   labelText: 'Serwer ID',
                   hintText: 'host lub host:21116',
@@ -1261,7 +1861,7 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: relayServerController,
+                controller: _relayServerController,
                 decoration: const InputDecoration(
                   labelText: 'Serwer pośredniczący',
                   hintText: 'host lub host:21117',
@@ -1270,7 +1870,7 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: apiController,
+                controller: _apiController,
                 decoration: const InputDecoration(
                   labelText: 'Serwer API',
                   hintText: 'https://desk.example.com',
@@ -1279,7 +1879,7 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: keyController,
+                controller: _keyController,
                 decoration: const InputDecoration(
                   labelText: 'Klucz publiczny serwera',
                   hintText: 'Base64 lub 64 znaki HEX',
@@ -1288,8 +1888,17 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Transport zostanie wykryty automatycznie. TLS jest preferowany; jawne HTTP pozostanie trybem nieszyfrowanym. Klucz służy do weryfikacji serwera.',
+                'Bezpieczne połączenie jest wybierane automatycznie. Klucz sprawdza serwer.',
                 style: Theme.of(context).textTheme.bodySmall,
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Zezwól na niezaufany certyfikat TLS'),
+                subtitle: const Text(
+                  'Włącz tylko na serwerze testowym z własnym certyfikatem.',
+                ),
+                value: controller.allowUntrustedTls,
+                onChanged: controller.setAllowUntrustedTls,
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -1297,12 +1906,12 @@ class SettingsPage extends StatelessWidget {
                 runSpacing: 10,
                 children: [
                   FilledButton.icon(
-                    onPressed: controller.isBusy ? null : save,
+                    onPressed: controller.isBusy ? null : _save,
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('Zapisz konfigurację'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: controller.isBusy ? null : test,
+                    onPressed: controller.isBusy ? null : _test,
                     icon: controller.isBusy
                         ? const SizedBox.square(
                             dimension: 18,
@@ -1314,7 +1923,10 @@ class SettingsPage extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: controller.isBusy
                         ? null
-                        : () => controller.requestAdminSetting('klucz serwera'),
+                        : () => unawaited(controller.requestAdminSetting(
+                              'change_server_key',
+                              label: 'klucza serwera',
+                            )),
                     icon: const Icon(Icons.file_open_outlined),
                     label: const Text('Importuj konfigurację'),
                   ),
@@ -1341,31 +1953,63 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 16),
         _SettingsSection(
           title: 'Ustawienia systemowe',
-          description: 'Zmiany dotyczące całego komputera wymagają UAC/polkit.',
+          description: 'Te ustawienia wymagają zgody administratora.',
           children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.power_settings_new),
-              title: const Text('Uruchamiaj przy starcie systemu'),
-              subtitle: const Text('Opcjonalny autostart klienta w zasobniku.'),
-              trailing: Switch.adaptive(
-                value: controller.autostart,
-                onChanged: (_) => controller.requestAdminSetting('autostart'),
+            if (!systemSettingsEnabled)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Odblokuj ustawienia przyciskiem powyżej, aby móc je zmieniać.',
+                ),
+              ),
+            AbsorbPointer(
+              absorbing: !systemSettingsEnabled,
+              child: Opacity(
+                opacity: systemSettingsEnabled ? 1 : 0.45,
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.power_settings_new),
+                      title: const Text('Uruchamiaj przy starcie systemu'),
+                      subtitle: const Text(
+                          'Włącz uruchamianie klienta przy starcie.'),
+                      trailing: Switch.adaptive(
+                        value: controller.autostart,
+                        onChanged: systemSettingsEnabled
+                            ? (_) => unawaited(
+                                  controller.requestAdminSetting(
+                                    'configure_autostart',
+                                    label: 'autostartu',
+                                  ),
+                                )
+                            : null,
+                      ),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.admin_panel_settings_outlined),
+                      title: const Text('Usługa i dostęp zdalny'),
+                      subtitle:
+                          const Text('Wymaga osobnej zgody administratora.'),
+                      trailing: OutlinedButton(
+                        onPressed: systemSettingsEnabled
+                            ? () => unawaited(
+                                  controller.requestAdminSetting(
+                                    'configure_unattended_access',
+                                    label: 'dostępu zdalnego',
+                                  ),
+                                )
+                            : null,
+                        child: const Text('Zarządzaj'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.admin_panel_settings_outlined),
-              title: const Text('Usługa i dostęp unattended'),
-              subtitle:
-                  const Text('Instalacja wymaga uprawnień administratora.'),
-              trailing: OutlinedButton(
-                onPressed: () =>
-                    controller.requestAdminSetting('usługa unattended'),
-                child: const Text('Zarządzaj'),
-              ),
-            ),
-            if (controller.status == 'admin_required')
+            if (controller.status == 'admin_required' ||
+                controller.status == 'authorizing')
               _StatusLine(controller: controller),
           ],
         ),
@@ -1400,17 +2044,25 @@ class _SettingsUnlockCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Dane serwera, klucz publiczny i ustawienia dostępu są widoczne dopiero po potwierdzeniu UAC administratora.',
+              'Dane serwera i ustawienia systemowe są ukryte. Kliknij przycisk i potwierdź zgodę administratora.',
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: controller.isBusy
+              onPressed: controller.unlockInProgress
                   ? null
-                  : controller.unlockConnectionSettings,
-              icon: const Icon(Icons.lock_open_outlined),
-              label: const Text('Odblokuj ustawienia przez UAC'),
+                  : () => unawaited(controller.unlockConnectionSettings()),
+              icon: controller.unlockInProgress
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.lock_open_outlined),
+              label: Text(controller.unlockInProgress
+                  ? 'Czekaj na zgodę administratora'
+                  : 'Odblokuj ustawienia'),
             ),
-            if (controller.status == 'admin_required') ...[
+            if (controller.status == 'admin_required' ||
+                controller.status == 'authorizing') ...[
               const SizedBox(height: 12),
               _StatusLine(controller: controller),
             ],

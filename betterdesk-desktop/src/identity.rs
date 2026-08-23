@@ -9,6 +9,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ed25519_dalek::SigningKey;
 
 const PASSWORD_ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%";
+const ROTATING_PASSWORD_LENGTH: usize = 8;
 
 pub fn generate_device_id() -> Result<String> {
     let mut random = [0_u8; 8];
@@ -18,7 +19,7 @@ pub fn generate_device_id() -> Result<String> {
 }
 
 pub fn generate_rotating_password() -> Result<String> {
-    let mut random = [0_u8; 20];
+    let mut random = [0_u8; ROTATING_PASSWORD_LENGTH];
     getrandom::fill(&mut random).context("generate rotating password")?;
     let password = random
         .into_iter()
@@ -53,7 +54,7 @@ mod tests {
     #[test]
     fn rotating_password_has_sufficient_length() {
         let password = generate_rotating_password().unwrap();
-        assert_eq!(password.chars().count(), 20);
+        assert_eq!(password.chars().count(), ROTATING_PASSWORD_LENGTH);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/main.dart';
+import 'package:betterdesk_desktop/main.dart';
 
 void main() {
   testWidgets('renders the operator overview', (tester) async {
@@ -31,6 +31,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Konfiguracja połączenia jest chroniona'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Ustawienia systemowe'),
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('settings-scroll')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    final lockedSwitches =
+        tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(lockedSwitches.last.onChanged, isNull);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Zarządzaj'))
+          .onPressed,
+      isNull,
+    );
     controller.settingsUnlocked = true;
     controller.notifyListeners();
     await tester.pumpAndSettle();
@@ -51,7 +71,37 @@ void main() {
           .first,
     );
     expect(find.text('Ustawienia systemowe'), findsOneWidget);
-    expect(find.textContaining('UAC/polkit'), findsOneWidget);
+    expect(
+      find.text('Te ustawienia wymagają zgody administratora.'),
+      findsOneWidget,
+    );
+    final unlockedSwitches =
+        tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(unlockedSwitches.last.onChanged, isNotNull);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Zarządzaj'))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('keeps the peer ID cursor stable while the app rebuilds',
+      (tester) async {
+    final controller = AppController(null);
+    await tester.pumpWidget(BetterDeskApp(controller: controller));
+
+    final field = find.byType(TextField).first;
+    await tester.enterText(field, '123456');
+    final fieldController = tester.widget<TextField>(field).controller!;
+    fieldController.selection = const TextSelection.collapsed(offset: 3);
+    controller.notifyListeners();
+    await tester.pump();
+
+    expect(tester.widget<TextField>(field).controller, same(fieldController));
+    expect(fieldController.text, '123456');
+    expect(fieldController.selection.baseOffset, 3);
   });
 
   test('validates and stores complete server configuration', () {

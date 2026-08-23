@@ -32,6 +32,13 @@ pub mod windows_media;
 
 pub const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub(crate) fn ensure_tls_provider() {
+    static INITIALIZED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    INITIALIZED.get_or_init(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
 #[no_mangle]
 pub extern "C" fn bd_client_version() -> *const std::ffi::c_char {
     static VERSION: &[u8] = b"BetterDesk Desktop\0";

@@ -1,6 +1,7 @@
 import 'dart:ffi';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -15,46 +16,45 @@ typedef _StartRegistrationNative = Uint8 Function(
     Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
 
 class NativeCore {
-  NativeCore._(this._library)
-      : _version = _library
+  NativeCore._(DynamicLibrary library)
+      : _version = library
             .lookup<NativeFunction<_VersionNative>>('bd_client_version')
             .asFunction(),
-        _validate = _library
+        _validate = library
             .lookup<NativeFunction<_ValidateNative>>('bd_validate_server_url')
             .asFunction(),
-        _requestAdmin = _library
+        _requestAdmin = library
             .lookup<NativeFunction<_RequestAdminNative>>('bd_request_admin')
             .asFunction(),
-        _generateDeviceId = _library
+        _generateDeviceId = library
             .lookup<NativeFunction<_GenerateStringNative>>(
                 'bd_generate_device_id')
             .asFunction(),
-        _generatePassword = _library
+        _generatePassword = library
             .lookup<NativeFunction<_GenerateStringNative>>(
               'bd_generate_rotating_password',
             )
             .asFunction(),
-        _generateKeypair = _library
+        _generateKeypair = library
             .lookup<NativeFunction<_GenerateStringNative>>(
               'bd_generate_identity_keypair',
             )
             .asFunction(),
-        _capture = _library
+        _capture = library
             .lookup<NativeFunction<_CaptureNative>>('bd_capture_screen_jpeg')
             .asFunction(),
-        _inject = _library
+        _inject = library
             .lookup<NativeFunction<_InjectNative>>('bd_inject_input')
             .asFunction(),
-        _startRegistration = _library
+        _startRegistration = library
             .lookup<NativeFunction<_StartRegistrationNative>>(
                 'bd_start_registration')
             .asFunction(),
-        _registrationStatus = _library
+        _registrationStatus = library
             .lookup<NativeFunction<_GenerateStringNative>>(
                 'bd_registration_status')
             .asFunction();
 
-  final DynamicLibrary _library;
   final Pointer<Utf8> Function() _version;
   final int Function(Pointer<Utf8>) _validate;
   final int Function(Pointer<Utf8>) _requestAdmin;
@@ -71,7 +71,14 @@ class NativeCore {
     final names = Platform.isWindows
         ? const ['betterdesk_desktop.dll']
         : const ['libbetterdesk_desktop.so'];
-    for (final name in names) {
+    final executableDirectory = File(Platform.resolvedExecutable).parent.path;
+    final candidates = <String>[
+      ...names,
+      ...names.map(
+        (name) => '$executableDirectory${Platform.pathSeparator}$name',
+      ),
+    ];
+    for (final name in candidates) {
       try {
         return NativeCore._(DynamicLibrary.open(name));
       } catch (_) {
@@ -100,6 +107,16 @@ class NativeCore {
     } finally {
       calloc.free(pointer);
     }
+  }
+
+  Future<bool> requestAdminAsync(String operation) {
+    return Isolate.run(() {
+      try {
+        return NativeCore.tryLoad()?.requestAdmin(operation) ?? false;
+      } catch (_) {
+        return false;
+      }
+    });
   }
 
   String generateDeviceId() => _generateDeviceId().toDartString();

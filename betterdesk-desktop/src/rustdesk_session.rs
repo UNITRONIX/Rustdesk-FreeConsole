@@ -5,7 +5,6 @@ use uuid::Uuid;
 use crate::{
     config::ServerConfig,
     crypto::{self, KeyExchange, SecretBoxStream},
-    frame::Decoder,
     hbb::{message, relay_response, rendezvous_message, Message as PeerMessage, RendezvousMessage},
     rustdesk,
     transport::{RustDeskEndpoints, SessionSnapshot, SessionState, WsBinaryTransport},
@@ -22,7 +21,6 @@ pub struct RustDeskSession {
     relay_uuid: String,
     peer_signed_key: Option<Vec<u8>>,
     relay: WsBinaryTransport,
-    decoder: Decoder,
     key_exchange: Option<KeyExchange>,
     crypto: Option<SecretBoxStream>,
     snapshot: SessionSnapshot,
@@ -39,13 +37,26 @@ impl RustDeskSession {
         device_uuid: &[u8],
         public_key: &[u8],
     ) -> Result<i32> {
+        let (mut rendezvous, keep_alive) =
+            Self::register_device_connection(config, device_id, device_uuid, public_key).await?;
+        rendezvous.close().await?;
+        Ok(keep_alive)
+    }
+
+    pub async fn register_device_connection(
+        config: &ServerConfig,
+        device_id: &str,
+        device_uuid: &[u8],
+        public_key: &[u8],
+    ) -> Result<(WsBinaryTransport, i32)> {
         config
             .validate()
             .context("validate BetterDesk configuration")?;
         let endpoints = RustDeskEndpoints::from_config(config)?;
-        let mut rendezvous = WsBinaryTransport::connect(endpoints.rendezvous).await?;
+        let mut rendezvous =
+            WsBinaryTransport::connect(endpoints.rendezvous, config.allow_untrusted_tls).await?;
         rendezvous
-            .send_framed(&rustdesk::encode(&rustdesk::register_pk_request(
+            .send_raw(&rustdesk::encode(&rustdesk::register_pk_request(
                 device_id,
                 device_uuid,
                 public_key,
@@ -53,22 +64,19 @@ impl RustDeskSession {
             .await
             .context("send RegisterPk")?;
 
-        let mut decoder = Decoder::new();
         while let Some(bytes) = rendezvous.next_binary().await? {
-            for raw in decoder.feed(&bytes)? {
-                let response = RendezvousMessage::decode(raw.as_slice())?;
-                if let Some(rendezvous_message::Union::RegisterPkResponse(response)) =
-                    response.union
-                {
-                    if response.result != 0 {
-                        bail!(
-                            "device registration refused with result {}",
-                            response.result
-                        );
-                    }
-                    rendezvous.close().await?;
-                    return Ok(response.keep_alive);
+            if bytes.is_empty() {
+                continue;
+            }
+            let response = RendezvousMessage::decode(bytes.as_slice())?;
+            if let Some(rendezvous_message::Union::RegisterPkResponse(response)) = response.union {
+                if response.result != 0 {
+                    bail!(
+                        "device registration refused with result {}",
+                        response.result
+                    );
                 }
+                return Ok((rendezvous, response.keep_alive));
             }
         }
         bail!("rendezvous closed before RegisterPkResponse")
@@ -79,11 +87,11 @@ impl RustDeskSession {
             .validate()
             .context("validate BetterDesk configuration")?;
         let endpoints = RustDeskEndpoints::from_config(config)?;
-        let mut rendezvous = WsBinaryTransport::connect(endpoints.rendezvous).await?;
-        let mut rendezvous_decoder = Decoder::new();
+        let mut rendezvous =
+            WsBinaryTransport::connect(endpoints.rendezvous, config.allow_untrusted_tls).await?;
         let request = rustdesk::punch_hole_request(device_id, &config.server_key);
         rendezvous
-            .send_framed(&rustdesk::encode(&request))
+            .send_raw(&rustdesk::encode(&request))
             .await
             .context("send PunchHoleRequest")?;
 
@@ -94,57 +102,58 @@ impl RustDeskSession {
             let Some(bytes) = rendezvous.next_binary().await? else {
                 bail!("rendezvous closed before a peer response");
             };
-            for raw in rendezvous_decoder.feed(&bytes)? {
-                let message = RendezvousMessage::decode(raw.as_slice())?;
-                let Some(union) = message.union else {
-                    continue;
-                };
-                match union {
-                    rendezvous_message::Union::PunchHoleResponse(response) => {
-                        let has_relay = !response.relay_server.is_empty();
-                        let has_direct = !response.socket_addr.is_empty();
-                        if has_relay {
-                            relay_server = response.relay_server.clone();
-                        }
-                        if !has_relay && !has_direct {
-                            bail!(
-                                "peer unavailable: {}",
-                                if response.other_failure.is_empty() {
-                                    "no relay or direct address"
-                                } else {
-                                    response.other_failure.as_str()
-                                }
-                            );
-                        }
-                        relay_uuid = Uuid::new_v4().to_string();
-                        let relay_request = rustdesk::request_relay(
-                            device_id,
-                            &relay_uuid,
-                            &relay_server,
-                            &config.server_key,
+            if bytes.is_empty() {
+                continue;
+            }
+            let message = RendezvousMessage::decode(bytes.as_slice())?;
+            let Some(union) = message.union else {
+                continue;
+            };
+            match union {
+                rendezvous_message::Union::PunchHoleResponse(response) => {
+                    let has_relay = !response.relay_server.is_empty();
+                    let has_direct = !response.socket_addr.is_empty();
+                    if has_relay {
+                        relay_server = response.relay_server.clone();
+                    }
+                    if !has_relay && !has_direct {
+                        bail!(
+                            "peer unavailable: {}",
+                            if response.other_failure.is_empty() {
+                                "no relay or direct address"
+                            } else {
+                                response.other_failure.as_str()
+                            }
                         );
-                        rendezvous
-                            .send_framed(&rustdesk::encode(&relay_request))
-                            .await?;
                     }
-                    rendezvous_message::Union::RelayResponse(response) => {
-                        if !response.refuse_reason.is_empty() {
-                            bail!("relay refused: {}", response.refuse_reason);
-                        }
-                        if !response.uuid.is_empty() {
-                            relay_uuid = response.uuid;
-                        }
-                        if !response.relay_server.is_empty() {
-                            relay_server = response.relay_server;
-                        }
-                        peer_signed_key = match response.union {
-                            Some(relay_response::Union::Pk(pk)) if !pk.is_empty() => Some(pk),
-                            _ => None,
-                        };
-                        break;
-                    }
-                    _ => {}
+                    relay_uuid = Uuid::new_v4().to_string();
+                    let relay_request = rustdesk::request_relay(
+                        device_id,
+                        &relay_uuid,
+                        &relay_server,
+                        &config.server_key,
+                    );
+                    rendezvous
+                        .send_raw(&rustdesk::encode(&relay_request))
+                        .await?;
                 }
+                rendezvous_message::Union::RelayResponse(response) => {
+                    if !response.refuse_reason.is_empty() {
+                        bail!("relay refused: {}", response.refuse_reason);
+                    }
+                    if !response.uuid.is_empty() {
+                        relay_uuid = response.uuid;
+                    }
+                    if !response.relay_server.is_empty() {
+                        relay_server = response.relay_server;
+                    }
+                    peer_signed_key = match response.union {
+                        Some(relay_response::Union::Pk(pk)) if !pk.is_empty() => Some(pk),
+                        _ => None,
+                    };
+                    break;
+                }
+                _ => {}
             }
             if !relay_uuid.is_empty() && !relay_server.is_empty() {
                 break;
@@ -153,10 +162,10 @@ impl RustDeskSession {
         rendezvous.close().await?;
 
         let relay_url = endpoints.relay;
-        let mut relay = WsBinaryTransport::connect(relay_url).await?;
+        let mut relay = WsBinaryTransport::connect(relay_url, config.allow_untrusted_tls).await?;
         let relay_request =
             rustdesk::request_relay(device_id, &relay_uuid, &relay_server, &config.server_key);
-        relay.send_framed(&rustdesk::encode(&relay_request)).await?;
+        relay.send_raw(&rustdesk::encode(&relay_request)).await?;
 
         Ok(Self {
             device_id: device_id.to_owned(),
@@ -164,7 +173,6 @@ impl RustDeskSession {
             relay_uuid,
             peer_signed_key,
             relay,
-            decoder: Decoder::new(),
             key_exchange: None,
             crypto: None,
             snapshot: SessionSnapshot {
@@ -202,46 +210,49 @@ impl RustDeskSession {
                 self.snapshot.state = SessionState::Disconnected;
                 return Ok(None);
             };
-            for raw in self.decoder.feed(&bytes)? {
-                if let Ok(rendezvous) = RendezvousMessage::decode(raw.as_slice()) {
-                    if matches!(
-                        rendezvous.union,
-                        Some(rendezvous_message::Union::RelayResponse(_))
-                    ) {
-                        continue;
-                    }
-                }
-                let plaintext = if let Some(cipher) = self.crypto.as_mut() {
-                    match cipher.try_decrypt(&raw) {
-                        Ok((sequence, plaintext)) => {
-                            cipher.commit_receive(sequence);
-                            plaintext
-                        }
-                        Err(_) => raw,
-                    }
-                } else {
-                    raw
-                };
-                let message = PeerMessage::decode(plaintext.as_slice())?;
-                if let Some(message::Union::SignedId(signed_id)) = message.union.as_ref() {
-                    self.verify_peer_identity(&signed_id.id)?;
-                    let (_, payload) = rustdesk::split_signed_id(&signed_id.id)
-                        .context("peer identity payload is truncated")?;
-                    let peer_key = crate::hbb::IdPk::decode(payload)?;
-                    let mut exchange = KeyExchange::generate();
-                    exchange.set_peer_key(peer_key.pk[..].try_into().map_err(|_| {
-                        anyhow::anyhow!("peer ephemeral key has an invalid length")
-                    })?);
-                    self.relay
-                        .send_framed(&rustdesk::encode(&rustdesk::public_key_message(&exchange)))
-                        .await
-                        .context("send PublicKey key exchange message")?;
-                    self.crypto = Some(SecretBoxStream::new(exchange.symmetric_key()));
-                    self.key_exchange = Some(exchange);
-                    self.snapshot.state = SessionState::Authenticating;
-                }
-                return Ok(Some(message));
+            if bytes.is_empty() {
+                continue;
             }
+            if let Ok(rendezvous) = RendezvousMessage::decode(bytes.as_slice()) {
+                if matches!(
+                    rendezvous.union,
+                    Some(rendezvous_message::Union::RelayResponse(_))
+                ) {
+                    continue;
+                }
+            }
+            let plaintext = if let Some(cipher) = self.crypto.as_mut() {
+                match cipher.try_decrypt(&bytes) {
+                    Ok((sequence, plaintext)) => {
+                        cipher.commit_receive(sequence);
+                        plaintext
+                    }
+                    Err(_) => bytes,
+                }
+            } else {
+                bytes
+            };
+            let message = PeerMessage::decode(plaintext.as_slice())?;
+            if let Some(message::Union::SignedId(signed_id)) = message.union.as_ref() {
+                self.verify_peer_identity(&signed_id.id)?;
+                let (_, payload) = rustdesk::split_signed_id(&signed_id.id)
+                    .context("peer identity payload is truncated")?;
+                let peer_key = crate::hbb::IdPk::decode(payload)?;
+                let mut exchange = KeyExchange::generate();
+                exchange.set_peer_key(
+                    peer_key.pk[..]
+                        .try_into()
+                        .map_err(|_| anyhow::anyhow!("peer ephemeral key has an invalid length"))?,
+                );
+                self.relay
+                    .send_raw(&rustdesk::encode(&rustdesk::public_key_message(&exchange)))
+                    .await
+                    .context("send PublicKey key exchange message")?;
+                self.crypto = Some(SecretBoxStream::new(exchange.symmetric_key()));
+                self.key_exchange = Some(exchange);
+                self.snapshot.state = SessionState::Authenticating;
+            }
+            return Ok(Some(message));
         }
     }
 
@@ -260,7 +271,7 @@ impl RustDeskSession {
         if let Some(cipher) = self.crypto.as_mut() {
             bytes = cipher.encrypt(&bytes)?;
         }
-        self.relay.send_framed(&bytes).await?;
+        self.relay.send_raw(&bytes).await?;
         Ok(())
     }
 
@@ -269,7 +280,7 @@ impl RustDeskSession {
         if let Some(cipher) = self.crypto.as_mut() {
             bytes = cipher.encrypt(&bytes)?;
         }
-        self.relay.send_framed(&bytes).await?;
+        self.relay.send_raw(&bytes).await?;
         Ok(())
     }
 

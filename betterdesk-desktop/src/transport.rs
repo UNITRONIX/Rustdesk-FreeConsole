@@ -3,10 +3,16 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use prost::Message;
+use rustls::{
+    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+    pki_types::{CertificateDer, ServerName, UnixTime},
+    ClientConfig, DigitallySignedStruct, Error as RustlsError, SignatureScheme,
+};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
-    connect_async, tungstenite::Message as WsMessage, MaybeTlsStream, WebSocketStream,
+    connect_async_tls_with_config, tungstenite::Message as WsMessage, Connector, MaybeTlsStream,
+    WebSocketStream,
 };
 use url::Url;
 
@@ -51,26 +57,109 @@ pub struct WsBinaryTransport {
     max_frame_size: usize,
 }
 
+#[derive(Debug)]
+struct AcceptAnyCertificate;
+
+impl ServerCertVerifier for AcceptAnyCertificate {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, RustlsError> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, RustlsError> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, RustlsError> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        vec![
+            SignatureScheme::ECDSA_NISTP256_SHA256,
+            SignatureScheme::ECDSA_NISTP384_SHA384,
+            SignatureScheme::ED25519,
+            SignatureScheme::RSA_PSS_SHA256,
+            SignatureScheme::RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512,
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512,
+        ]
+    }
+}
+
 impl WsBinaryTransport {
-    pub async fn connect(url: Url) -> Result<Self> {
+    pub async fn connect(url: Url, allow_untrusted_tls: bool) -> Result<Self> {
         anyhow::ensure!(
             matches!(url.scheme(), "ws" | "wss"),
             "transport URL must use ws or wss"
         );
-        let (stream, _) =
-            tokio::time::timeout(Duration::from_secs(15), connect_async(url.as_str()))
-                .await
-                .context("websocket connection timed out")??;
-        Ok(Self {
-            stream,
-            max_frame_size: frame::MAX_FRAME_SIZE,
-        })
+        crate::ensure_tls_provider();
+        let fallback_scheme = if url.scheme() == "ws" { "wss" } else { "ws" };
+        let mut candidates = vec![url.clone()];
+        let mut fallback = url.clone();
+        fallback
+            .set_scheme(fallback_scheme)
+            .map_err(|_| anyhow::anyhow!("invalid websocket fallback URL"))?;
+        candidates.push(fallback);
+
+        let mut last_error = None;
+        for candidate in candidates {
+            let connector = if allow_untrusted_tls {
+                let tls_config = ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(std::sync::Arc::new(AcceptAnyCertificate))
+                    .with_no_client_auth();
+                Some(Connector::Rustls(std::sync::Arc::new(tls_config)))
+            } else {
+                None
+            };
+            match tokio::time::timeout(
+                Duration::from_secs(15),
+                connect_async_tls_with_config(candidate.as_str(), None, false, connector),
+            )
+            .await
+            {
+                Ok(Ok((stream, _))) => {
+                    return Ok(Self {
+                        stream,
+                        max_frame_size: frame::MAX_FRAME_SIZE,
+                    });
+                }
+                Ok(Err(error)) => last_error = Some(error.to_string()),
+                Err(_) => last_error = Some("connection timed out".to_owned()),
+            }
+        }
+        Err(anyhow::anyhow!(
+            "websocket connection failed: {}",
+            last_error.unwrap_or_else(|| "unknown error".to_owned())
+        ))
     }
 
-    pub async fn send_framed(&mut self, payload: &[u8]) -> Result<()> {
-        let framed = frame::encode(payload).context("encode protocol frame")?;
+    /// Send one raw protobuf payload in a WebSocket binary message.
+    ///
+    /// WebSocket already provides message boundaries. The variable-length
+    /// prefix used by the native TCP protocol must not be added here.
+    pub async fn send_raw(&mut self, payload: &[u8]) -> Result<()> {
         self.stream
-            .send(WsMessage::Binary(framed.into()))
+            .send(WsMessage::Binary(payload.to_vec().into()))
             .await
             .context("send protocol frame")
     }
