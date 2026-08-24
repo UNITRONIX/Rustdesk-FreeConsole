@@ -5,6 +5,13 @@
 
 ---
 
+## [3.5.64] — 2026-08-24
+
+### Changed
+- _(none yet)_
+
+---
+
 ## [3.5.63] — 2026-08-24
 
 ### Fixed
@@ -3123,3 +3130,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.61]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.60...v3.5.61
 [3.5.62]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.61...v3.5.62
 [3.5.63]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.62...v3.5.63
+[3.5.64]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.63...v3.5.64
