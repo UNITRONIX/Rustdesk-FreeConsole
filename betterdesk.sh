@@ -2986,7 +2986,12 @@ compile_go_server() {
     # Download dependencies. Keep this visible and hard-bounded (bash PGID watchdog).
     print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s, kill-after: 15s, setsid watchdog)..."
     local module_download_status=0
-    if ! _run_go_mod_download_bounded; then
+    # Keep the command in the if condition so `set -e` does not abort before
+    # we can capture the actual watchdog/download exit status. Do not use `!`
+    # here: inside its branch `$?` would be the status of the negation (0).
+    if _run_go_mod_download_bounded; then
+        module_download_status=0
+    else
         module_download_status=$?
     fi
 
