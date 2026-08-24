@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **User save crash when assigning strategy (#384):** `setUserStrategyAssignment` called missing `ensureUserGuid` in `dbAdapter.js`, causing `TypeError` and generic "Server error" on every user create/update. Ships via panel update.
+
 ### Changed
 - _(none yet)_
 

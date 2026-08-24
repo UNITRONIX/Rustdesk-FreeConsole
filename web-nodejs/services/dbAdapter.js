@@ -3283,6 +3283,24 @@ function createSqliteAdapter(config) {
             return guid;
         },
 
+        _ensureUserGuidSqlite(userId) {
+            const id = Number(userId);
+            if (!Number.isFinite(id) || id <= 0) return null;
+            const row = openAuth().prepare(`
+                SELECT id, COALESCE(guid, '') AS guid FROM users WHERE id = ?
+            `).get(id);
+            if (!row) return null;
+            if (row.guid) return row.guid;
+            const crypto = require('crypto');
+            const guid = crypto.randomUUID();
+            openAuth().prepare('UPDATE users SET guid = ? WHERE id = ?').run(guid, row.id);
+            return guid;
+        },
+
+        async ensureUserGuid(userId) {
+            return this._ensureUserGuidSqlite(userId);
+        },
+
         async resolvePeerAssignmentKey(ref) {
             const key = String(ref || '').trim();
             if (!key) throw new Error('empty peer reference');
@@ -6619,6 +6637,25 @@ function createPostgresAdapter() {
             const guid = isUuid(row.uuid) ? row.uuid.toLowerCase() : crypto.randomUUID();
             await q('UPDATE peers SET guid = $1 WHERE id = $2', [guid, peerId]);
             return guid;
+        },
+
+        async _ensureUserGuidPg(userId) {
+            const id = Number(userId);
+            if (!Number.isFinite(id) || id <= 0) return null;
+            await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS guid TEXT DEFAULT ''");
+            const row = await one(`
+                SELECT id, COALESCE(guid, '') AS guid FROM users WHERE id = $1
+            `, [id]);
+            if (!row) return null;
+            if (row.guid) return row.guid;
+            const crypto = require('crypto');
+            const guid = crypto.randomUUID();
+            await q('UPDATE users SET guid = $1 WHERE id = $2', [guid, row.id]);
+            return guid;
+        },
+
+        async ensureUserGuid(userId) {
+            return this._ensureUserGuidPg(userId);
         },
 
         async resolvePeerAssignmentKey(ref) {
