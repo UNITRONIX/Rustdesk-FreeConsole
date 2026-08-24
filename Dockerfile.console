@@ -59,8 +59,9 @@ RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
 COPY docker/ensure-app-user.sh /ensure-app-user.sh
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 COPY docker/console-entrypoint.sh /console-entrypoint.sh
+COPY docker/bootstrap-admin-credentials.sh /docker/bootstrap-admin-credentials.sh
 COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
-RUN chmod +x /ensure-app-user.sh /app/docker-entrypoint.sh /console-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /ensure-app-user.sh /app/docker-entrypoint.sh /console-entrypoint.sh /docker/bootstrap-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 # Create data directories
 RUN mkdir -p /app/data /opt/rustdesk && \

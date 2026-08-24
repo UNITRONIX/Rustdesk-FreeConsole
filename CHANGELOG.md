@@ -9,6 +9,7 @@
 
 ### Fixed
 - **User save crash when assigning strategy (#384):** `setUserStrategyAssignment` called missing `ensureUserGuid` in `dbAdapter.js`, causing `TypeError` and generic "Server error" on every user create/update. Ships via panel update.
+- **Docker admin login vs credentials file (#385):** Fresh Docker installs without `ADMIN_PASSWORD` could generate two different random passwords — Go wrote `/opt/rustdesk/.admin_credentials` while the web panel authenticated against `auth.db` seeded by Node.js. Entrypoints now pre-bootstrap a shared password before either service starts; `readAdminCredentialsFile()` prefers `/opt/rustdesk`. Rebuild/pull `:dev` images or use `ADMIN_PASSWORD` on first start.
 
 ### Changed
 - _(none yet)_

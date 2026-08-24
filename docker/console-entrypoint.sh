@@ -22,8 +22,13 @@ if [ "$(id -u)" = "0" ]; then
     fi
     # /opt/rustdesk may be mounted read-only from server volume — only fix if writable
     chown -R betterdesk:betterdesk /opt/rustdesk 2>/dev/null || true
+    # Import shared bootstrap password from server volume (issue #385).
+    # shellcheck source=/docker/bootstrap-admin-credentials.sh
+    . /docker/bootstrap-admin-credentials.sh
     # Drop privileges and run the actual entrypoint
     exec su-exec betterdesk /app/docker-entrypoint.sh
 else
+    # shellcheck source=/docker/bootstrap-admin-credentials.sh
+    . /docker/bootstrap-admin-credentials.sh
     exec /app/docker-entrypoint.sh
 fi

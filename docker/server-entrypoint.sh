@@ -9,13 +9,18 @@ ensure_betterdesk_user
 
 DATA_DIR="/opt/rustdesk"
 
-# Public Docker examples use ADMIN_*; the Go server seeds from INIT_ADMIN_*.
-if [ -n "${ADMIN_USERNAME:-}" ] && [ -z "${INIT_ADMIN_USER:-}" ]; then
-    export INIT_ADMIN_USER="$ADMIN_USERNAME"
+# Fix ownership before bootstrap writes .admin_credentials (issue #385).
+if [ "$(id -u)" = "0" ]; then
+    chown -R betterdesk:betterdesk "$DATA_DIR" 2>/dev/null || true
+    if [ -f "$DATA_DIR/id_ed25519" ]; then
+        chmod 600 "$DATA_DIR/id_ed25519"
+        chown betterdesk:betterdesk "$DATA_DIR/id_ed25519"
+    fi
 fi
-if [ -n "${ADMIN_PASSWORD:-}" ] && [ -z "${INIT_ADMIN_PASS:-}" ]; then
-    export INIT_ADMIN_PASS="$ADMIN_PASSWORD"
-fi
+
+# Pre-bootstrap shared admin password before console / Go race (issue #385).
+# shellcheck source=/docker/bootstrap-admin-credentials.sh
+. /docker/bootstrap-admin-credentials.sh
 
 # SQLite Docker: wait for the console to create auth.db (folders/groups ACL).
 # Skipped for PostgreSQL — panel sync uses the shared DATABASE_URL instead.
@@ -66,19 +71,8 @@ if [ -z "${ENROLLMENT_MODE:-}" ]; then
     fi
 fi
 
-# Fix ownership of volume-mounted data directory.
-# Docker volumes preserve UID/GID from the host or previous container,
-# which may not match the betterdesk user (PUID/PGID, default 10001).
-# This is especially important for id_ed25519 (mode 600) — if owned by
-# a different UID, the server cannot read the private key.
+# Drop privileges and re-exec
 if [ "$(id -u)" = "0" ]; then
-    chown -R betterdesk:betterdesk "$DATA_DIR" 2>/dev/null || true
-    # Ensure private key is readable by betterdesk
-    if [ -f "$DATA_DIR/id_ed25519" ]; then
-        chmod 600 "$DATA_DIR/id_ed25519"
-        chown betterdesk:betterdesk "$DATA_DIR/id_ed25519"
-    fi
-    # Drop privileges and re-exec
     exec su-exec betterdesk "$@"
 else
     exec "$@"

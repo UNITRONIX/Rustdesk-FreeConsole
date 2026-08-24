@@ -442,6 +442,25 @@ docker compose exec -u betterdesk console sh -c 'cat /opt/rustdesk/.admin_creden
 
 If no file is found yet, wait for first boot to finish and check `docker compose logs server` for the bootstrap message.
 
+### Problem: Panel login fails but `/opt/rustdesk/.admin_credentials` looks correct (#385)
+
+**Symptom:** Fresh Docker install (`docker-compose.single.yml`, `docker-compose.quick.yml`, or `install.sh`). You read the bootstrap password from `/opt/rustdesk/.admin_credentials` (or `betterdesk-show-admin-credentials`), but the web panel at `:5000` returns **Invalid username or password**.
+
+**Cause (fixed in Development channel):** On first boot without `ADMIN_PASSWORD`, the Go server and Node.js console each generated a *different* random password. The credentials file reflected the Go server's password, while panel login uses the admin account in `/app/data/auth.db` (Node.js / bcrypt).
+
+**Workaround (existing broken install):**
+
+```bash
+# Panel password may be in the console data volume instead:
+docker compose exec -u betterdesk console cat /app/data/.admin_credentials
+
+# Or reset on a clean volume with a known password:
+docker compose down -v
+ADMIN_PASSWORD='YourSecurePassword123' docker compose up -d
+```
+
+**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). Entrypoints now run `bootstrap-admin-credentials.sh` before supervisord / server start so both services share one password. Setting `ADMIN_PASSWORD` before first start always worked and still does.
+
 ### Problem: `betterdesk-show-admin-credentials: executable file not found`
 
 **Symptom:** After `install.sh` or `docker compose exec … betterdesk-show-admin-credentials`:
