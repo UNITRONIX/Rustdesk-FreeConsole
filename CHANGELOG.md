@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.5.65] — 2026-08-25
+
+### Changed
 - **Docker admin login bootstrap race (#385):** Split Docker entrypoints now atomically create and share one bootstrap password, including when `.admin_credentials` is mode `0600`. Fresh SQLite authentication remains centralized in `db_v2.sqlite3`; legacy `auth.db` is no longer treated as the default panel store. The Docker startup wait now only applies to explicitly selected legacy mode.
 
 ---
@@ -3131,3 +3138,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.62]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.61...v3.5.62
 [3.5.63]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.62...v3.5.63
 [3.5.64]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.63...v3.5.64
+[3.5.65]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.64...v3.5.65
