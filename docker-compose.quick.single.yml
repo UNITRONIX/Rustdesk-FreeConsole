@@ -98,6 +98,9 @@ services:
       - BILLING_TRUST_OS_NTP=${BILLING_TRUST_OS_NTP:-Y}
       - AUTH_DB_PATH=/app/data/auth.db
       # Admin credentials (first run only; existing users are not overwritten).
+      # Do NOT comment these out — ADMIN_PASSWORD on the host shell only reaches
+      # the container when referenced here (issue #385). Fresh installs also need
+      # DEFAULT_ADMIN_PASSWORD for the Node.js panel bootstrap.
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
       - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}

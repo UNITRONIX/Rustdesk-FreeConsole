@@ -10,6 +10,9 @@
 ### Changed
 - **Docker admin login bootstrap race (#385):** Split Docker entrypoints now atomically create and share one bootstrap password, including when `.admin_credentials` is mode `0600`. Fresh SQLite authentication remains centralized in `db_v2.sqlite3`; legacy `auth.db` is no longer treated as the default panel store. The Docker startup wait now only applies to explicitly selected legacy mode.
 
+### Fixed
+- **Docker split-volume stale auth.db (#385):** Entrypoints now detect partial volume wipes (legacy `auth.db` in `/app/data` while `/opt/rustdesk` was reset) and fail fast with a clear error, or remove an empty orphan `auth.db` so fresh installs stay on consolidated `db_v2.sqlite3`.
+
 ---
 
 ## [3.5.64] — 2026-08-24

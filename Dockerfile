@@ -112,9 +112,10 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/betterdesk.conf
 COPY docker/ensure-app-user.sh /ensure-app-user.sh
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/bootstrap-admin-credentials.sh /docker/bootstrap-admin-credentials.sh
+COPY docker/guard-sqlite-auth-split.sh /docker/guard-sqlite-auth-split.sh
 COPY docker/wait-panel-auth-db.sh /app/docker/wait-panel-auth-db.sh
 COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
-RUN chmod +x /ensure-app-user.sh /entrypoint.sh /docker/bootstrap-admin-credentials.sh /app/docker/wait-panel-auth-db.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /ensure-app-user.sh /entrypoint.sh /docker/bootstrap-admin-credentials.sh /docker/guard-sqlite-auth-split.sh /app/docker/wait-panel-auth-db.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 # Environment variables (defaults)
 ENV NODE_ENV=production

@@ -25,10 +25,16 @@ if [ "$(id -u)" = "0" ]; then
     # Import shared bootstrap password from server volume (issue #385).
     # shellcheck source=/docker/bootstrap-admin-credentials.sh
     . /docker/bootstrap-admin-credentials.sh
+    # shellcheck source=/docker/guard-sqlite-auth-split.sh
+    . /docker/guard-sqlite-auth-split.sh
+    guard_sqlite_auth_split
     # Drop privileges and run the actual entrypoint
     exec su-exec betterdesk /app/docker-entrypoint.sh
 else
     # shellcheck source=/docker/bootstrap-admin-credentials.sh
     . /docker/bootstrap-admin-credentials.sh
+    # shellcheck source=/docker/guard-sqlite-auth-split.sh
+    . /docker/guard-sqlite-auth-split.sh
+    guard_sqlite_auth_split
     exec /app/docker-entrypoint.sh
 fi

@@ -31,6 +31,9 @@ chown -R betterdesk:betterdesk /opt/rustdesk /app/data /var/log/betterdesk 2>/de
 # Shared bootstrap password for Go + Node before supervisord (issue #385).
 # shellcheck source=/docker/bootstrap-admin-credentials.sh
 . /docker/bootstrap-admin-credentials.sh
+# shellcheck source=/docker/guard-sqlite-auth-split.sh
+. /docker/guard-sqlite-auth-split.sh
+guard_sqlite_auth_split
 
 # Write a file as betterdesk. Fresh named volumes inherit image ownership
 # (UID 10001 by default, or PUID after remap); with compose cap_drop:ALL root

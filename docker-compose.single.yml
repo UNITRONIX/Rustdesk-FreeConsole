@@ -84,7 +84,9 @@ services:
       - BILLING_TRUST_OS_NTP=${BILLING_TRUST_OS_NTP:-Y}
       # Panel folders/groups for RustDesk client (SQLite — same container as console).
       - AUTH_DB_PATH=/app/data/auth.db
-      # Admin credentials (first run only; existing users are not overwritten):
+      # Admin credentials (first run only; existing users are not overwritten).
+      # Do NOT comment these out — ADMIN_PASSWORD on the host shell only reaches
+      # the container when referenced here (issue #385).
       #   ADMIN_PASSWORD=YourSecurePassword123 docker compose -f docker-compose.single.yml up -d --build
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}

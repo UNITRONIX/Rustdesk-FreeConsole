@@ -448,17 +448,25 @@ If no file is found yet, wait for first boot to finish and check `docker compose
 
 **Cause:** On first boot without `ADMIN_PASSWORD`, the Go server and Node.js console could each generate a random password. The credentials file then did not match the password hash stored for the admin user. Fresh SQLite installations use the centralized `/opt/rustdesk/db_v2.sqlite3` store (and PostgreSQL installations use the primary PostgreSQL database); `auth.db` is only a legacy migration path.
 
+**Also common:** wiping only the `/opt/rustdesk` bind mount or volume while keeping `/app/data` (`console-data`). An old `auth.db` forces legacy panel authentication with a stale password hash, while bootstrap regenerates `.admin_credentials` on the rustesk volume. Current `:dev` images fail fast on this split state at container start.
+
+**Also common:** commenting out `INIT_ADMIN_PASS` / `DEFAULT_ADMIN_PASSWORD` in `docker-compose*.yml`. `ADMIN_PASSWORD=… docker compose up -d` on the host only passes the password into the container when those `${ADMIN_PASSWORD}` lines are present in the compose file.
+
 **Workaround (existing broken install):**
 
 ```bash
-# For a disposable/test installation, remove both Docker stores:
+# For a disposable/test installation, remove BOTH Docker stores:
+docker compose down
+# Named volumes:
 docker compose down -v
+# Bind mounts — wipe both directories, e.g.:
+# rm -rf ./betterdesk-data/* ./betterdesk-console-data/*
 ADMIN_PASSWORD='YourSecurePassword123' docker compose up -d
 ```
 
 Do not delete only the `/opt/rustdesk` bind mount while keeping `console-data`: that is not a clean reset. Do not use a credentials file to overwrite an existing user's password; use the normal password-reset procedure instead.
 
-**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). The split entrypoints elect one creator for the shared credentials file and both services reuse it. Setting `ADMIN_PASSWORD` before first start remains the deterministic option.
+**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). The split entrypoints elect one creator for the shared credentials file and both services reuse it. Setting `ADMIN_PASSWORD` before first start remains the deterministic option — keep the `INIT_ADMIN_*` / `DEFAULT_ADMIN_*` env mappings in your compose file.
 
 ### Problem: `betterdesk-show-admin-credentials: executable file not found`
 
