@@ -20,8 +20,9 @@
 #
 # Web Console: http://localhost:5000
 # RustDesk client API: http://localhost:21114 (Go server — not the console port)
-# SQLite: console DB_PATH shares Go peer DB at /opt/rustdesk/db_v2.sqlite3;
-# server mounts console auth.db read-only for folder/group sync (issue #138).
+# SQLite: both services share the primary database at
+# /opt/rustdesk/db_v2.sqlite3. Legacy auth.db is optional and only used for
+# unmigrated deployments.
 # Default credentials are written to the shared credentials file:
 #   docker compose exec console betterdesk-show-admin-credentials
 #
@@ -61,6 +62,7 @@ services:
       # Admin credentials (first run only; existing users are not overwritten).
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
+      - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}
       # Set this when clients are outside the Docker network. Use the host's
       # public IP/DNS, or the host LAN IP for LAN-only deployments.
       # Example: RELAY_SERVERS=203.2.1413.10:21117 docker compose up -d
@@ -124,6 +126,7 @@ services:
       # Admin credentials (first run only; existing users are not overwritten).
       - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - WS_HBBS_HOST=betterdesk-server

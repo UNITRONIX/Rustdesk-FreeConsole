@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Docker admin login bootstrap race (#385):** Split Docker entrypoints now atomically create and share one bootstrap password, including when `.admin_credentials` is mode `0600`. Fresh SQLite authentication remains centralized in `db_v2.sqlite3`; legacy `auth.db` is no longer treated as the default panel store. The Docker startup wait now only applies to explicitly selected legacy mode.
 
 ---
 

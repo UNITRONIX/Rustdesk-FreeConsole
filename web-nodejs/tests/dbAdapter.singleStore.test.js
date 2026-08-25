@@ -34,6 +34,7 @@ describe('dbAdapter SQLite single-store topology', () => {
         const main = new Database(process.env.DB_PATH, { readonly: true });
         expect(main.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'`).get()).toBeTruthy();
         main.close();
+        expect(adapter.getSqliteAuthDb()).toBe(adapter.getSqliteMainDb());
         await adapter.close();
     });
 });

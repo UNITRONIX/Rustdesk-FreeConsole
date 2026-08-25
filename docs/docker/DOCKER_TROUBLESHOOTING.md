@@ -440,26 +440,25 @@ docker compose exec -u betterdesk console sh -c 'cat /opt/rustdesk/.admin_creden
 
 **Do not** run `chmod 777` on the credentials file — that makes the bootstrap password world-readable.
 
-If no file is found yet, wait for first boot to finish and check `docker compose logs server` for the bootstrap message.
+If no file is found yet, wait for first boot to finish and check `docker compose logs server` for the bootstrap message. On a running installation, the file is only a recovery aid; it is not the database of users.
 
 ### Problem: Panel login fails but `/opt/rustdesk/.admin_credentials` looks correct (#385)
 
 **Symptom:** Fresh Docker install (`docker-compose.single.yml`, `docker-compose.quick.yml`, or `install.sh`). You read the bootstrap password from `/opt/rustdesk/.admin_credentials` (or `betterdesk-show-admin-credentials`), but the web panel at `:5000` returns **Invalid username or password**.
 
-**Cause (fixed in Development channel):** On first boot without `ADMIN_PASSWORD`, the Go server and Node.js console each generated a *different* random password. The credentials file reflected the Go server's password, while panel login uses the admin account in `/app/data/auth.db` (Node.js / bcrypt).
+**Cause:** On first boot without `ADMIN_PASSWORD`, the Go server and Node.js console could each generate a random password. The credentials file then did not match the password hash stored for the admin user. Fresh SQLite installations use the centralized `/opt/rustdesk/db_v2.sqlite3` store (and PostgreSQL installations use the primary PostgreSQL database); `auth.db` is only a legacy migration path.
 
 **Workaround (existing broken install):**
 
 ```bash
-# Panel password may be in the console data volume instead:
-docker compose exec -u betterdesk console cat /app/data/.admin_credentials
-
-# Or reset on a clean volume with a known password:
+# For a disposable/test installation, remove both Docker stores:
 docker compose down -v
 ADMIN_PASSWORD='YourSecurePassword123' docker compose up -d
 ```
 
-**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). Entrypoints now run `bootstrap-admin-credentials.sh` before supervisord / server start so both services share one password. Setting `ADMIN_PASSWORD` before first start always worked and still does.
+Do not delete only the `/opt/rustdesk` bind mount while keeping `console-data`: that is not a clean reset. Do not use a credentials file to overwrite an existing user's password; use the normal password-reset procedure instead.
+
+**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). The split entrypoints elect one creator for the shared credentials file and both services reuse it. Setting `ADMIN_PASSWORD` before first start remains the deterministic option.
 
 ### Problem: `betterdesk-show-admin-credentials: executable file not found`
 

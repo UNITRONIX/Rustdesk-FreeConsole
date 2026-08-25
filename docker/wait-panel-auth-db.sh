@@ -1,6 +1,6 @@
 #!/bin/sh
-# Waits for console auth.db before starting the Go server (SQLite Docker).
-# PostgreSQL deployments skip this — panel sync uses DATABASE_URL instead.
+# Waits for console auth.db before starting the Go server only in explicit
+# legacy mode. Fresh SQLite installs use the primary db_v2.sqlite3 database.
 set -e
 
 case "${DB_URL:-}" in
@@ -11,6 +11,11 @@ esac
 
 auth_path="${AUTH_DB_PATH:-}"
 if [ -z "$auth_path" ]; then
+    exec "$@"
+fi
+
+if [ ! -f "$auth_path" ] && [ "${SQLITE_AUTH_DB_MODE:-}" != "legacy" ]; then
+    echo "No legacy auth.db — using the primary SQLite database."
     exec "$@"
 fi
 

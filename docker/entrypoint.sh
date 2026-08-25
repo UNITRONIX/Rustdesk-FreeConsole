@@ -227,6 +227,7 @@ export NTP_SERVERS="${NTP_SERVERS:-pool.ntp.org,time.google.com,time.cloudflare.
 export BILLING_MAX_CLOCK_SKEW_MS="${BILLING_MAX_CLOCK_SKEW_MS:-2000}"
 export BILLING_REQUIRE_SYNCED_CLOCK="${BILLING_REQUIRE_SYNCED_CLOCK:-1}"
 export BILLING_TRUST_OS_NTP="${BILLING_TRUST_OS_NTP:-Y}"
+export SQLITE_AUTH_DB_MODE="${SQLITE_AUTH_DB_MODE:-}"
 
 echo ""
 echo "Starting services via supervisord..."

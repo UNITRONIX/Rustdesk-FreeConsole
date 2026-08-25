@@ -40,6 +40,7 @@ services:
       - ENCRYPTED_ONLY=1
       - DB_URL=${DB_URL:-/opt/rustdesk/db_v2.sqlite3}
       - AUTH_DB_PATH=/app/data/auth.db
+      - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
       - P2P_FIRST=${P2P_FIRST:-Y}
       - ALWAYS_USE_RELAY=${ALWAYS_USE_RELAY:-N}
@@ -91,7 +92,7 @@ services:
       - "21121:21121"           # Backward compat proxy → Go :21114
     volumes:
       - rustdesk-data:/opt/rustdesk        # Shared server data (keys, db) — needs write for WAL mode
-      - console-data:/app/data            # Console-specific data (auth.db, sessions)
+      - console-data:/app/data            # Console sessions and optional legacy auth.db
     environment:
       - NODE_ENV=production
       - PORT=5000
@@ -107,6 +108,7 @@ services:
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/opt/rustdesk/db_v2.sqlite3
+      - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - SESSION_SECRET=${SESSION_SECRET:-}

@@ -239,8 +239,17 @@ func main() {
 			adminUser = "admin"
 		}
 		adminPass := cfg.InitAdminPass
+		adminPasswordGenerated := false
+		adminPasswordFromFile := false
 		if adminPass == "" {
-			adminPass, _ = auth.GenerateRandomString(16)
+			dbDir := filepath.Dir(cfg.DBPath)
+			if existingPass := readBootstrapAdminPassword(dbDir); existingPass != "" {
+				adminPass = existingPass
+				adminPasswordFromFile = true
+			} else {
+				adminPass, _ = auth.GenerateRandomString(16)
+				adminPasswordGenerated = true
+			}
 		}
 		hash, err := auth.HashPassword(adminPass)
 		if err != nil {
@@ -257,13 +266,15 @@ func main() {
 		log.Printf("========================================")
 		log.Printf("  INITIAL ADMIN CREDENTIALS")
 		log.Printf("  Username: %s", adminUser)
-		if cfg.InitAdminPass == "" {
+		if adminPasswordGenerated {
 			dbDir := filepath.Dir(cfg.DBPath)
 			credsFile, err := writeBootstrapAdminCredentials(dbDir, adminUser, adminPass)
 			if err != nil {
 				log.Fatalf("Failed to write credentials file: %v", err)
 			}
 			log.Printf("  Password: written to %s (mode 0600)", credsFile)
+		} else if adminPasswordFromFile {
+			log.Printf("  Password: loaded from existing bootstrap credentials file")
 		} else {
 			log.Printf("  Password: *** (user-provided, not logged)")
 		}
@@ -597,10 +608,42 @@ func writeBootstrapAdminCredentials(dbDir, adminUser, adminPass string) (string,
 		"Admin Username: %s\nAdmin Password: %s\n\nChange this password immediately and delete this file!\n",
 		adminUser, adminPass,
 	)
-	if err := os.WriteFile(credsFile, []byte(credsContent), 0600); err != nil {
+	file, err := os.OpenFile(credsFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return credsFile, nil
+		}
+		return "", err
+	}
+	if _, err := file.WriteString(credsContent); err != nil {
+		_ = file.Close()
+		_ = os.Remove(credsFile)
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(credsFile)
 		return "", err
 	}
 	return credsFile, nil
+}
+
+func readBootstrapAdminPassword(dbDir string) string {
+	if dbDir == "" || dbDir == "." {
+		dbDir = "."
+	}
+	contents, err := os.ReadFile(filepath.Join(dbDir, ".admin_credentials"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(contents), "\n") {
+		if strings.HasPrefix(line, "Admin Password:") {
+			password := strings.TrimSpace(strings.TrimPrefix(line, "Admin Password:"))
+			if password != "" {
+				return password
+			}
+		}
+	}
+	return ""
 }
 
 func syncAPIKeyToServerConfig(database db.Database, apiKey string) (string, error) {

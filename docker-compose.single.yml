@@ -67,6 +67,7 @@ services:
       - DB_TYPE=${DB_TYPE:-sqlite}
       - DATABASE_URL=${DATABASE_URL:-}
       - DB_URL=${DATABASE_URL:-}
+      - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}
       # Relay server address (public IP or domain).
       # Auto-detected if not set. MUST be set if auto-detection returns
       # Docker internal IP (172.x.x.x) — remote relay connections will fail otherwise.

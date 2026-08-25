@@ -22,14 +22,19 @@ fi
 # shellcheck source=/docker/bootstrap-admin-credentials.sh
 . /docker/bootstrap-admin-credentials.sh
 
-# SQLite Docker: wait for the console to create auth.db (folders/groups ACL).
-# Skipped for PostgreSQL — panel sync uses the shared DATABASE_URL instead.
+# SQLite Docker: legacy auth.db is optional. Fresh installs keep panel
+# identities in the primary db_v2.sqlite3; only explicitly legacy deployments
+# need to wait for a separate auth.db.
 panel_auth_db_ready() {
     case "${DB_URL:-}" in
         postgres://*|postgresql://*) return 0 ;;
     esac
     auth_path="${AUTH_DB_PATH:-}"
     if [ -z "$auth_path" ]; then
+        return 0
+    fi
+    if [ ! -f "$auth_path" ] && [ "${SQLITE_AUTH_DB_MODE:-}" != "legacy" ]; then
+        echo "Panel auth.db not present — using the primary SQLite database"
         return 0
     fi
     if [ -f "$auth_path" ]; then

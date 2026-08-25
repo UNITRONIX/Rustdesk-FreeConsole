@@ -135,9 +135,10 @@ ADMIN_PASSWORD=YourSecurePass123 docker compose up -d
 ```
 
 `ADMIN_PASSWORD` only seeds the first admin account. If the container has
-already created `auth.db` / the admin user, changing the environment variable on
-restart will not overwrite the stored password. Use the panel password reset
-flow, or recreate the Docker volumes for a fresh install.
+already created the admin user in `db_v2.sqlite3` (or PostgreSQL), changing the
+environment variable on restart will not overwrite the stored password. Use
+the panel password reset flow, or recreate the Docker volumes for a fresh
+install.
 
 ### PostgreSQL Instead of SQLite
 
@@ -250,10 +251,10 @@ If you customized an older quick-start file before **3.0.0**, apply these change
 
 | Setting | Required in 3.0.0+ |
 |---------|-------------------|
-| `depends_on` | `condition: service_started` — **not** `service_healthy` (avoids deadlock with `auth.db`) |
+| `depends_on` | `condition: service_started` — **not** `service_healthy` |
 | Server healthcheck | Keep enabled, or remove `service_healthy` from `depends_on` |
 | Console `DB_PATH` | `/app/data/db_v2.sqlite3` |
-| Server `AUTH_DB_PATH` | `/app/data/auth.db` |
+| Server `AUTH_DB_PATH` | `/app/data/auth.db` only for legacy panel sync |
 | Server volume | `console-data:/app/data:ro` |
 | `network_mode: service:server` | Use `127.0.0.1` in `BETTERDESK_API_URL`, `WS_HBBS_HOST`, `WS_HBBR_HOST` (Docker DNS is unavailable) |
 | Image tag | Pin `BETTERDESK_IMAGE_TAG` (e.g. `3.2.14`), not unversioned `latest` |

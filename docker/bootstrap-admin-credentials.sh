@@ -2,10 +2,13 @@
 # Pre-bootstrap shared admin credentials for Docker (issue #385).
 # Go server and Node.js console must use the same password on first start.
 # Writes /opt/rustdesk/.admin_credentials and exports INIT_ADMIN_* / DEFAULT_ADMIN_*.
+# Split images source this script concurrently, so creation is serialized on
+# the shared volume.
 set -e
 
 CREDS_DIR="${RUSTDESK_PATH:-/opt/rustdesk}"
 CREDS_FILE="${CREDS_DIR}/.admin_credentials"
+LOCK_DIR="${CREDS_FILE}.lock"
 ADMIN_USER="${INIT_ADMIN_USER:-${DEFAULT_ADMIN_USERNAME:-${ADMIN_USERNAME:-admin}}}"
 
 # Map public ADMIN_* aliases to internal seed vars (same as entrypoints).
@@ -28,18 +31,31 @@ sync_exports() {
     export INIT_ADMIN_USER="${INIT_ADMIN_USER:-$ADMIN_USER}"
     export DEFAULT_ADMIN_USERNAME="${DEFAULT_ADMIN_USERNAME:-$ADMIN_USER}"
     if [ -n "${INIT_ADMIN_PASS:-}" ]; then
-        export DEFAULT_ADMIN_PASSWORD="${DEFAULT_ADMIN_PASSWORD:-$INIT_ADMIN_PASS}"
+        # INIT_ADMIN_PASS and DEFAULT_ADMIN_PASSWORD feed different
+        # processes in the split image. Never allow two configured values.
+        export DEFAULT_ADMIN_PASSWORD="$INIT_ADMIN_PASS"
     elif [ -n "${DEFAULT_ADMIN_PASSWORD:-}" ]; then
         export INIT_ADMIN_PASS="${INIT_ADMIN_PASS:-$DEFAULT_ADMIN_PASSWORD}"
     fi
 }
 
+run_as_betterdesk() {
+    if [ "$(id -u)" = "0" ] && command -v su-exec >/dev/null 2>&1; then
+        su-exec betterdesk "$@"
+    else
+        "$@"
+    fi
+}
+
 parse_creds_password() {
     _file="$1"
-    if [ ! -f "$_file" ] || [ ! -r "$_file" ]; then
+    if [ ! -f "$_file" ]; then
         return 1
     fi
-    _pass=$(grep -m1 '^Admin Password:' "$_file" 2>/dev/null | sed 's/^Admin Password:[[:space:]]*//')
+    # The file is intentionally mode 0600 and owned by betterdesk. Root in
+    # hardened containers has no CAP_DAC_OVERRIDE, so read it as the app user.
+    _line=$(run_as_betterdesk grep -m1 '^Admin Password:' "$_file" 2>/dev/null || true)
+    _pass=$(printf '%s\n' "$_line" | sed 's/^Admin Password:[[:space:]]*//')
     if [ -n "$_pass" ]; then
         printf '%s\n' "$_pass"
         return 0
@@ -50,11 +66,68 @@ parse_creds_password() {
 write_as_betterdesk() {
     _path="$1"
     _content="$2"
-    if command -v su-exec >/dev/null 2>&1; then
+    if [ "$(id -u)" = "0" ] && command -v su-exec >/dev/null 2>&1; then
         printf '%s' "$_content" | su-exec betterdesk sh -c "umask 077; cat > \"$_path\""
     else
-        printf '%s' "$_content" | su -s /bin/sh betterdesk -c "umask 077; cat > \"$_path\""
+        umask 077
+        printf '%s' "$_content" > "$_path"
     fi
+}
+
+move_as_betterdesk() {
+    run_as_betterdesk mv "$1" "$2"
+}
+
+export_bootstrap_password() {
+    _pass="$1"
+    export INIT_ADMIN_PASS="$_pass"
+    export DEFAULT_ADMIN_PASSWORD="$_pass"
+    sync_exports
+}
+
+read_existing_credentials() {
+    _existing_pass=$(parse_creds_password "$CREDS_FILE" || true)
+    if [ -n "$_existing_pass" ]; then
+        export_bootstrap_password "$_existing_pass"
+        return 0
+    fi
+    return 1
+}
+
+primary_database_has_users() {
+    _primary_db="${DB_PATH:-${DB_URL:-${CREDS_DIR}/db_v2.sqlite3}}"
+    case "$_primary_db" in
+        postgres://*|postgresql://*) return 1 ;;
+    esac
+    if [ ! -f "$_primary_db" ] || ! command -v sqlite3 >/dev/null 2>&1; then
+        return 1
+    fi
+    _user_count=$(run_as_betterdesk sqlite3 "$_primary_db" \
+        "SELECT COUNT(*) FROM users;" 2>/dev/null || true)
+    case "$_user_count" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$_user_count" -gt 0 ]
+}
+
+cleanup_bootstrap_lock() {
+    run_as_betterdesk rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+
+wait_for_bootstrap_credentials() {
+    _waited=0
+    _max_wait="${BOOTSTRAP_CREDENTIALS_WAIT_SECONDS:-120}"
+    while [ "$_waited" -lt "$_max_wait" ]; do
+        if read_existing_credentials; then
+            return 0
+        fi
+        if [ ! -d "$LOCK_DIR" ]; then
+            return 1
+        fi
+        sleep 1
+        _waited=$((_waited + 1))
+    done
+    return 1
 }
 
 # Already configured via env — keep Go and Node in sync.
@@ -63,41 +136,75 @@ if [ -n "${INIT_ADMIN_PASS:-}" ] || [ -n "${DEFAULT_ADMIN_PASSWORD:-}" ]; then
     return 0 2>/dev/null || exit 0
 fi
 
-# Reuse existing credentials file on shared volume.
-_existing_pass=$(parse_creds_password "$CREDS_FILE" || true)
-if [ -z "$_existing_pass" ]; then
-    _existing_pass=$(parse_creds_password "${DATA_DIR:-/app/data}/.admin_credentials" || true)
-fi
-if [ -n "$_existing_pass" ]; then
-    export INIT_ADMIN_PASS="$_existing_pass"
-    export DEFAULT_ADMIN_PASSWORD="$_existing_pass"
-    sync_exports
+run_as_betterdesk mkdir -p "$CREDS_DIR" 2>/dev/null || true
+
+# Reuse an existing shared credential before trying to acquire the creation
+# lock. The second check after mkdir closes the check-then-create race.
+if read_existing_credentials; then
     return 0 2>/dev/null || exit 0
 fi
 
-# Fresh install: generate once before either service starts.
-mkdir -p "$CREDS_DIR" 2>/dev/null || true
-if command -v openssl >/dev/null 2>&1; then
-    _new_pass=$(openssl rand -hex 16)
-else
-    _new_pass=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+# A missing credentials file on an existing SQLite installation must not
+# create a misleading replacement password. Existing users keep their hash;
+# recovery must use the normal password-reset flow.
+if primary_database_has_users; then
+    echo "WARN: ${CREDS_FILE} is missing, but the primary database already has users." >&2
+    echo "      No replacement bootstrap password was generated; use password reset." >&2
+    return 0 2>/dev/null || exit 0
 fi
 
-_creds_content="Admin Username: ${ADMIN_USER}
+if run_as_betterdesk mkdir "$LOCK_DIR" 2>/dev/null; then
+    trap cleanup_bootstrap_lock EXIT HUP INT TERM
+
+    if read_existing_credentials; then
+        cleanup_bootstrap_lock
+        trap - EXIT HUP INT TERM
+        return 0 2>/dev/null || exit 0
+    fi
+    if primary_database_has_users; then
+        cleanup_bootstrap_lock
+        trap - EXIT HUP INT TERM
+        echo "WARN: ${CREDS_FILE} is missing, but the primary database already has users." >&2
+        echo "      No replacement bootstrap password was generated; use password reset." >&2
+        return 0 2>/dev/null || exit 0
+    fi
+    if [ -e "$CREDS_FILE" ]; then
+        cleanup_bootstrap_lock
+        trap - EXIT HUP INT TERM
+        echo "ERROR: ${CREDS_FILE} exists but does not contain a readable admin password." >&2
+        exit 1
+    fi
+
+    # Fresh install: the lock owner generates exactly one password and
+    # publishes it with an atomic rename. Other containers wait above.
+    if command -v openssl >/dev/null 2>&1; then
+        _new_pass=$(openssl rand -hex 16)
+    else
+        _new_pass=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    fi
+
+    _creds_content="Admin Username: ${ADMIN_USER}
 Admin Password: ${_new_pass}
 Generated by: BetterDesk Docker bootstrap
 Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 "
+    _tmp_file="${CREDS_FILE}.tmp.$$"
+    write_as_betterdesk "$_tmp_file" "$_creds_content"
+    move_as_betterdesk "$_tmp_file" "$CREDS_FILE"
 
-if [ "$(id -u)" = "0" ]; then
-    write_as_betterdesk "$CREDS_FILE" "$_creds_content"
-else
-    umask 077
-    printf '%s' "$_creds_content" > "$CREDS_FILE"
+    export_bootstrap_password "$_new_pass"
+    cleanup_bootstrap_lock
+    trap - EXIT HUP INT TERM
+    echo "Bootstrap admin credentials → ${CREDS_FILE}"
+    return 0 2>/dev/null || exit 0
 fi
 
-export INIT_ADMIN_PASS="$_new_pass"
-export DEFAULT_ADMIN_PASSWORD="$_new_pass"
-sync_exports
+# Another split container owns the lock. Generating a fallback here would
+# recreate issue #385, so wait for its atomic publication.
+if wait_for_bootstrap_credentials; then
+    return 0 2>/dev/null || exit 0
+fi
 
-echo "Bootstrap admin credentials → ${CREDS_FILE}"
+echo "ERROR: timed out waiting for shared admin credentials at ${CREDS_FILE}" >&2
+echo "       Remove the stale ${LOCK_DIR} only after confirming no BetterDesk container is bootstrapping." >&2
+exit 1
