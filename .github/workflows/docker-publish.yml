@@ -99,6 +99,9 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/betterdesk-server
+          # Prefer product VERSION over tag name (dispatch with tag=latest must not label as "latest")
+          labels: |
+            org.opencontainers.image.version=${{ needs.read-version.outputs.version }}
           tags: |
             type=raw,value=latest,enable=${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest')) }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
@@ -187,6 +190,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/betterdesk-console
+          labels: |
+            org.opencontainers.image.version=${{ needs.read-version.outputs.version }}
           tags: |
             type=raw,value=latest,enable=${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest')) }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
@@ -242,6 +247,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/betterdesk
+          labels: |
+            org.opencontainers.image.version=${{ needs.read-version.outputs.version }}
           tags: |
             type=raw,value=latest,enable=${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest')) }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
