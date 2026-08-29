@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Custom download portal product label (#386):** Agent Generator advanced branding can override or hide the product type line (`download.product_*`) on the public download page without rebuilding installers.
+
 ### Changed
 - _(none yet)_
 

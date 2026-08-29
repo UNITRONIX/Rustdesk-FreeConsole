@@ -126,6 +126,21 @@
                                         <textarea id="gen-short-text" class="form-input" rows="2" maxlength="500"></textarea>
                                     </div>
 
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-product-label">${_('generator.product_label')}</label>
+                                        <input type="text" id="gen-product-label" class="form-input" maxlength="200"
+                                               placeholder="${_('generator.product_label_placeholder')}">
+                                        <p class="form-hint">${_('generator.product_label_hint')}</p>
+                                    </div>
+
+                                    <div class="form-group form-group-checkbox">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="gen-hide-product-type">
+                                            ${_('generator.hide_product_type')}
+                                        </label>
+                                        <p class="form-hint">${_('generator.hide_product_type_hint')}</p>
+                                    </div>
+
                                     <div class="form-row">
                                         <div class="form-group">
                                             <label class="form-label" for="gen-email">${_('generator.contact_email')}</label>

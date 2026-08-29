@@ -58,7 +58,8 @@
         ['gen-new-support', 'gen-bundle-list', 'gen-editor-title', 'gen-revoke-btn', 'gen-delete-btn', 'gen-save-btn',
          'gen-rebuild-btn', 'gen-builds-list', 'gen-builds-summary', 'gen-toolchain-banner', 'gen-platforms',
          'gen-empty-state', 'gen-editor-form',
-         'gen-name', 'gen-slug', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
+         'gen-name', 'gen-slug', 'gen-company', 'gen-short-text', 'gen-product-label', 'gen-hide-product-type',
+         'gen-email', 'gen-phone', 'gen-url',
          'gen-server-host', 'gen-use-https', 'gen-token-mask',
          'gen-logo', 'gen-logo-clear', 'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended',
          'gen-download-info', 'gen-download-url', 'gen-copy-link', 'gen-open-link',
@@ -70,6 +71,8 @@
     const DEFAULT_BRANDING = {
         company_name: '',
         short_text: '',
+        product_label: '',
+        hide_product_type: false,
         contact_email: '',
         contact_phone: '',
         contact_url: '',
@@ -141,6 +144,8 @@
         return {
             company_name: els['gen-company'].value.trim(),
             short_text:   els['gen-short-text'].value.trim(),
+            product_label: els['gen-product-label'] ? els['gen-product-label'].value.trim() : '',
+            hide_product_type: !!(els['gen-hide-product-type'] && els['gen-hide-product-type'].checked),
             contact_email: els['gen-email'].value.trim(),
             contact_phone: els['gen-phone'].value.trim(),
             contact_url:   els['gen-url'].value.trim(),
@@ -169,6 +174,8 @@
         }
         els['gen-company'].value = b.company_name || '';
         els['gen-short-text'].value = b.short_text || '';
+        if (els['gen-product-label']) els['gen-product-label'].value = b.product_label || '';
+        if (els['gen-hide-product-type']) els['gen-hide-product-type'].checked = !!b.hide_product_type;
         els['gen-email'].value = b.contact_email || '';
         els['gen-phone'].value = b.contact_phone || '';
         els['gen-url'].value   = b.contact_url || '';
@@ -641,7 +648,8 @@
         writeBranding(bundle.branding);
         if (els['gen-advanced-branding']) {
             const b = bundle.branding || {};
-            const hasCustom = !!(b.company_name || b.logo_data_url || b.short_text || b.contact_email);
+            const hasCustom = !!(b.company_name || b.logo_data_url || b.short_text || b.contact_email
+                || b.product_label || b.hide_product_type);
             els['gen-advanced-branding'].open = hasCustom;
         }
         els['gen-revoke-btn'].classList.remove('hidden');
@@ -878,7 +886,8 @@
             });
         }
 
-        [         'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
+        [         'gen-company', 'gen-short-text', 'gen-product-label', 'gen-hide-product-type',
+         'gen-email', 'gen-phone', 'gen-url',
          'gen-server-host', 'gen-use-https',
          'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended'
         ].forEach(id => {

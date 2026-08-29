@@ -73,6 +73,22 @@ const MAX_LOGO_BYTES = 10 * 1024 * 1024;  // 10 MB encoded
 const MAX_SHORT_TEXT = 500;
 const MAX_NAME       = 100;
 const MAX_CONTACT    = 200;
+const MAX_PRODUCT_LABEL = 200;
+
+/** Portal-only fields — stored with branding JSON but excluded from build cache hash. */
+const PORTAL_ONLY_BRANDING_KEYS = Object.freeze(['product_label', 'hide_product_type']);
+
+/**
+ * Optional white-label overrides for the public download portal product line.
+ * Does not affect installer artifacts (omitted from hashBranding).
+ */
+function applyPortalProductFields(input, out) {
+    out.product_label = clip(
+        input.product_label || input.productLabel || '',
+        MAX_PRODUCT_LABEL
+    );
+    out.hide_product_type = !!(input.hide_product_type ?? input.hideProductType ?? false);
+}
 
 function clip(input, max) {
     if (typeof input !== 'string') return '';
@@ -113,6 +129,7 @@ function validateBranding(input = {}) {
     }
 
     out.short_text   = clip(input.short_text   || input.shortText,   MAX_SHORT_TEXT);
+    applyPortalProductFields(input, out);
     out.contact_email = clip(input.contact_email || input.contactEmail, MAX_CONTACT);
     out.contact_phone = clip(input.contact_phone || input.contactPhone, MAX_CONTACT);
     out.contact_url   = clip(input.contact_url   || input.contactUrl,   MAX_CONTACT);
@@ -229,9 +246,15 @@ function validateBranding(input = {}) {
  * Stable hash of normalized branding. Sorts keys recursively so logically
  * identical branding produces an identical hash regardless of insertion order.
  * Used as the Phase 2 cache key — bundles sharing this hash reuse artifacts.
+ * Portal-only keys (product_label, hide_product_type) are omitted so changing
+ * download-page copy does not invalidate installer builds.
  */
 function hashBranding(normalized) {
-    const json = stableStringify(normalized || {});
+    const forHash = { ...(normalized || {}) };
+    for (const key of PORTAL_ONLY_BRANDING_KEYS) {
+        delete forHash[key];
+    }
+    const json = stableStringify(forHash);
     return crypto.createHash('sha256').update(json).digest('hex');
 }
 
@@ -342,6 +365,8 @@ function defaultBranding() {
     return {
         company_name: '',
         short_text: '',
+        product_label: '',
+        hide_product_type: false,
         contact_email: '',
         contact_phone: '',
         contact_url: '',
@@ -378,6 +403,7 @@ function validateRdclientBranding(input = {}) {
     const out = {};
 
     out.company_name = clip(input.company_name || input.companyName || 'BetterDesk RdClient', MAX_NAME);
+    applyPortalProductFields(input, out);
     out.server_host = clip(input.server_host || input.serverHost, 253);
     out.use_https = input.use_https !== false && input.useHttps !== false;
 
@@ -409,6 +435,8 @@ module.exports = {
     LOCALE_LABELS,
     MAX_SLUG_LENGTH,
     MIN_SLUG_LENGTH,
+    MAX_PRODUCT_LABEL,
+    PORTAL_ONLY_BRANDING_KEYS,
     validateBranding,
     validateRdclientBranding,
     hashBranding,
