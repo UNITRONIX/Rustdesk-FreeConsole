@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.69] — 2026-08-29
+
 ### Added
 - **Custom download portal product label (#386):** Agent Generator advanced branding can override or hide the product type line (`download.product_*`) on the public download page without rebuilding installers.
 
@@ -3172,3 +3179,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.66]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.65...v3.5.66
 [3.5.67]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.66...v3.5.67
 [3.5.68]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.67...v3.5.68
+[3.5.69]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.68...v3.5.69
