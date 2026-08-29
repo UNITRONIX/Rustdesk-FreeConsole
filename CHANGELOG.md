@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.67] — 2026-08-29
+
 ### Fixed
 - **GHCR `:latest` stuck on 3.5.4 while #382 lived only on `:dev` (#387):** `docker-publish.yml` skipped image builds for `[version-bump]` tag pushes, never moved `latest` on Release, and `workflow_dispatch` with default `latest` published no tags. Stable releases now always build, retag `latest` (non-prerelease), and manual dispatch publishes `latest` + current `VERSION`. Prefer pinning compose/`install.sh` semver for production.
 
@@ -3153,3 +3160,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.64]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.63...v3.5.64
 [3.5.65]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.64...v3.5.65
 [3.5.66]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.65...v3.5.66
+[3.5.67]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.66...v3.5.67
