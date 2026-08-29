@@ -72,11 +72,12 @@ Split layout uses API port **21114**; the official single container uses **21121
 ### Pin or change image version
 
 ```bash
-# Explicit version (recommended for production)
+# Explicit release version (recommended for production — matches install.sh / compose default)
 export BETTERDESK_IMAGE_TAG=3.0.0
 docker compose pull && docker compose up -d
 
-# Track rolling latest from main branch builds
+# Rolling tip of the last successful *stable* GHCR publish (release / main)
+# Not the same as “newest CHANGELOG line” until that release’s images are published
 export BETTERDESK_IMAGE_TAG=latest
 docker compose pull && docker compose up -d
 ```
@@ -196,7 +197,7 @@ docker compose pull && docker compose up -d
 
 | Channel | Typical `BETTERDESK_IMAGE_TAG` |
 |---------|--------------------------------|
-| Stable (`main`) | `latest` or a release version (e.g. `3.4.3`) |
+| Stable (`main`) | **Pin a release semver** (e.g. `3.5.65` — compose / `install.sh` default). Optional: `latest` = last successful stable image publish on GHCR (may lag a git release until CI publishes). |
 | Development (`dev`) | `dev` |
 
 Then: `docker compose pull && docker compose up -d`. In-app “Install update” stays disabled for official image deployments.

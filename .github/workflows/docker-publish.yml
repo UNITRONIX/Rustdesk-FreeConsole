@@ -8,10 +8,14 @@
 #
 # Tags:
 #   - main push: latest, sha-<commit>
-#   - git tag v* / GitHub Release: semver (e.g. 3.0.0-alpha), exact ref (v3.0.0-alpha)
-#   - workflow_dispatch: optional custom tag via input
+#   - dev push:  dev, sha-<commit>
+#   - git tag v* / GitHub Release (stable): semver, v*, major.minor, latest
+#   - workflow_dispatch: latest + VERSION when tag empty/latest; else custom tag
 #
-# Triggers: push main (path-filtered), push tag v*, release published, manual
+# Skip: branch pushes whose head commit message contains [version-bump].
+# Tag pushes and release/dispatch always build (even when the tagged commit is a bump).
+#
+# Triggers: push main/dev (path-filtered), push tag v*, release published, manual
 # =============================================================================
 
 name: Build & Publish Docker Images
@@ -20,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag (e.g. v3.0.0-alpha or 3.0.0-alpha)'
+        description: 'Image tag (empty or latest = push latest + VERSION; else custom tag)'
         required: false
         default: 'latest'
         type: string
@@ -35,6 +39,7 @@ on:
       - 'betterdesk-server/**'
       - 'web-nodejs/**'
       - '.github/workflows/docker-publish.yml'
+      - 'VERSION'
 
   release:
     types: [published]
@@ -43,15 +48,6 @@ env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Shared tag rules for docker/metadata-action (keep in sync across build jobs)
-  DOCKER_METADATA_TAGS: |
-    type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-    type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
-    type=ref,event=tag
-    type=semver,pattern={{version}}
-    type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || !contains(github.event.inputs.tag, '-')) }}
-    type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' && github.event.inputs.tag != 'latest' }}
-    type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
 jobs:
   read-version:
@@ -72,7 +68,13 @@ jobs:
 
   build-server:
     needs: read-version
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
+    # Build on release/dispatch always; on push build tags always; on branch
+    # push skip [version-bump] commits only.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,7 +99,16 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/betterdesk-server
-          tags: ${{ env.DOCKER_METADATA_TAGS }}
+          tags: |
+            type=raw,value=latest,enable=${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest')) }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || !contains(github.event.inputs.tag, '-')) }}
+            type=raw,value=${{ needs.read-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest') }}
+            type=raw,value=v${{ needs.read-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest') }}
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' && github.event.inputs.tag != 'latest' }}
+            type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - name: Resolve image for SBOM/Trivy
         id: scanref
@@ -148,7 +159,11 @@ jobs:
 
   build-console:
     needs: read-version
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -172,7 +187,16 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/betterdesk-console
-          tags: ${{ env.DOCKER_METADATA_TAGS }}
+          tags: |
+            type=raw,value=latest,enable=${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest')) }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || !contains(github.event.inputs.tag, '-')) }}
+            type=raw,value=${{ needs.read-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest') }}
+            type=raw,value=v${{ needs.read-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest') }}
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' && github.event.inputs.tag != 'latest' }}
+            type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - uses: docker/build-push-action@v6
         with:
@@ -190,7 +214,11 @@ jobs:
 
   build-allinone:
     needs: read-version
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -214,7 +242,16 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/betterdesk
-          tags: ${{ env.DOCKER_METADATA_TAGS }}
+          tags: |
+            type=raw,value=latest,enable=${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest')) }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || !contains(github.event.inputs.tag, '-')) }}
+            type=raw,value=${{ needs.read-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest') }}
+            type=raw,value=v${{ needs.read-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.tag == '' || github.event.inputs.tag == 'latest') }}
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' && github.event.inputs.tag != 'latest' }}
+            type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - uses: docker/build-push-action@v6
         with:
@@ -234,7 +271,11 @@ jobs:
   update-description:
     needs: [build-server, build-console, build-allinone]
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]'))
+    if: |
+      always() &&
+      needs.build-server.result == 'success' &&
+      needs.build-console.result == 'success' &&
+      needs.build-allinone.result == 'success'
     permissions:
       contents: read
 
@@ -253,6 +294,7 @@ jobs:
           server_tags="$(extract_tags "$SERVER_TAGS")"
           console_tags="$(extract_tags "$CONSOLE_TAGS")"
           allinone_tags="$(extract_tags "$ALLINONE_TAGS")"
+          pin_ver="$(tr -d '\n\r' < VERSION 2>/dev/null || echo VERSION)"
 
           {
             echo "## Docker images published"
@@ -263,15 +305,15 @@ jobs:
             echo "| \`ghcr.io/${{ github.repository_owner }}/betterdesk-console\` | ${console_tags:-n/a} |"
             echo "| \`ghcr.io/${{ github.repository_owner }}/betterdesk\` | ${allinone_tags:-n/a} |"
             echo ""
-            echo "### Pin a version (production — official all-in-one)"
+            echo "### Pin a version (production — recommended)"
             echo "\`\`\`bash"
-            echo "export BETTERDESK_IMAGE_TAG=3.0.0"
+            echo "export BETTERDESK_IMAGE_TAG=${pin_ver}"
             echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.single.yml -o docker-compose.yml"
             echo "docker compose pull"
             echo "docker compose up -d"
             echo "\`\`\`"
             echo ""
-            echo "### Quick start (rolling latest)"
+            echo "### Rolling stable tip (\`latest\` = last successful stable image publish)"
             echo "\`\`\`bash"
             echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.single.yml -o docker-compose.yml"
             echo "BETTERDESK_IMAGE_TAG=latest docker compose up -d"

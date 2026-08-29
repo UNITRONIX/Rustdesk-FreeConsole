@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **GHCR `:latest` stuck on 3.5.4 while #382 lived only on `:dev` (#387):** `docker-publish.yml` skipped image builds for `[version-bump]` tag pushes, never moved `latest` on Release, and `workflow_dispatch` with default `latest` published no tags. Stable releases now always build, retag `latest` (non-prerelease), and manual dispatch publishes `latest` + current `VERSION`. Prefer pinning compose/`install.sh` semver for production.
+
 ### Changed
 - _(none yet)_
 

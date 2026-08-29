@@ -143,6 +143,6 @@ Applies only to merges into **`main`** (stable). Version bump, tag, and GitHub R
 - [ ] **After merge:** verify CI created tag `v<version>` and GitHub Release
 - [ ] **GHCR image tags:** verify `ghcr.io/unitronix/betterdesk` (official), `betterdesk-server`, and `betterdesk-console` show semver tag (e.g. `3.1.0`) and git ref (`v3.1.0`) after workflow completes
 - [ ] **Sync dev:** merge `main` → `dev` so development continues from the new minor version
-- [ ] **Manual fallback:** Actions → “Build & Publish Docker Images” → Run workflow → tag input `v<version>` if release trigger was skipped
+- [ ] **Manual fallback:** Actions → “Build & Publish Docker Images” → Run workflow → leave tag `latest` (publishes `latest` + current `VERSION`) or set tag input `v<version>` if you only need a custom tag. Confirm package tags include both semver and `latest` after a stable release.
 - [ ] **No secrets in diff:** `git diff --cached` has no API keys / passwords
 - [ ] **No debug code:** no `console.log` debug statements, no `TODO` in shipped code

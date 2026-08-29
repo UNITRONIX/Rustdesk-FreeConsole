@@ -115,7 +115,7 @@ UPDATE_GITHUB_BRANCH=dev    # development
 | `version-bump-main.yml` | PR merged to `main` | Minor bump, tag, GitHub Release |
 | `version-verify.yml` | Push/PR touching version files | Fail if files disagree |
 | `release-server.yml` | Tag `v*` | Go server binaries |
-| `docker-publish.yml` | Tag, release, push to `main`/`dev` | GHCR images |
+| `docker-publish.yml` | Tag, release, push to `main`/`dev` | GHCR images: `latest` on stable release/main; `dev` on `dev` pushes; semver on `v*` / Release |
 
 ## First stable release note
 
