@@ -424,10 +424,11 @@ body.app-page.ux35-page {
     margin-bottom: var(--ux35-card-gap);
 }
 
-/* Settings shell: horizontal tabs readable over branding wallpaper */
+/* Settings shell: horizontal tabs readable over branding wallpaper; bleed cancels content padding */
 .ux35-page .settings-shell-nav {
+    --settings-nav-bleed: var(--ux35-content-padding-lg);
+    --settings-nav-bleed-x: var(--ux35-content-padding-lg);
     position: sticky;
-    top: 0;
     z-index: 2;
     background-color: color-mix(in srgb, var(--bg-primary) 92%, transparent);
 }
@@ -578,6 +579,10 @@ body.ux35-is-resizing {
     .ux35-content {
         padding: var(--ux35-content-padding);
         padding-bottom: calc(var(--ux35-content-padding) + 72px);
+    }
+    .ux35-page .settings-shell-nav {
+        --settings-nav-bleed: var(--ux35-content-padding);
+        --settings-nav-bleed-x: var(--ux35-content-padding);
     }
     .ux35-sidebar {
         width: min(86vw, 280px);

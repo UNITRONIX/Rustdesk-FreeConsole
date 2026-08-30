@@ -3285,25 +3285,43 @@
 }
 
 .settings-shell-nav {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
+    --settings-nav-bleed: 0px;
+    --settings-nav-bleed-x: 0px;
+    display: block;
     padding: 0;
     margin: 0;
     border: none;
     border-bottom: 1px solid var(--border-primary);
     border-radius: 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
     position: sticky;
-    top: 0;
+    top: calc(-1 * var(--settings-nav-bleed));
+    padding-top: var(--settings-nav-bleed);
+    margin-top: calc(-1 * var(--settings-nav-bleed));
+    margin-inline: calc(-1 * var(--settings-nav-bleed-x));
+    padding-inline: var(--settings-nav-bleed-x);
     z-index: 2;
     /* Keep labels readable while scrolling long forms / branding wallpaper */
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     background-color: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+}
+
+/* Classic layout: cancel .main-content padding so sticky bar is flush */
+.app-page:not(.ux35-page) .settings-shell-nav {
+    --settings-nav-bleed: var(--space-lg);
+    --settings-nav-bleed-x: var(--space-lg);
+}
+
+/* Horizontal scroll lives on the track — not the sticky outer (avoids sticky breakage) */
+.settings-shell-nav-track {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .settings-shell-nav .settings-shell-tab,
@@ -3768,13 +3786,6 @@
 }
 
 @media (max-width: 900px) {
-    .settings-shell-nav {
-        position: static;
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-        background-color: transparent;
-    }
-
     .settings-row {
         grid-template-columns: 1fr;
         gap: var(--space-sm);

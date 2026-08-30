@@ -468,7 +468,8 @@ body.ux35-page .mobile-bottom-nav {
         -webkit-overflow-scrolling: touch;
     }
 
-    body.app-page.is-mobile-shell .settings-shell-nav,
+    /* Settings: sticky outer stays; horizontal scroll on the track only */
+    body.app-page.is-mobile-shell .settings-shell-nav-track,
     body.app-page.is-mobile-shell .settings-tabs,
     body.app-page.is-mobile-shell .server-mgmt-tabs {
         display: flex;
@@ -478,10 +479,9 @@ body.ux35-page .mobile-bottom-nav {
         scrollbar-width: none;
         gap: var(--space-xs);
         padding-bottom: var(--space-xs);
-        position: static;
     }
 
-    body.app-page.is-mobile-shell .settings-shell-nav::-webkit-scrollbar,
+    body.app-page.is-mobile-shell .settings-shell-nav-track::-webkit-scrollbar,
     body.app-page.is-mobile-shell .settings-tabs::-webkit-scrollbar,
     body.app-page.is-mobile-shell .server-mgmt-tabs::-webkit-scrollbar {
         display: none;

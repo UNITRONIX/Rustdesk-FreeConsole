@@ -10,6 +10,9 @@
 ### Added
 - **Custom download portal product label (#386):** Agent Generator advanced branding can override or hide the product type line (`download.product_*`) on the public download page without rebuilding installers.
 
+### Fixed
+- **Settings tab bar sticky + mobile (#396):** Settings horizontal tabs stay flush under the top of the content scroll area (bleed cancels content padding), keep sticky on narrow/mobile instead of scrolling away, and scroll the active tab into view when switching or opening a hash link. Ships via panel update. Verify: Settings → scroll a long form → tab bar flush at top; ≤900px / mobile → tabs remain visible while scrolling; `/settings#updates` brings Updates into the horizontal track.
+
 ### Changed
 - _(none yet)_
 

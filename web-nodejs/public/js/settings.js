@@ -142,6 +142,9 @@
                 const target = document.getElementById('tab-' + tab.dataset.tab);
                 if (target) target.classList.add('active');
                 window.history.replaceState(null, '', '#' + tab.dataset.tab);
+                if (typeof tab.scrollIntoView === 'function') {
+                    tab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+                }
                 applySettingsSearchFilter();
                 onSettingsTabChanged(tab.dataset.tab);
             });
@@ -150,7 +153,7 @@
         const hash = window.location.hash.replace('#', '');
         if (['general', 'branding', 'server', 'backup', 'updates', 'auth', 'advanced', 'email'].includes(hash)) {
             const tabName = hash === 'server' ? 'general' : hash;
-            const tab = document.querySelector(`[data-tab="${tabName}"]`);
+            const tab = document.querySelector(`.settings-shell-tab[data-tab="${tabName}"], .settings-tab[data-tab="${tabName}"]`);
             if (tab) tab.click();
         }
     }

@@ -11,7 +11,8 @@
         </div>
 
         <div class="settings-shell">
-            <nav class="settings-shell-nav mobile-tabs-scroll" role="tablist" aria-label="${_('settings.title')}">
+            <nav class="settings-shell-nav" role="tablist" aria-label="${_('settings.title')}">
+                <div class="settings-shell-nav-track mobile-tabs-scroll">
                 <button type="button" class="settings-shell-tab settings-tab active" role="tab" aria-selected="true" id="settings-tab-general" data-tab="general" aria-controls="tab-general">
                     <span class="material-icons" aria-hidden="true">tune</span>
                     ${_('settings.tab_general')}
@@ -40,6 +41,7 @@
                     <span class="material-icons" aria-hidden="true">code</span>
                     ${_('settings.tab_advanced')}
                 </button>` : ''}
+                </div>
             </nav>
 
             <div class="settings-shell-main">
