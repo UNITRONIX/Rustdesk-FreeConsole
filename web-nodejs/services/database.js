@@ -165,6 +165,10 @@ const facade = {
     clearAccountLockout:  (username) => adapter.clearAccountLockout(username),
     cleanupOldLoginAttempts: () => adapter.cleanupOldLoginAttempts(),
 
+    // ---- Peer Grants (per-user device access) ----
+    getUserPeerGrants: (userId) => adapter.getUserPeerGrants(userId),
+    setUserPeerGrants: (userId, peerIds) => adapter.setUserPeerGrants(userId, peerIds),
+
     // ---- Address Books ----
     getAddressBook:     (userId, abType) => adapter.getAddressBook(userId, abType),
     saveAddressBook:    (userId, data, abType) => adapter.saveAddressBook(userId, abType || 'legacy', data),
