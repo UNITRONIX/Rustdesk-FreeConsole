@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.72] — 2026-09-03
+
 ### Fixed
 - **Shared-NAT / CGNAT connection gaps after 3.5.4 (#399 follow-up):** RelayResponse forwarding now resolves initiator/target from the pending relay store (UUID + endpoint) and panel signal-proxy CIDRs, and no longer delivers relay tickets via bare `FindByIP` on multi-device NATs. Opt-in `ALLOW_SHARED_NAT_INITIATOR` / Settings checkbox authorizes stock clients behind shared public IPs as synthetic `shared-nat-initiator` (default off; does not inherit peer identity / #302). Startup warns when `SAME_NAT_RELAY` is disabled while several live peers share one public IP. Ships via panel update (Go signal restart); enable the flag only for multi-device CGNAT/office sites that cannot use account login.
 
@@ -3211,3 +3218,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.69]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.68...v3.5.69
 [3.5.70]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.69...v3.5.70
 [3.5.71]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.70...v3.5.71
+[3.5.72]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.71...v3.5.72
