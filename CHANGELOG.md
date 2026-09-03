@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.71] — 2026-09-03
+
 ### Fixed
 - **CGNAT / multi-device same public IP punch auth (#399):** PunchHole now correlates `udp_port` to the initiator's registered NAT-mapped UDP endpoint when several peers share one public IP, and opaque login tokens are matched case-insensitively. Does not restore insecure IP-only identity inheritance (#302). Ships via Go signal restart / panel update.
 - **Web Remote → WebSocket Mode targets (#397):** Panel Web Remote (`panel-web-remote` / loopback proxy) is exempt from the TCP↔WS relay protocol mismatch gate so browser sessions can relay to WS-mode clients through `/ws/relay`.
@@ -3200,3 +3207,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.68]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.67...v3.5.68
 [3.5.69]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.68...v3.5.69
 [3.5.70]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.69...v3.5.70
+[3.5.71]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.70...v3.5.71
