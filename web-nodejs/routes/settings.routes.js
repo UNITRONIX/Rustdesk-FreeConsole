@@ -1923,7 +1923,7 @@ router.get('/api/settings/connection-mode', requireAuth, requirePermission('serv
 
 /**
  * PUT /api/settings/connection-mode — persist P2P/relay strategy
- * Body: { mode, p2p_fallback_ms?, same_nat_relay?, restart?: boolean }
+ * Body: { mode, p2p_fallback_ms?, same_nat_relay?, allow_shared_nat_initiator?, restart?: boolean }
  */
 router.put('/api/settings/connection-mode', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
@@ -1931,7 +1931,8 @@ router.put('/api/settings/connection-mode', requireAuth, requirePermission('serv
         const result = await serverConnectionConfig.setConnectionMode({
             mode: body.mode,
             p2p_fallback_ms: body.p2p_fallback_ms,
-            same_nat_relay: body.same_nat_relay
+            same_nat_relay: body.same_nat_relay,
+            allow_shared_nat_initiator: body.allow_shared_nat_initiator
         });
 
         await db.logAction(

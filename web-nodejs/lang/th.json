@@ -754,7 +754,9 @@
         "client_sessions_save": "บันทึกการตั้งค่าเซสชัน",
         "enrollment_ldap_hint": "การตั้งค่า LDAP/AD และ OIDC อยู่ที่แท็บ LDAP / AD และ OIDC / SSO ด้านบน",
         "oidc_redirect_url_invalid": "Redirect URL ต้องใช้ http(s) และลงท้ายด้วย /api/auth/oidc/callback (หรือ /api/oidc/callback)",
-        "oidc_redirect_url_example": "ตัวอย่าง: {url}"
+        "oidc_redirect_url_example": "ตัวอย่าง: {url}",
+        "connection_mode_allow_shared_nat_initiator": "อนุญาตตัวเริ่มต้น shared-NAT (ไคลเอนต์ stock, หลายอุปกรณ์หลัง IP สาธารณะเดียวกัน)",
+        "connection_mode_allow_shared_nat_initiator_hint": "ทางเลือก เมื่อ peer ที่ใช้งานอยู่หลายตัวใช้ IP สาธารณะเดียวกัน และไคลเอนต์ไม่มีโทเค็นเข้าสู่ระบบหรือ udp_port ให้รับรองเป็น shared-nat-initiator ไม่สืบทอดตัวตนของอุปกรณ์อื่น ทำให้เกต enrollment ขาออกแบบจัดการอ่อนลงสำหรับ NAT นั้น — เปิดเฉพาะไซต์ CGNAT/สำนักงานที่ไม่มีล็อกอินบัญชี"
     },
     "audit": {
         "time": "Time",

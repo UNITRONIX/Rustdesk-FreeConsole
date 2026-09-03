@@ -39,12 +39,14 @@ WantedBy=multi-user.target
         const relayVars = svc.envVarsFromSettings({
             mode: 'relay_only',
             p2p_fallback_ms: 3000,
-            same_nat_relay: false
+            same_nat_relay: false,
+            allow_shared_nat_initiator: true
         });
         expect(relayVars.P2P_FIRST).toBe('N');
         expect(relayVars.ALWAYS_USE_RELAY).toBe('Y');
         expect(relayVars.P2P_FALLBACK_MS).toBe('3000');
         expect(relayVars.SAME_NAT_RELAY).toBe('N');
+        expect(relayVars.ALLOW_SHARED_NAT_INITIATOR).toBe('Y');
     });
 
     it('parses and patches systemd environment blocks', () => {

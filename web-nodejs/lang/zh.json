@@ -748,7 +748,9 @@
         "client_sessions_save": "保存会话设置",
         "enrollment_ldap_hint": "LDAP/AD 与 OIDC 设置位于上方的 LDAP / AD 和 OIDC / SSO 选项卡。",
         "oidc_redirect_url_invalid": "重定向 URL 必须使用 http(s)，并以 /api/auth/oidc/callback（或 /api/oidc/callback）结尾。",
-        "oidc_redirect_url_example": "示例：{url}"
+        "oidc_redirect_url_example": "示例：{url}",
+        "connection_mode_allow_shared_nat_initiator": "允许共享 NAT 发起端（官方客户端，同一公网 IP 下多台设备）",
+        "connection_mode_allow_shared_nat_initiator_hint": "可选。当多个在线对等端共享同一公网 IP，且客户端没有登录令牌或 udp_port 时，授权为 shared-nat-initiator。不会继承其他设备身份。会削弱该 NAT 的托管注册出站门控——仅在无法使用账户登录的 CGNAT/办公站点启用。"
     },
     "audit": {
         "time": "时间",

@@ -748,7 +748,9 @@
         "client_sessions_save": "Uložit nastavení relace",
         "enrollment_ldap_hint": "Nastavení LDAP/AD a OIDC najdete na kartách LDAP / AD a OIDC / SSO výše.",
         "oidc_redirect_url_invalid": "Redirect URL musí používat http(s) a končit na /api/auth/oidc/callback (nebo /api/oidc/callback).",
-        "oidc_redirect_url_example": "Příklad: {url}"
+        "oidc_redirect_url_example": "Příklad: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Povolit shared-NAT iniciátory (stock klienti, více zařízení za jednou veřejnou IP)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Volitelné. Pokud více živých peerů sdílí jednu veřejnou IP a klient nemá přihlašovací token ani udp_port, autorizovat jako shared-nat-initiator. Nedědí identitu jiného zařízení. Oslabuje managed enrollment outbound bránu pro tento NAT — zapněte jen pro CGNAT/kanceláře bez přihlášení účtem."
     },
     "audit": {
         "time": "Čas",

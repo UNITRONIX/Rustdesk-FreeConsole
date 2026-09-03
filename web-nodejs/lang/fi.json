@@ -754,7 +754,9 @@
         "client_sessions_save": "Tallenna istuntoasetukset",
         "enrollment_ldap_hint": "LDAP/AD- ja OIDC-asetukset ovat välilehdillä LDAP / AD ja OIDC / SSO yllä.",
         "oidc_redirect_url_invalid": "Uudelleenohjaus-URL:n on käytettävä http(s):ää ja päätyttävä polkuun /api/auth/oidc/callback (tai /api/oidc/callback).",
-        "oidc_redirect_url_example": "Esimerkki: {url}"
+        "oidc_redirect_url_example": "Esimerkki: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Salli shared-NAT-aloittajat (stock-asiakkaat, useita laitteita saman julkisen IP:n takana)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Valinnainen. Kun useat aktiiviset peerit jakavat saman julkisen IP:n eikä asiakkaalla ole kirjautumistunnusta tai udp_portia, valtuuta shared-nat-initiatorina. Ei peri toisen laitteen identiteettiä. Heikentää managed enrollment outbound -porttia kyseiselle NAT:lle — ota käyttöön vain CGNAT/toimistosivustoilla ilman tilikirjautumista."
     },
     "audit": {
         "time": "Time",

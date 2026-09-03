@@ -754,7 +754,9 @@
         "client_sessions_save": "सत्र सेटिंग्स सहेजें",
         "enrollment_ldap_hint": "LDAP/AD और OIDC सेटिंग्स ऊपर LDAP / AD और OIDC / SSO टैब में हैं।",
         "oidc_redirect_url_invalid": "Redirect URL में http(s) होना चाहिए और अंत /api/auth/oidc/callback (या /api/oidc/callback) होना चाहिए।",
-        "oidc_redirect_url_example": "उदाहरण: {url}"
+        "oidc_redirect_url_example": "उदाहरण: {url}",
+        "connection_mode_allow_shared_nat_initiator": "shared-NAT आरंभकर्ता अनुमति दें (stock क्लाइंट, एक सार्वजनिक IP पर कई डिवाइस)",
+        "connection_mode_allow_shared_nat_initiator_hint": "वैकल्पिक। जब कई जीवित पीयर एक सार्वजनिक IP साझा करें और क्लाइंट के पास लॉगिन टोकन या udp_port न हो, तो shared-nat-initiator के रूप में अधिकृत करें। किसी अन्य डिवाइस की पहचान नहीं लेता। उस NAT के लिए managed enrollment आउटबाउंड गेट कमज़ोर करता है — केवल CGNAT/ऑफ़िस साइटों पर खाता लॉगिन के बिना सक्षम करें।"
     },
     "audit": {
         "time": "Time",

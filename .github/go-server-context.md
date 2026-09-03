@@ -739,7 +739,7 @@ The Go server replaces ONLY the Rust binaries (`hbbs` + `hbbr`). Everything else
 | ID | Issue | File | Fix | Status |
 |----|-------|------|-----|--------|
 | H1 | No validation of `new_id` in change-id API | `api/server.go:297-324` | `peerIDRegexp` check | ✅ Fixed |
-| H2 | `FindByIP` fallback returns first peer behind NAT | `peer/map.go` / `signal/handler.go` | Outbound auth: exact `FindByAddr` / TCP session / token / panel proxy, then **safe** IP fallback only when exactly one live peer shares the public IP (`FindAllByIP`); multiple live peers → `initiator_ambiguous_same_nat` (no identity inheritance, #302 residual). | ✅ Fixed (auth) |
+| H2 | `FindByIP` fallback returns first peer behind NAT | `peer/map.go` / `signal/handler.go` | Outbound auth: exact `FindByAddr` / TCP session / token / panel proxy / `udp_port` hint / safe single-IP fallback; multi-peer → `initiator_ambiguous_same_nat` unless opt-in `ALLOW_SHARED_NAT_INITIATOR` (synthetic `shared-nat-initiator`, #399). RelayResponse uses pending UUID+initiator store — no multi-peer `FindByIP` delivery. | ✅ Fixed (auth + #399 forward) |
 | H3 | No rate-limit on `/api/auth/login/2fa` | `api/auth_handlers.go:127-168` | `loginLimiter.Allow(clientIP)` + audit log | ✅ Fixed |
 | H4 | Partial 2FA token has 24h TTL | `api/auth_handlers.go:104-111` | `GenerateWithTTL()` 5min | ✅ Fixed |
 

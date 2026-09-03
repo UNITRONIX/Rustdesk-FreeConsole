@@ -754,7 +754,9 @@
         "client_sessions_save": "Oturum ayarlarını kaydet",
         "enrollment_ldap_hint": "LDAP/AD ve OIDC ayarları yukarıdaki LDAP / AD ve OIDC / SSO sekmelerindedir.",
         "oidc_redirect_url_invalid": "Yönlendirme URL'si http(s) kullanmalı ve /api/auth/oidc/callback (veya /api/oidc/callback) ile bitmelidir.",
-        "oidc_redirect_url_example": "Örnek: {url}"
+        "oidc_redirect_url_example": "Örnek: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Paylaşılan NAT başlatıcılarına izin ver (stok istemciler, aynı genel IP arkasında birden fazla cihaz)",
+        "connection_mode_allow_shared_nat_initiator_hint": "İsteğe bağlı. Birden fazla canlı eş aynı genel IP’yi paylaşıyor ve istemcinin oturum açma jetonu veya udp_port’u yoksa shared-nat-initiator olarak yetkilendir. Başka bir cihaz kimliğini devralmaz. Bu NAT için yönetilen enrollment giden kapısını zayıflatır — yalnızca hesap oturumu olmayan CGNAT/ofis sitelerinde etkinleştirin."
     },
     "audit": {
         "time": "Time",

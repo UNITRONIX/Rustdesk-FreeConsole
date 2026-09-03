@@ -756,7 +756,9 @@
         },
         "enrollment_ldap_hint": "LDAP/AD and OIDC settings are under the LDAP / AD and OIDC / SSO tabs above.",
         "oidc_redirect_url_invalid": "Redirect URL must use http(s) and end with /api/auth/oidc/callback (or /api/oidc/callback).",
-        "oidc_redirect_url_example": "Example: {url}"
+        "oidc_redirect_url_example": "Example: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Allow shared-NAT initiators (stock clients, multiple devices on one public IP)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Opt-in. When several live peers share one public IP and the client has no login token or udp_port, authorize as shared-nat-initiator. Does not inherit another device identity. Weakens managed enrollment outbound gate for that NAT — enable only for CGNAT/office sites that cannot use account login."
     },
     "audit": {
         "time": "Time",

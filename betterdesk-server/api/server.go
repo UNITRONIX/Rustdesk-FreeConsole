@@ -705,11 +705,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.cfg != nil {
 		payload["connection"] = map[string]any{
-			"p2p_first":        s.cfg.P2PFirst,
-			"always_use_relay": s.cfg.AlwaysUseRelay,
-			"p2p_fallback_ms":  s.cfg.P2PFallbackMs,
-			"same_nat_relay":   s.cfg.SameNATRelay,
-			"relay_servers":    s.cfg.RelayServers,
+			"p2p_first":                 s.cfg.P2PFirst,
+			"always_use_relay":          s.cfg.AlwaysUseRelay,
+			"p2p_fallback_ms":           s.cfg.P2PFallbackMs,
+			"same_nat_relay":            s.cfg.SameNATRelay,
+			"allow_shared_nat_initiator": s.cfg.AllowSharedNATInitiator,
+			"relay_servers":             s.cfg.RelayServers,
 		}
 	}
 	writeJSON(w, http.StatusOK, payload)

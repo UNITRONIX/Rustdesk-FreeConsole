@@ -37,6 +37,12 @@ const refuseInitiatorNotAuthorized = "Not authorized"
 // RequestRelay arrives from the Node panel WebSocket→TCP proxy (#302 Web Remote).
 const panelWebRemoteInitiatorID = "panel-web-remote"
 
+// sharedNATInitiatorID is the synthetic initiator used when ALLOW_SHARED_NAT_INITIATOR
+// is enabled and multiple live peers share the initiator's public IP (#399).
+// It deliberately does not inherit any peer identity (#302) and is distinct from
+// panel-web-remote so audit logs stay attributable.
+const sharedNATInitiatorID = "shared-nat-initiator"
+
 // relayTransportMismatch reports whether initiator and target use incompatible
 // relay transports (WebSocket Mode vs native TCP/UDP). Signaling may still be
 // mixed; this gate only covers the typical case where ConnType reflects the
@@ -826,6 +832,9 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	log.Printf("[signal] PunchHole: target %s found (addr=%s, status=%s, lastReg=%v ago), relay=%s",
 		targetID, target.UDPAddr, target.StatusTier, time.Since(target.LastReg), relayServer)
 
+	// Correlate initiator identity for a later RelayResponse on shared NAT (#399).
+	s.storePendingUUID(targetID, raddr, "", initiatorID)
+
 	// If force relay or always use relay
 	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin ||
 		s.shouldForceRelayForPeers(initiatorID, targetID) ||
@@ -990,6 +999,9 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 
 	log.Printf("[signal] PunchHole (TCP): target %s found (addr=%s, status=%s), relay=%s",
 		targetID, target.UDPAddr, target.StatusTier, relayServer)
+
+	// Correlate initiator identity for a later RelayResponse on shared NAT (#399).
+	s.storePendingUUID(targetID, raddr, "", initiatorID)
 
 	// ForceRelay or AlwaysUseRelay: return PunchHoleResponse with SYMMETRIC NAT
 	// type instead of RelayResponse. This tells the client that direct P2P is
@@ -1304,7 +1316,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
 	}
-	if initiatorID != panelWebRemoteInitiatorID && relayTransportMismatch(initiatorType, target.ConnType) {
+	if initiatorID != panelWebRemoteInitiatorID && initiatorID != sharedNATInitiatorID && relayTransportMismatch(initiatorType, target.ConnType) {
 		log.Printf("[signal] RequestRelay: protocol mismatch initiator=%s target=%s (%s vs %s)",
 			raddr, targetID, initiatorType, target.ConnType)
 		resp := &pb.RendezvousMessage{
@@ -1378,7 +1390,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	}
 
 	// Store the UUID so we can recover it if target responds with empty UUID.
-	s.storePendingUUID(targetID, raddr, relayUUID)
+	s.storePendingUUID(targetID, raddr, relayUUID, initiatorID)
 	s.sendToPeer(targetID, relayReq)
 
 	// Sign the target's PK for E2E encryption verification
@@ -1478,7 +1490,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
 	}
-	if initiatorID != panelWebRemoteInitiatorID && relayTransportMismatch(initiatorType, target.ConnType) {
+	if initiatorID != panelWebRemoteInitiatorID && initiatorID != sharedNATInitiatorID && relayTransportMismatch(initiatorType, target.ConnType) {
 		log.Printf("[signal] RequestRelay (TCP): protocol mismatch initiator=%s target=%s (%s vs %s)",
 			raddr, targetID, initiatorType, target.ConnType)
 		return &pb.RendezvousMessage{
@@ -1528,7 +1540,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		},
 	}
 	// Store the UUID so we can recover it if target responds with empty UUID.
-	s.storePendingUUID(targetID, raddr, relayUUID)
+	s.storePendingUUID(targetID, raddr, relayUUID, initiatorID)
 	if s.sendToPeer(targetID, reqRelay) {
 		log.Printf("[signal] RequestRelay (TCP): forwarded to %s (connType=%s) secure=%v", targetID, target.ConnType, msg.Secure)
 	}
@@ -1600,8 +1612,46 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 		return
 	}
 
+	// Prefer pending-session correlation over FindByIP on shared NAT (#399).
+	var pending *pendingUUID
+	if rr.Uuid != "" {
+		pending = s.getPendingRelayByUUID(rr.Uuid)
+	}
+	if pending == nil && targetID != "" {
+		pending = s.getPendingRelay(targetID, initiatorAddr)
+	}
+	if pending == nil && targetID == "" && initiatorAddr != nil {
+		suffix := "\x00" + normalizeAddrKey(initiatorAddr.String())
+		s.pendingRelayUUIDs.Range(func(key, value any) bool {
+			pu, ok := value.(*pendingUUID)
+			if !ok || pu == nil {
+				return true
+			}
+			keyStr, _ := key.(string)
+			if strings.HasSuffix(keyStr, suffix) {
+				pending = pu
+				return false
+			}
+			return true
+		})
+	}
+	if pending != nil {
+		if targetID == "" && pending.targetID != "" {
+			targetID = pending.targetID
+			log.Printf("[signal] RelayResponse forward: resolved empty target id via pending session → %s", targetID)
+		}
+		if rr.Uuid == "" && pending.uuid != "" {
+			rr.Uuid = pending.uuid
+			short := pending.uuid
+			if len(short) > 8 {
+				short = short[:8]
+			}
+			log.Printf("[signal] RelayResponse from %s has empty UUID — recovered original %s from pending store", senderAddr, short)
+		}
+	}
+
 	// Fallback: if id field is empty (common with some RustDesk client versions),
-	// identify the sender by their IP address in the peer map.
+	// identify the sender by exact address / TCP session, then safe single-IP only.
 	if targetID == "" && senderAddr != nil {
 		if senderID != "" {
 			targetID = senderID
@@ -1632,8 +1682,24 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 
 	// Resolve the initiator so we can mint a relay ticket before advertising the
 	// UUID. Without this, P2P→relay fallback forwards a RelayResponse that the
-	// hardened relay rejects as "Unauthorized relay UUID" (#356).
-	initiatorID := s.peerIDForAddr(initiatorAddr)
+	// hardened relay rejects as "Unauthorized relay UUID" (#356). Prefer pending
+	// / exact addr / panel proxy / shared-NAT flag — never multi-peer FindByIP (#399).
+	initiatorID := ""
+	if pending != nil {
+		initiatorID = pending.initiatorID
+	}
+	if initiatorID == "" {
+		initiatorID = s.peerIDForAddr(initiatorAddr)
+	}
+	if initiatorID == "" && initiatorAddr != nil && s.cfg != nil && s.cfg.IPIsPanelSignalProxy(initiatorAddr.IP) {
+		initiatorID = panelWebRemoteInitiatorID
+		log.Printf("[signal] RelayResponse forward: initiator %s authorized via signal-proxy allowlist", initiatorAddr)
+	}
+	if initiatorID == "" && initiatorAddr != nil && s.cfg != nil && s.cfg.AllowSharedNATInitiator &&
+		s.peers != nil && s.peers.CountByIP(initiatorAddr.IP) > 1 {
+		initiatorID = sharedNATInitiatorID
+		log.Printf("[signal] RelayResponse forward: shared-NAT initiator %s authorized as %s", initiatorAddr, sharedNATInitiatorID)
+	}
 	if initiatorID == "" && initiatorAddr != nil {
 		if n := s.peers.CountByIP(initiatorAddr.IP); n > 1 {
 			log.Printf("[signal] RelayResponse forward: ambiguous initiator IP lookup for %s (%d peers)", initiatorAddr.IP, n)
@@ -1700,15 +1766,27 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 		return
 	}
 
-	// Fallback: peer-map lookup by IP → forward via registered UDP address.
-	entry := s.peers.FindByIP(initiatorAddr.IP)
-	if entry != nil && entry.UDPAddr != nil {
-		s.sendUDP(initiatorResp, entry.UDPAddr)
-		log.Printf("[signal] RelayResponse forwarded to peer %s at %s via UDP (uuid=%s, relay=%s, signedPk=%d bytes)", entry.ID, entry.UDPAddr, rr.Uuid, relayServer, len(signedPk))
-		return
+	// Safe UDP fallback: exact initiator endpoint, or the resolved initiator's
+	// registered UDP addr. Never FindByIP on shared NAT (#399 misdelivery).
+	if initiatorAddr != nil {
+		if s.sendUDP(initiatorResp, initiatorAddr) {
+			log.Printf("[signal] RelayResponse forwarded to exact initiator %s via UDP (uuid=%s, relay=%s, signedPk=%d bytes)", initiatorAddr, rr.Uuid, relayServer, len(signedPk))
+			return
+		}
+	}
+	if entry := s.peers.Get(initiatorID); entry != nil && entry.UDPAddr != nil {
+		if s.peers.CountByIP(entry.UDPAddr.IP) > 1 &&
+			(initiatorAddr == nil || entry.UDPAddr.Port != initiatorAddr.Port || !entry.UDPAddr.IP.Equal(initiatorAddr.IP)) {
+			log.Printf("[signal] RelayResponse: refusing ambiguous UDP delivery for initiator %s at shared IP %s (uuid=%s)", initiatorID, entry.UDPAddr.IP, rr.Uuid)
+			return
+		}
+		if s.sendUDP(initiatorResp, entry.UDPAddr) {
+			log.Printf("[signal] RelayResponse forwarded to peer %s at %s via UDP (uuid=%s, relay=%s, signedPk=%d bytes)", entry.ID, entry.UDPAddr, rr.Uuid, relayServer, len(signedPk))
+			return
+		}
 	}
 
-	log.Printf("[signal] RelayResponse: cannot deliver to %s (no TCP conn, no peer match, uuid=%s)", addrStr, rr.Uuid)
+	log.Printf("[signal] RelayResponse: cannot deliver to %s (no TCP conn, no safe peer match, uuid=%s)", addrStr, rr.Uuid)
 }
 
 // relayResponseSourceMatchesTarget applies the strongest source correlation
@@ -1896,7 +1974,7 @@ func (s *Server) sendRelayResponse(target *peer.Entry, raddr *net.UDPAddr, msg *
 	}
 	if target.UDPAddr != nil {
 		// Store the UUID so we can recover it if target responds with empty UUID.
-		s.storePendingUUID(target.ID, raddr, relayUUID)
+		s.storePendingUUID(target.ID, raddr, relayUUID, initiatorID)
 		s.sendUDP(reqRelay, target.UDPAddr)
 		log.Printf("[signal] sendRelayResponse: forwarded RequestRelay to target %s at %s (uuid=%s)", target.ID, target.UDPAddr, relayUUID[:8])
 	}
@@ -1976,12 +2054,14 @@ func (s *Server) authorizeRelayTicket(relayUUID, initiatorID, targetID string) b
 //     that peer (#399 CGNAT / multi-device same public IP)
 //  6. Exactly one live peer at the same public IP (safe FindByIP fallback for
 //     stock clients that PunchHole on a new TCP port). Multiple live peers at
-//     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302)
+//     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302),
+//     unless ALLOW_SHARED_NAT_INITIATOR authorizes synthetic shared-nat-initiator
 //
 // Managed and locked modes additionally require an approved DB peer row (pending
 // enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
 // checks: operator auth is enforced at the panel WS upgrade before TCP is
-// bridged to hbbs.
+// bridged to hbbs. Shared-NAT synthetic initiators similarly skip peer-row
+// checks (opt-in connectivity tradeoff documented in enrollment docs).
 func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token string, udpPort int32) (string, bool) {
 	if raddr == nil {
 		return "", false
@@ -2043,6 +2123,11 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 	case 1:
 		return s.finalizeAuthorizedInitiator(live[0].ID, raddr, targetID, live[0].Banned, false)
 	default:
+		if s.cfg != nil && s.cfg.AllowSharedNATInitiator {
+			log.Printf("[signal] shared-NAT initiator from %s authorized as %s (%d live peers at this IP)",
+				raddr.IP, sharedNATInitiatorID, len(live))
+			return sharedNATInitiatorID, true
+		}
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_ambiguous_same_nat")
 		return "", false
 	}

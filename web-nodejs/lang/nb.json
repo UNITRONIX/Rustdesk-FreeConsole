@@ -754,7 +754,9 @@
         "client_sessions_save": "Lagre øktinnstillinger",
         "enrollment_ldap_hint": "LDAP/AD- og OIDC-innstillinger finnes under fanene LDAP / AD og OIDC / SSO ovenfor.",
         "oidc_redirect_url_invalid": "Redirect URL must use http(s) and end with /api/auth/oidc/callback (or /api/oidc/callback).",
-        "oidc_redirect_url_example": "Example: {url}"
+        "oidc_redirect_url_example": "Example: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Tillat shared-NAT-initiatorer (stock-klienter, flere enheter bak én offentlig IP)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Valgfritt. Når flere aktive peers deler én offentlig IP og klienten mangler innloggingstoken eller udp_port, autoriser som shared-nat-initiator. Arver ikke en annen enhets identitet. Svekker managed enrollment outbound for den NAT-en — aktiver bare for CGNAT/kontorer uten kontopålogging."
     },
     "audit": {
         "time": "Time",

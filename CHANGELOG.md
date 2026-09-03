@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Shared-NAT / CGNAT connection gaps after 3.5.4 (#399 follow-up):** RelayResponse forwarding now resolves initiator/target from the pending relay store (UUID + endpoint) and panel signal-proxy CIDRs, and no longer delivers relay tickets via bare `FindByIP` on multi-device NATs. Opt-in `ALLOW_SHARED_NAT_INITIATOR` / Settings checkbox authorizes stock clients behind shared public IPs as synthetic `shared-nat-initiator` (default off; does not inherit peer identity / #302). Startup warns when `SAME_NAT_RELAY` is disabled while several live peers share one public IP. Ships via panel update (Go signal restart); enable the flag only for multi-device CGNAT/office sites that cannot use account login.
+
 ### Changed
 - _(none yet)_
 

@@ -754,7 +754,9 @@
         "client_sessions_save": "Munkamenet-beállítások mentése",
         "enrollment_ldap_hint": "Az LDAP/AD és OIDC beállítások a fenti LDAP / AD és OIDC / SSO lapokon találhatók.",
         "oidc_redirect_url_invalid": "A Redirect URL-nek http(s)-t kell használnia, és /api/auth/oidc/callback (vagy /api/oidc/callback) végződéssel kell rendelkeznie.",
-        "oidc_redirect_url_example": "Példa: {url}"
+        "oidc_redirect_url_example": "Példa: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Shared-NAT kezdeményezők engedélyezése (stock kliensek, több eszköz egy nyilvános IP mögött)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Opcionális. Ha több élő peer osztozik egy nyilvános IP-n, és a kliensnek nincs bejelentkezési tokenje vagy udp_portja, shared-nat-initiator-ként engedélyezze. Nem örököl másik eszközidentitást. Gyengíti a managed enrollment kimenő kaput ehhez a NAT-hoz — csak CGNAT/irodai helyeken kapcsolja be fiókbejelentkezés nélkül."
     },
     "audit": {
         "time": "Time",

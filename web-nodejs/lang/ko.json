@@ -748,7 +748,9 @@
         "client_sessions_save": "세션 설정 저장",
         "enrollment_ldap_hint": "LDAP/AD 및 OIDC 설정은 위의 LDAP / AD 및 OIDC / SSO 탭에 있습니다.",
         "oidc_redirect_url_invalid": "리디렉션 URL은 http(s)를 사용하고 /api/auth/oidc/callback(또는 /api/oidc/callback)로 끝나야 합니다.",
-        "oidc_redirect_url_example": "예: {url}"
+        "oidc_redirect_url_example": "예: {url}",
+        "connection_mode_allow_shared_nat_initiator": "공유 NAT 개시자 허용 (스톡 클라이언트, 동일 공용 IP의 여러 장치)",
+        "connection_mode_allow_shared_nat_initiator_hint": "선택 사항. 여러 활성 피어가 하나의 공용 IP를 공유하고 클라이언트에 로그인 토큰이나 udp_port가 없으면 shared-nat-initiator로 승인합니다. 다른 장치 ID를 상속하지 않습니다. 해당 NAT의 managed 등록 아웃바운드 게이트를 약화합니다 — 계정 로그인이 불가능한 CGNAT/사무실에서만 사용하세요."
     },
     "audit": {
         "time": "Time",

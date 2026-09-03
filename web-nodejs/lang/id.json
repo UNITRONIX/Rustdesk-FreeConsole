@@ -754,7 +754,9 @@
         "client_sessions_save": "Simpan pengaturan sesi",
         "enrollment_ldap_hint": "Pengaturan LDAP/AD dan OIDC ada di tab LDAP / AD dan OIDC / SSO di atas.",
         "oidc_redirect_url_invalid": "URL redirect harus memakai http(s) dan berakhir dengan /api/auth/oidc/callback (atau /api/oidc/callback).",
-        "oidc_redirect_url_example": "Contoh: {url}"
+        "oidc_redirect_url_example": "Contoh: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Izinkan initiator shared-NAT (klien stock, beberapa perangkat di belakang satu IP publik)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Opsional. Jika beberapa peer aktif berbagi satu IP publik dan klien tidak punya token login atau udp_port, otorisasi sebagai shared-nat-initiator. Tidak mewarisi identitas perangkat lain. Melemahkan gerbang enrollment outbound terkelola untuk NAT itu — aktifkan hanya untuk situs CGNAT/kantor tanpa login akun."
     },
     "audit": {
         "time": "Time",

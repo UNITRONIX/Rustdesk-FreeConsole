@@ -100,6 +100,13 @@ type Config struct {
 	// times out (issue #121).  Default: enabled.
 	SameNATRelay bool
 
+	// AllowSharedNATInitiator authorizes PunchHole/RequestRelay when multiple
+	// live peers share the initiator's public IP and no stronger identity
+	// (token, exact addr, udp_port) is available (#399). Uses synthetic
+	// initiator id "shared-nat-initiator" — does not inherit a peer identity
+	// (#302). Default: disabled.
+	AllowSharedNATInitiator bool
+
 	// P2PFirst enables the classic RustDesk hole-punching handshake: instead
 	// of immediately answering the initiator with the target's (still
 	// un-punched) address, the server forwards PunchHole to the target and
@@ -193,6 +200,7 @@ func DefaultConfig() *Config {
 		MeshRateLimit:             30,
 		SignalRateLimitPerIP:      IPRateLimitRegistrations,
 		SameNATRelay:              true, // issue #121: auto-fallback to relay on shared public IP
+		AllowSharedNATInitiator:   false, // issue #399: opt-in stock multi-NAT initiator
 		P2PFirst:                  true, // issue #157: give direct P2P a real chance before relay
 		P2PFallbackMs:             2000, // grace period for target hole punch before relay fallback
 		LogLevel:                  "info",
@@ -370,6 +378,17 @@ func (c *Config) LoadEnv() {
 			c.SameNATRelay = true
 		case "N", "NO", "0", "FALSE", "OFF":
 			c.SameNATRelay = false
+		}
+	}
+	// Issue #399: allow PunchHole/RequestRelay from shared public IPs with
+	// multiple live peers when stock clients cannot prove initiator identity
+	// (no token / udp_port). Default off — preserves #302 enrollment gate.
+	if v := os.Getenv("ALLOW_SHARED_NAT_INITIATOR"); v != "" {
+		switch strings.ToUpper(v) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.AllowSharedNATInitiator = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.AllowSharedNATInitiator = false
 		}
 	}
 	// Issue #157: P2P-first hole punching. Enabled by default so direct

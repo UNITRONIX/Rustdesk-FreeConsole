@@ -748,7 +748,9 @@
         "client_sessions_save": "Sessie-instellingen opslaan",
         "enrollment_ldap_hint": "LDAP/AD- en OIDC-instellingen staan onder de tabbladen LDAP / AD en OIDC / SSO hierboven.",
         "oidc_redirect_url_invalid": "Redirect-URL moet http(s) gebruiken en eindigen op /api/auth/oidc/callback (of /api/oidc/callback).",
-        "oidc_redirect_url_example": "Voorbeeld: {url}"
+        "oidc_redirect_url_example": "Voorbeeld: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Shared-NAT-initiators toestaan (stock-clients, meerdere apparaten achter één openbaar IP)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Optioneel. Als meerdere actieve peers één openbaar IP delen en de client geen logintoken of udp_port heeft, autoriseer als shared-nat-initiator. Erft geen apparaatidentiteit. Verzwakt de managed enrollment outbound-poort voor die NAT — alleen inschakelen voor CGNAT/kantoorsites zonder accountlogin."
     },
     "audit": {
         "time": "Tijd",

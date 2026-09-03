@@ -755,7 +755,9 @@
         "client_sessions_save": "حفظ إعدادات الجلسة",
         "enrollment_ldap_hint": "إعدادات LDAP/AD وOIDC موجودة في علامتي التبويب LDAP / AD وOIDC / SSO أعلاه.",
         "oidc_redirect_url_invalid": "يجب أن يستخدم عنوان إعادة التوجيه http(s) وينتهي بـ /api/auth/oidc/callback (أو /api/oidc/callback).",
-        "oidc_redirect_url_example": "مثال: {url}"
+        "oidc_redirect_url_example": "مثال: {url}",
+        "connection_mode_allow_shared_nat_initiator": "السماح ببادئي shared-NAT (عملاء stock، أجهزة متعددة خلف IP عام واحد)",
+        "connection_mode_allow_shared_nat_initiator_hint": "اختياري. عندما يشارك عدة أقران نشطين نفس الـ IP العام ولا يملك العميل رمز تسجيل دخول أو udp_port، فوّض كـ shared-nat-initiator. لا يرث هوية جهاز آخر. يُضعف بوابة enrollment الصادرة المُدارة لهذا NAT — فعّله فقط لمواقع CGNAT/المكاتب دون تسجيل دخول بالحساب."
     },
     "audit": {
         "time": "Time",

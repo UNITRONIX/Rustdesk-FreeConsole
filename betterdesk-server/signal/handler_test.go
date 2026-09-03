@@ -1361,6 +1361,34 @@ func TestMultiApprovedSameIPAmbiguousRejected(t *testing.T) {
 	}
 }
 
+func TestAllowSharedNATInitiatorAuthorizesSynthetic(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.AllowSharedNATInitiator = true
+	if err := database.UpsertPeer(&db.Peer{ID: "SHARE1", Status: "ONLINE", IP: "203.0.113.55"}); err != nil {
+		t.Fatalf("UpsertPeer SHARE1: %v", err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: "SHARE2", Status: "ONLINE", IP: "203.0.113.55"}); err != nil {
+		t.Fatalf("UpsertPeer SHARE2: %v", err)
+	}
+	putOnlinePeer(srv, "SHARE1", "203.0.113.55", 50001, peer.ConnUDP)
+	putOnlinePeer(srv, "SHARE2", "203.0.113.55", 50002, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTSHARE1", "198.51.100.55", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.55", 59999), "TGTSHARE1", "", 0)
+	if !ok || id != sharedNATInitiatorID {
+		t.Fatalf("ALLOW_SHARED_NAT_INITIATOR = (%q, %v), want %q", id, ok, sharedNATInitiatorID)
+	}
+
+	// Default-off path still rejects (sanity via fresh server).
+	srvOff, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srvOff, "SHARE1", "203.0.113.55", 50001, peer.ConnUDP)
+	putOnlinePeer(srvOff, "SHARE2", "203.0.113.55", 50002, peer.ConnUDP)
+	id, ok = srvOff.requireAuthorizedInitiator(udpAddr("203.0.113.55", 59999), "TGTSHARE1", "", 0)
+	if ok {
+		t.Fatalf("default must still reject ambiguous same-NAT, got %q", id)
+	}
+}
+
 func TestUdpPortHintDisambiguatesSameNAT(t *testing.T) {
 	// #399: multiple live peers behind CGNAT — PunchHoleRequest.udp_port must
 	// uniquely select the initiator without IP inheritance.

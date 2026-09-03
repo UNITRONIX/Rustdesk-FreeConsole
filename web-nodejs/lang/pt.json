@@ -748,7 +748,9 @@
         "client_sessions_save": "Salvar configurações de sessão",
         "enrollment_ldap_hint": "As definições LDAP/AD e OIDC estão nos separadores LDAP / AD e OIDC / SSO acima.",
         "oidc_redirect_url_invalid": "O URL de redirecionamento deve usar http(s) e terminar em /api/auth/oidc/callback (ou /api/oidc/callback).",
-        "oidc_redirect_url_example": "Exemplo: {url}"
+        "oidc_redirect_url_example": "Exemplo: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Permitir iniciadores shared-NAT (clientes stock, vários dispositivos atrás de um IP público)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Opcional. Quando vários peers ativos partilham um IP público e o cliente não tem token de login nem udp_port, autorizar como shared-nat-initiator. Não herda a identidade de outro dispositivo. Enfraquece o gate de enrollment de saída gerido para esse NAT — ative apenas em sites CGNAT/escritório sem login de conta."
     },
     "audit": {
         "time": "Hora",

@@ -748,7 +748,9 @@
         "client_sessions_save": "セッション設定を保存",
         "enrollment_ldap_hint": "LDAP/AD および OIDC の設定は、上の LDAP / AD と OIDC / SSO タブにあります。",
         "oidc_redirect_url_invalid": "リダイレクト URL は http(s) で、末尾が /api/auth/oidc/callback（または /api/oidc/callback）である必要があります。",
-        "oidc_redirect_url_example": "例: {url}"
+        "oidc_redirect_url_example": "例: {url}",
+        "connection_mode_allow_shared_nat_initiator": "共有 NAT イニシエーターを許可（ストッククライアント、同一パブリック IP 上の複数デバイス）",
+        "connection_mode_allow_shared_nat_initiator_hint": "任意。複数の稼働ピアが同一パブリック IP を共有し、クライアントにログイントークンや udp_port がない場合、shared-nat-initiator として認可します。他デバイスの ID は継承しません。その NAT の managed 登録アウトバウンドゲートを弱めます — アカウントログイン不可の CGNAT/オフィスサイトでのみ有効にしてください。"
     },
     "audit": {
         "time": "Time",

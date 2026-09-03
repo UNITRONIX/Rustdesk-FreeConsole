@@ -754,7 +754,9 @@
         "client_sessions_save": "Spara sessionsinställningar",
         "enrollment_ldap_hint": "LDAP/AD- och OIDC-inställningar finns under flikarna LDAP / AD och OIDC / SSO ovan.",
         "oidc_redirect_url_invalid": "Omdirigerings-URL måste använda http(s) och sluta med /api/auth/oidc/callback (eller /api/oidc/callback).",
-        "oidc_redirect_url_example": "Exempel: {url}"
+        "oidc_redirect_url_example": "Exempel: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Tillåt shared-NAT-initiatorer (stock-klienter, flera enheter bakom en offentlig IP)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Valfritt. När flera aktiva peers delar en offentlig IP och klienten saknar inloggningstoken eller udp_port, auktorisera som shared-nat-initiator. Ärver inte en annan enhets identitet. Försvagar managed enrollment outbound för den NAT:en — aktivera endast för CGNAT/kontor utan kontologin."
     },
     "audit": {
         "time": "Time",

@@ -754,7 +754,9 @@
         "client_sessions_save": "Salvează setările sesiunii",
         "enrollment_ldap_hint": "Setările LDAP/AD și OIDC sunt în filele LDAP / AD și OIDC / SSO de mai sus.",
         "oidc_redirect_url_invalid": "URL-ul de redirect trebuie să folosească http(s) și să se termine cu /api/auth/oidc/callback (sau /api/oidc/callback).",
-        "oidc_redirect_url_example": "Exemplu: {url}"
+        "oidc_redirect_url_example": "Exemplu: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Permiteți inițiatori shared-NAT (clienți stock, mai multe dispozitive în spatele unui IP public)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Opțional. Când mai mulți peer-i activi partajează un IP public și clientul nu are token de autentificare sau udp_port, autorizați ca shared-nat-initiator. Nu moștenește identitatea altui dispozitiv. Slăbește poarta de enrollment outbound gestionată pentru acel NAT — activați doar pentru site-uri CGNAT/birou fără autentificare pe cont."
     },
     "audit": {
         "time": "Time",

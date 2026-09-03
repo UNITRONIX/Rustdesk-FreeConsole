@@ -611,6 +611,8 @@
             }
             const sameNat = document.getElementById('conn-same-nat-relay');
             if (sameNat) sameNat.checked = data.same_nat_relay !== false;
+            const sharedNatInit = document.getElementById('conn-allow-shared-nat-initiator');
+            if (sharedNatInit) sharedNatInit.checked = data.allow_shared_nat_initiator === true;
 
             if (sourceEl) {
                 const src = data.source || data.deployment || 'defaults';
@@ -626,7 +628,8 @@
                 runtimeEl.textContent = (_('settings.connection_mode_runtime') || 'Active server') + ': '
                     + (r.always_use_relay ? 'relay only' : 'P2P first')
                     + ', fallback=' + (r.p2p_fallback_ms ?? '-')
-                    + 'ms, same_nat_relay=' + (r.same_nat_relay ? 'Y' : 'N');
+                    + 'ms, same_nat_relay=' + (r.same_nat_relay ? 'Y' : 'N')
+                    + ', allow_shared_nat_initiator=' + (r.allow_shared_nat_initiator ? 'Y' : 'N');
             } else if (runtimeEl) {
                 runtimeEl.hidden = true;
             }
@@ -644,10 +647,12 @@
         const mode = document.querySelector('input[name="connection-mode"]:checked')?.value || 'p2p_first';
         const fallbackMs = parseInt(document.getElementById('conn-p2p-fallback-ms')?.value, 10);
         const sameNatRelay = document.getElementById('conn-same-nat-relay')?.checked !== false;
+        const allowSharedNat = document.getElementById('conn-allow-shared-nat-initiator')?.checked === true;
         return {
             mode,
             p2p_fallback_ms: Number.isFinite(fallbackMs) ? fallbackMs : 2000,
-            same_nat_relay: sameNatRelay
+            same_nat_relay: sameNatRelay,
+            allow_shared_nat_initiator: allowSharedNat
         };
     }
 

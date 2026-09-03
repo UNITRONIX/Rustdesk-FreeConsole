@@ -754,7 +754,9 @@
         "client_sessions_save": "Lưu cài đặt phiên",
         "enrollment_ldap_hint": "Cài đặt LDAP/AD và OIDC nằm trong các tab LDAP / AD và OIDC / SSO phía trên.",
         "oidc_redirect_url_invalid": "URL chuyển hướng phải dùng http(s) và kết thúc bằng /api/auth/oidc/callback (hoặc /api/oidc/callback).",
-        "oidc_redirect_url_example": "Ví dụ: {url}"
+        "oidc_redirect_url_example": "Ví dụ: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Cho phép initiator shared-NAT (client stock, nhiều thiết bị sau cùng một IP công cộng)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Tùy chọn. Khi nhiều peer đang sống dùng chung một IP công cộng và client không có token đăng nhập hay udp_port, ủy quyền là shared-nat-initiator. Không kế thừa danh tính thiết bị khác. Làm yếu cổng enrollment outbound managed cho NAT đó — chỉ bật cho site CGNAT/văn phòng không đăng nhập tài khoản."
     },
     "audit": {
         "time": "Time",

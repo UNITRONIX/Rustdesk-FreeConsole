@@ -18,12 +18,13 @@ const REPO_ROOT = path.join(CONSOLE_ROOT, '..');
 const SYSTEMD_SERVER_UNIT = '/etc/systemd/system/betterdesk-server.service';
 const DOCKER_COMPOSE_PATH = path.join(REPO_ROOT, 'docker-compose.yml');
 
-const MANAGED_ENV_KEYS = ['P2P_FIRST', 'ALWAYS_USE_RELAY', 'P2P_FALLBACK_MS', 'SAME_NAT_RELAY'];
+const MANAGED_ENV_KEYS = ['P2P_FIRST', 'ALWAYS_USE_RELAY', 'P2P_FALLBACK_MS', 'SAME_NAT_RELAY', 'ALLOW_SHARED_NAT_INITIATOR'];
 
 const DEFAULTS = {
     mode: 'p2p_first',
     p2p_fallback_ms: 2000,
-    same_nat_relay: true
+    same_nat_relay: true,
+    allow_shared_nat_initiator: false
 };
 
 function isDockerRuntime() {
@@ -87,20 +88,23 @@ function envVarsFromSettings(settings) {
     const mode = settings.mode === 'relay_only' ? 'relay_only' : 'p2p_first';
     const fallbackMs = Number(settings.p2p_fallback_ms);
     const sameNatRelay = settings.same_nat_relay !== false;
+    const allowSharedNat = settings.allow_shared_nat_initiator === true;
 
     if (mode === 'relay_only') {
         return {
             P2P_FIRST: 'N',
             ALWAYS_USE_RELAY: 'Y',
             P2P_FALLBACK_MS: String(Number.isFinite(fallbackMs) && fallbackMs >= 0 ? fallbackMs : DEFAULTS.p2p_fallback_ms),
-            SAME_NAT_RELAY: yn(sameNatRelay)
+            SAME_NAT_RELAY: yn(sameNatRelay),
+            ALLOW_SHARED_NAT_INITIATOR: yn(allowSharedNat)
         };
     }
     return {
         P2P_FIRST: 'Y',
         ALWAYS_USE_RELAY: 'N',
         P2P_FALLBACK_MS: String(Number.isFinite(fallbackMs) && fallbackMs >= 0 ? fallbackMs : DEFAULTS.p2p_fallback_ms),
-        SAME_NAT_RELAY: yn(sameNatRelay)
+        SAME_NAT_RELAY: yn(sameNatRelay),
+        ALLOW_SHARED_NAT_INITIATOR: yn(allowSharedNat)
     };
 }
 
@@ -306,6 +310,7 @@ function settingsFromEnv(env, source) {
         mode,
         p2p_fallback_ms: p2pFallbackMs,
         same_nat_relay: parseYn(env.SAME_NAT_RELAY, DEFAULTS.same_nat_relay),
+        allow_shared_nat_initiator: parseYn(env.ALLOW_SHARED_NAT_INITIATOR, DEFAULTS.allow_shared_nat_initiator),
         source,
         writable: source !== 'defaults'
     };
@@ -357,7 +362,8 @@ async function setConnectionMode(settings) {
     const normalized = {
         mode: settings.mode === 'relay_only' ? 'relay_only' : 'p2p_first',
         p2p_fallback_ms: Number(settings.p2p_fallback_ms),
-        same_nat_relay: settings.same_nat_relay !== false
+        same_nat_relay: settings.same_nat_relay !== false,
+        allow_shared_nat_initiator: settings.allow_shared_nat_initiator === true
     };
 
     if (source === 'systemd') {

@@ -752,7 +752,9 @@
         "client_sessions_save": "儲存工作階段設定",
         "enrollment_ldap_hint": "LDAP/AD 與 OIDC 設定位於上方的 LDAP / AD 和 OIDC / SSO 索引標籤。",
         "oidc_redirect_url_invalid": "重新導向 URL 必須使用 http(s)，並以 /api/auth/oidc/callback（或 /api/oidc/callback）結尾。",
-        "oidc_redirect_url_example": "範例：{url}"
+        "oidc_redirect_url_example": "範例：{url}",
+        "connection_mode_allow_shared_nat_initiator": "允許共用 NAT 發起端（官方用戶端，同一公網 IP 下多台裝置）",
+        "connection_mode_allow_shared_nat_initiator_hint": "選用。當多個線上對等端共用同一公網 IP，且用戶端沒有登入權杖或 udp_port 時，授權為 shared-nat-initiator。不會繼承其他裝置身分。會削弱該 NAT 的受管註冊出站閘道——僅在無法使用帳戶登入的 CGNAT／辦公室站點啟用。"
     },
     "audit": {
         "time": "時間",

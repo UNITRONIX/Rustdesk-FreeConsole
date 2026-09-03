@@ -752,7 +752,9 @@
         "client_sessions_save": "Enregistrer les paramètres de session",
         "enrollment_ldap_hint": "Les paramètres LDAP/AD et OIDC se trouvent dans les onglets LDAP / AD et OIDC / SSO ci-dessus.",
         "oidc_redirect_url_invalid": "L'URL de redirection doit utiliser http(s) et se terminer par /api/auth/oidc/callback (ou /api/oidc/callback).",
-        "oidc_redirect_url_example": "Exemple : {url}"
+        "oidc_redirect_url_example": "Exemple : {url}",
+        "connection_mode_allow_shared_nat_initiator": "Autoriser les initiateurs shared-NAT (clients stock, plusieurs appareils derrière une IP publique)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Optionnel. Si plusieurs pairs actifs partagent une IP publique et que le client n'a ni jeton de connexion ni udp_port, autoriser comme shared-nat-initiator. N'hérite pas d'une autre identité. Affaiblit la porte d'enrollment sortante gérée pour ce NAT — activer seulement pour CGNAT/bureaux sans connexion compte."
     },
     "audit": {
         "time": "Heure",

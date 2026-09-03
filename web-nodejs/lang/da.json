@@ -754,7 +754,9 @@
         "client_sessions_save": "Gem sessionsindstillinger",
         "enrollment_ldap_hint": "LDAP/AD- og OIDC-indstillinger findes under fanerne LDAP / AD og OIDC / SSO ovenfor.",
         "oidc_redirect_url_invalid": "Redirect-URL skal bruge http(s) og ende med /api/auth/oidc/callback (eller /api/oidc/callback).",
-        "oidc_redirect_url_example": "Eksempel: {url}"
+        "oidc_redirect_url_example": "Eksempel: {url}",
+        "connection_mode_allow_shared_nat_initiator": "Tillad shared-NAT-initiatorer (stock-klienter, flere enheder bag én offentlig IP)",
+        "connection_mode_allow_shared_nat_initiator_hint": "Valgfrit. Når flere aktive peers deler én offentlig IP, og klienten ikke har logintoken eller udp_port, autoriser som shared-nat-initiator. Arver ikke en anden enheds identitet. Svækker managed enrollment outbound for den NAT — aktiver kun for CGNAT/kontorer uden kontologin."
     },
     "audit": {
         "time": "Time",
