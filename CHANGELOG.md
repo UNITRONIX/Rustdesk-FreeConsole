@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **GHCR `:dev` product version lag behind git tip (#401):** `docker-publish.yml` built images from the feature commit (VERSION N) then skipped the following `[version-bump]` commit (N+1), so pulled `:dev` images showed a stale semver. Branch pushes now publish only on `[version-bump]` commits so the baked VERSION matches tip. All-in-one `:dev` builds use `linux/amd64` only (multi-arch AIO was hitting the 6h Actions limit and cancelling); console/server stay multi-arch.
+
 ### Changed
 - _(none yet)_
 

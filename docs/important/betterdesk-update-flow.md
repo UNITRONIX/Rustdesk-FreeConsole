@@ -97,7 +97,7 @@ When the console runs from `ghcr.io/.../betterdesk-console` (see `docker-compose
 
 After pulling new images, recreate containers so the console picks up the embedded commit from the new image tag.
 
-**GHCR tags:** prefer pinning `BETTERDESK_IMAGE_TAG` to a release semver (compose / `install.sh` default). `latest` is the rolling tip of the last successful **stable** image publish (Release / `main`); `dev` tracks development branch builds. See [DOCKER_QUICKSTART.md](../docker/DOCKER_QUICKSTART.md) and [#387](https://github.com/UNITRONIX/BetterDesk/issues/387).
+**GHCR tags:** prefer pinning `BETTERDESK_IMAGE_TAG` to a release semver (compose / `install.sh` default). `latest` is the rolling tip of the last successful **stable** image publish (Release / `main`); `dev` tracks development branch builds and is published on each `[version-bump]` commit so the image VERSION matches git tip (#401). See [DOCKER_QUICKSTART.md](../docker/DOCKER_QUICKSTART.md), [#387](https://github.com/UNITRONIX/BetterDesk/issues/387), and [#401](https://github.com/UNITRONIX/BetterDesk/issues/401).
 
 ## Update channel (stable / development)
 

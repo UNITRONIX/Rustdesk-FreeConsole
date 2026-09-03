@@ -12,8 +12,14 @@
 #   - git tag v* / GitHub Release (stable): semver, v*, major.minor, latest
 #   - workflow_dispatch: latest + VERSION when tag empty/latest; else custom tag
 #
-# Skip: branch pushes whose head commit message contains [version-bump].
-# Tag pushes and release/dispatch always build (even when the tagged commit is a bump).
+# Branch pushes (main/dev): build ONLY on [version-bump] commits so GHCR image
+# VERSION matches tip (auto-bump runs after the feature commit; building the
+# feature SHA left :dev/:latest one patch behind — #401). Feature commits skip.
+# Tag pushes, release, and workflow_dispatch always build.
+#
+# AIO on dev branch pushes: linux/amd64 only (multi-arch AIO often hit the 6h
+# Actions limit). Console/server stay multi-arch; main/tags/release/dispatch
+# keep full amd64+arm64 for AIO.
 #
 # Triggers: push main/dev (path-filtered), push tag v*, release published, manual
 # =============================================================================
@@ -68,13 +74,12 @@ jobs:
 
   build-server:
     needs: read-version
-    # Build on release/dispatch always; on push build tags always; on branch
-    # push skip [version-bump] commits only.
+    # Release/dispatch/tags always; branch pushes only on [version-bump] (#401).
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[version-bump]'))
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -162,11 +167,12 @@ jobs:
 
   build-console:
     needs: read-version
+    # Release/dispatch/tags always; branch pushes only on [version-bump] (#401).
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[version-bump]'))
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -219,12 +225,15 @@ jobs:
 
   build-allinone:
     needs: read-version
+    # Release/dispatch/tags always; branch pushes only on [version-bump] (#401).
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[version-bump]'))
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
+    # Multi-arch AIO on dev has hit the 6h Actions limit (#401); fail sooner if stuck.
+    timeout-minutes: 240
     permissions:
       contents: read
       packages: write
@@ -241,6 +250,17 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve AIO platforms
+        id: plats
+        run: |
+          # Dev branch pushes: amd64 only (faster :dev republish). Full multi-arch
+          # on main, tags, release, and workflow_dispatch.
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            echo "platforms=linux/amd64" >> "$GITHUB_OUTPUT"
+          else
+            echo "platforms=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Extract metadata
         id: meta
@@ -273,7 +293,7 @@ jobs:
             BETTERDESK_PRODUCT_VERSION=${{ needs.read-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ steps.plats.outputs.platforms }}
 
   update-description:
     needs: [build-server, build-console, build-allinone]
