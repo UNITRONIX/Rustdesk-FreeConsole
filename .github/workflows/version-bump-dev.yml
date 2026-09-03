@@ -1,8 +1,12 @@
 # =============================================================================
 # BetterDesk — automatic patch version bump on dev branch
 # =============================================================================
-# Every push to dev (except [version-bump] commits) bumps product version +0.0.1
+# Every push to dev (except version-bump commits) bumps product version +0.0.1
 # across Tier 1/2 files via scripts/bump-version.js.
+#
+# After a successful bump push, explicitly dispatch docker-publish (tag=dev).
+# GITHUB_TOKEN branch pushes do not re-trigger other workflows, so relying on
+# the bump commit alone would never republish GHCR :dev (#401).
 # =============================================================================
 
 name: Version Bump (dev)
@@ -13,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: version-bump-dev
@@ -44,6 +49,7 @@ jobs:
           echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push version bump
+        id: commit
         env:
           NEW_VERSION: ${{ steps.bump.outputs.version }}
         run: |
@@ -52,11 +58,13 @@ jobs:
           git add $(node scripts/bump-version.js --list-paths)
           if git diff --cached --quiet; then
             echo "No version files changed — skipping commit"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "chore: bump version to ${NEW_VERSION} [version-bump]"
           for attempt in 1 2 3 4 5; do
             if git push; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             echo "Push failed (attempt ${attempt}/5) — rebasing and retrying..."
@@ -64,3 +72,12 @@ jobs:
           done
           echo "Version bump push failed after retries"
           exit 1
+
+      - name: Trigger GHCR :dev image publish
+        if: steps.commit.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Explicit dispatch — bump commits from GITHUB_TOKEN do not start workflows.
+          gh workflow run "Build & Publish Docker Images" --ref dev -f tag=dev
+          echo "Dispatched docker-publish for :dev (VERSION ${{ steps.bump.outputs.version }})"

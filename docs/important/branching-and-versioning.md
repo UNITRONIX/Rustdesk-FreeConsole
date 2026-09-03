@@ -115,7 +115,7 @@ UPDATE_GITHUB_BRANCH=dev    # development
 | `version-bump-main.yml` | PR merged to `main` | Minor bump, tag, GitHub Release |
 | `version-verify.yml` | Push/PR touching version files | Fail if files disagree |
 | `release-server.yml` | Tag `v*` | Go server binaries |
-| `docker-publish.yml` | Tag, release, push to `main`/`dev` | GHCR images: on **branch** pushes, builds only `[version-bump]` commits so image VERSION matches tip (#401); tags/release/dispatch always build. `latest` on stable release/main; `dev` on `dev` bumps; semver on `v*` / Release. AIO `:dev` is amd64-only; multi-arch on main/release/dispatch |
+| `docker-publish.yml` | Tag, release, push to `main`/`dev`, or dispatch from `version-bump-dev` | GHCR images: on **branch** pushes, builds only version-bump subjects so image VERSION matches tip (#401); `version-bump-dev` dispatches `tag=dev` because GITHUB_TOKEN pushes do not re-trigger workflows. Tags/release/dispatch always build. `latest` on stable release/main; `dev` on development publishes; semver on `v*` / Release. AIO `:dev` is amd64-only; multi-arch on main/release/non-dev dispatch |
 
 ## First stable release note
 
