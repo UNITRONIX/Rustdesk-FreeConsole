@@ -12,10 +12,11 @@
 #   - git tag v* / GitHub Release (stable): semver, v*, major.minor, latest
 #   - workflow_dispatch: latest + VERSION when tag empty/latest; else custom tag
 #
-# Branch pushes (main/dev): build ONLY on [version-bump] commits so GHCR image
-# VERSION matches tip (auto-bump runs after the feature commit; building the
-# feature SHA left :dev/:latest one patch behind — #401). Feature commits skip.
-# Tag pushes, release, and workflow_dispatch always build.
+# Branch pushes (main/dev): build ONLY on CI version-bump subjects
+# (`chore: bump version … [version-bump]` / `chore: release version …`) so the
+# GHCR image VERSION matches tip (auto-bump runs after the feature commit;
+# building the feature SHA left :dev/:latest one patch behind — #401).
+# Feature commits skip. Tag pushes, release, and workflow_dispatch always build.
 #
 # AIO on dev branch pushes: linux/amd64 only (multi-arch AIO often hit the 6h
 # Actions limit). Console/server stay multi-arch; main/tags/release/dispatch
@@ -74,12 +75,17 @@ jobs:
 
   build-server:
     needs: read-version
-    # Release/dispatch/tags always; branch pushes only on [version-bump] (#401).
+    # Release/dispatch/tags always; branch pushes only on CI version-bump subjects (#401).
+    # Match subject markers (chore: bump/release … [version-bump]), not incidental
+    # mentions of [version-bump] in a feature commit body.
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[version-bump]'))
+      (github.event_name == 'push' &&
+        (startsWith(github.event.head_commit.message, 'chore: bump version') ||
+         startsWith(github.event.head_commit.message, 'chore: release version')) &&
+        contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,12 +173,15 @@ jobs:
 
   build-console:
     needs: read-version
-    # Release/dispatch/tags always; branch pushes only on [version-bump] (#401).
+    # Release/dispatch/tags always; branch pushes only on CI version-bump subjects (#401).
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[version-bump]'))
+      (github.event_name == 'push' &&
+        (startsWith(github.event.head_commit.message, 'chore: bump version') ||
+         startsWith(github.event.head_commit.message, 'chore: release version')) &&
+        contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -225,12 +234,15 @@ jobs:
 
   build-allinone:
     needs: read-version
-    # Release/dispatch/tags always; branch pushes only on [version-bump] (#401).
+    # Release/dispatch/tags always; branch pushes only on CI version-bump subjects (#401).
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[version-bump]'))
+      (github.event_name == 'push' &&
+        (startsWith(github.event.head_commit.message, 'chore: bump version') ||
+         startsWith(github.event.head_commit.message, 'chore: release version')) &&
+        contains(github.event.head_commit.message, '[version-bump]'))
     runs-on: ubuntu-latest
     # Multi-arch AIO on dev has hit the 6h Actions limit (#401); fail sooner if stuck.
     timeout-minutes: 240
