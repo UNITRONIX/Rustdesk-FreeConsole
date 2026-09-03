@@ -65,8 +65,10 @@ guard_sqlite_auth_split() {
     if [ "$_primary_users" -eq 0 ]; then
         echo "ERROR [#385]: Split Docker volume state detected." >&2
         echo "       $_auth_db has $_auth_users user(s), but the primary database ($_primary_db) has none." >&2
-        echo "       Wipe BOTH data stores before retrying (rustdesk + console volumes/bind mounts)." >&2
-        echo "       Example: docker compose down && rm -rf <betterdesk-data>/* <console-data>/*" >&2
+        echo "       Preferred recovery for a deliberate split layout: set SQLITE_AUTH_DB_MODE=legacy" >&2
+        echo "       (keeps panel accounts in auth.db; does NOT wipe data)." >&2
+        echo "       Only wipe BOTH data stores on disposable test installs:" >&2
+        echo "       docker compose down && rm -rf <betterdesk-data>/* <console-data>/*" >&2
         echo "       Then: ADMIN_PASSWORD='YourSecurePassword123' docker compose up -d" >&2
         echo "       Keep INIT_ADMIN_PASS / DEFAULT_ADMIN_PASSWORD mapped in compose (see docker-compose.quick.single.yml)." >&2
         echo "       Docs: docs/docker/DOCKER_TROUBLESHOOTING.md" >&2

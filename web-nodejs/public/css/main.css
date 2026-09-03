@@ -4,7 +4,7 @@
  */
 
 @import url('./variables.css');
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round');
+@import url('./material-icons-local.css');
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GLASS SURFACES — frosted panels (tokens from variables.css / branding.css)

@@ -757,7 +757,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 
 	log.Printf("[signal] PunchHoleRequest from %s for target %s", raddr, targetID)
 
-	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken(), msg.GetUdpPort())
 	if !ok {
 		s.sendUDP(s.punchHoleUnauthorizedResponse(), raddr)
 		return
@@ -944,7 +944,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 
 	log.Printf("[signal] PunchHoleRequest (TCP) from %s for target %s", raddr, targetID)
 
-	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken(), msg.GetUdpPort())
 	if !ok {
 		return s.punchHoleUnauthorizedResponse()
 	}
@@ -1260,7 +1260,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		relayServer = msg.RelayServer
 	}
 
-	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken(), 0)
 	if !ok {
 		s.sendUDP(s.relayUnauthorizedResponse(relayServer), raddr)
 		return
@@ -1298,11 +1298,13 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	}
 
 	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
+	// Panel Web Remote bridges browser WSS → native TCP hbbs/hbbr, so it may
+	// talk to WS-mode and native targets alike (#397).
 	initiatorType := peer.ConnUDP
 	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
 	}
-	if relayTransportMismatch(initiatorType, target.ConnType) {
+	if initiatorID != panelWebRemoteInitiatorID && relayTransportMismatch(initiatorType, target.ConnType) {
 		log.Printf("[signal] RequestRelay: protocol mismatch initiator=%s target=%s (%s vs %s)",
 			raddr, targetID, initiatorType, target.ConnType)
 		resp := &pb.RendezvousMessage{
@@ -1438,7 +1440,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		relayServer = msg.RelayServer
 	}
 
-	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken(), 0)
 	if !ok {
 		return s.relayUnauthorizedResponse(relayServer)
 	}
@@ -1471,11 +1473,12 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 	}
 
 	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
+	// Panel Web Remote (loopback proxy) mediates transports via /ws/relay (#397).
 	initiatorType := initiatorHint
 	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
 	}
-	if relayTransportMismatch(initiatorType, target.ConnType) {
+	if initiatorID != panelWebRemoteInitiatorID && relayTransportMismatch(initiatorType, target.ConnType) {
 		log.Printf("[signal] RequestRelay (TCP): protocol mismatch initiator=%s target=%s (%s vs %s)",
 			raddr, targetID, initiatorType, target.ConnType)
 		return &pb.RendezvousMessage{
@@ -1968,7 +1971,10 @@ func (s *Server) authorizeRelayTicket(relayUUID, initiatorID, targetID string) b
 //  2. Valid BetterDesk client login token on the punch/relay message (#327)
 //  3. Panel signal-proxy CIDR (Web Remote)
 //  4. Live peer with exact ip:port match (FindByAddr)
-//  5. Exactly one live peer at the same public IP (safe FindByIP fallback for
+//  5. PunchHoleRequest.udp_port hint: stock clients advertise their NAT-mapped
+//     UDP port; when it uniquely matches a live peer at this public IP, authorize
+//     that peer (#399 CGNAT / multi-device same public IP)
+//  6. Exactly one live peer at the same public IP (safe FindByIP fallback for
 //     stock clients that PunchHole on a new TCP port). Multiple live peers at
 //     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302)
 //
@@ -1976,7 +1982,7 @@ func (s *Server) authorizeRelayTicket(relayUUID, initiatorID, targetID string) b
 // enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
 // checks: operator auth is enforced at the panel WS upgrade before TCP is
 // bridged to hbbs.
-func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token string) (string, bool) {
+func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token string, udpPort int32) (string, bool) {
 	if raddr == nil {
 		return "", false
 	}
@@ -1991,10 +1997,16 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 	}
 
 	// 2. Opaque client login token — hard-fail when present so we never fall
-	// through to address matching with a different peer identity.
-	if tok := strings.TrimSpace(token); tok != "" && opaqueClientTokenRegexp.MatchString(tok) {
+	// through to address matching with a different peer identity. Normalize
+	// case so clients that uppercase the hex token still match (#399).
+	if tok := strings.ToLower(strings.TrimSpace(token)); tok != "" && opaqueClientTokenRegexp.MatchString(tok) {
 		if id, ok := s.authorizeViaClientToken(tok, raddr, targetID); ok {
 			return id, true
+		}
+		// Invalid/expired opaque token: still allow exact udp_port correlation
+		// (stronger than IP-only), but never single-IP FindByIP inheritance.
+		if match := s.authorizeViaUdpPortHint(raddr, udpPort); match != nil {
+			return s.finalizeAuthorizedInitiator(match.ID, raddr, targetID, match.Banned, false)
 		}
 		return "", false
 	}
@@ -2010,7 +2022,12 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned, false)
 	}
 
-	// 5. Safe IP-only fallback: stock RustDesk opens PunchHole on a new TCP
+	// 5. udp_port hint from PunchHoleRequest (NAT-mapped port of the initiator).
+	if match := s.authorizeViaUdpPortHint(raddr, udpPort); match != nil {
+		return s.finalizeAuthorizedInitiator(match.ID, raddr, targetID, match.Banned, false)
+	}
+
+	// 6. Safe IP-only fallback: stock RustDesk opens PunchHole on a new TCP
 	// port after RegisterPk/UDP heartbeat, so FindByAddr misses. Authorize only
 	// when exactly one live peer shares this public IP.
 	var live []*peer.Entry
@@ -2029,6 +2046,36 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_ambiguous_same_nat")
 		return "", false
 	}
+}
+
+// authorizeViaUdpPortHint resolves the initiator when PunchHole carries the
+// client's NAT-mapped UDP port and exactly one live peer at raddr.IP is
+// registered on that port (#399). Returns (nil) when the hint is absent
+// or ambiguous — never picks an arbitrary same-IP peer.
+func (s *Server) authorizeViaUdpPortHint(raddr *net.UDPAddr, udpPort int32) *peer.Entry {
+	if raddr == nil || s.peers == nil || udpPort <= 0 || udpPort > 65535 {
+		return nil
+	}
+	hintAddr := &net.UDPAddr{IP: raddr.IP, Port: int(udpPort)}
+	if match := s.peers.FindByAddr(hintAddr); match != nil && !match.IsExpired(config.RegTimeout) {
+		return match
+	}
+	// Some clients report the mapped port while the peer map still holds an
+	// older NAT mapping on a different port — accept only when exactly one
+	// live peer at this IP has UDPAddr.Port == udpPort.
+	var matches []*peer.Entry
+	for _, e := range s.peers.FindAllByIP(raddr.IP) {
+		if e == nil || e.IsExpired(config.RegTimeout) || e.UDPAddr == nil {
+			continue
+		}
+		if e.UDPAddr.Port == int(udpPort) {
+			matches = append(matches, e)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	return nil
 }
 
 // bindTCPSessionPeer records the peer ID on an open tcpPunchConn so a later
@@ -2068,7 +2115,7 @@ func hashOpaqueClientToken(token string) string {
 // authorizeViaClientToken accepts PunchHole/RequestRelay when the stock RustDesk
 // client sends a BetterDesk opaque login token (service may be stopped, #327).
 func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targetID string) (string, bool) {
-	token = strings.TrimSpace(token)
+	token = strings.ToLower(strings.TrimSpace(token))
 	if token == "" || s.db == nil || !opaqueClientTokenRegexp.MatchString(token) {
 		return "", false
 	}

@@ -2841,20 +2841,15 @@ _run_go_mod_download_bounded() {
     local deadline="${GO_MODULE_DOWNLOAD_TIMEOUT}"
     local kill_after=15
     local status=0
-    local waiter_pid=""
     local download_pid=""
-    local download_pgid=""
     local elapsed=0
     local heartbeat_pid=""
-    local pidfile=""
-    local use_setsid_w=0
 
     _go_ipv4_force_begin
-    trap '_go_ipv4_force_end' EXIT
     _go_clear_stale_module_partials
 
-    pidfile=$(mktemp 2>/dev/null || echo "/tmp/betterdesk-gomod-$$.pid")
-    : > "$pidfile"
+    # Prefer IPv4 for Go's resolver when the host has broken AAAA routes (#371).
+    export GODEBUG="${GODEBUG:+$GODEBUG,}netdns=go"
 
     # Heartbeat — no `local` inside non-function subshell (set -e).
     (
@@ -2867,40 +2862,22 @@ _run_go_mod_download_bounded() {
     ) &
     heartbeat_pid=$!
 
-    # Isolate go in its own session so TERM/KILL cannot hit the installer PGID.
-    # Child writes $$ then exec's go (same PID = session/process-group leader).
-    # Prefer setsid -w so the background waiter stays our child and wait(1) works.
-    if command -v setsid &> /dev/null && setsid -w true >/dev/null 2>&1; then
-        use_setsid_w=1
-        setsid -w bash -c 'echo $$ > "$1"; exec go mod download -x' _ "$pidfile" &
-        waiter_pid=$!
-    elif command -v setsid &> /dev/null; then
-        setsid bash -c 'echo $$ > "$1"; exec go mod download -x' _ "$pidfile" &
-        waiter_pid=$!
-    else
-        bash -c 'echo $$ > "$1"; exec go mod download -x' _ "$pidfile" &
-        waiter_pid=$!
-    fi
+    # Run go as a direct background child of this shell (same user/session).
+    # Prior setsid/pidfile races could exit the waiter early, restore IPv6, and
+    # report success while go was still hung or already dead (#371 follow-up).
+    (
+        echo "go mod download child starting" >&2
+        exec go mod download -x
+    ) &
+    download_pid=$!
 
-    elapsed=0
-    while [ ! -s "$pidfile" ] && [ "$elapsed" -lt 50 ]; do
-        sleep 0.1
-        elapsed=$((elapsed + 1))
-    done
-    download_pid=$(tr -d ' \n\t' < "$pidfile" 2>/dev/null || true)
-    rm -f "$pidfile"
-    if [ -z "$download_pid" ]; then
-        download_pid="$waiter_pid"
-    fi
-    download_pgid="$download_pid"
-
-    print_info "go mod download started (PID ${download_pid}, PGID ${download_pgid}, deadline ${deadline}s)"
+    print_info "go mod download started (PID ${download_pid}, deadline ${deadline}s)"
 
     elapsed=0
     while kill -0 "$download_pid" 2>/dev/null; do
         if [ "$elapsed" -ge "$deadline" ]; then
             print_error "Go module download exceeded ${deadline}s"
-            _go_kill_process_group "$download_pgid" "go mod download"
+            kill -TERM "$download_pid" 2>/dev/null || true
             sleep "$kill_after"
             if kill -0 "$download_pid" 2>/dev/null; then
                 kill -KILL "$download_pid" 2>/dev/null || true
@@ -2912,22 +2889,14 @@ _run_go_mod_download_bounded() {
         elapsed=$((elapsed + 1))
     done
 
-    if [ "$status" -eq 124 ]; then
-        wait "$waiter_pid" 2>/dev/null || true
-    elif [ "$use_setsid_w" -eq 1 ] || [ "$waiter_pid" = "$download_pid" ]; then
-        if wait "$waiter_pid"; then
+    if [ "$status" -ne 124 ]; then
+        if wait "$download_pid"; then
             status=0
         else
             status=$?
         fi
     else
-        # setsid without -w: waiter already exited; go may be reparented — poll only.
-        if kill -0 "$download_pid" 2>/dev/null; then
-            status=1
-        else
-            status=0
-        fi
-        wait "$waiter_pid" 2>/dev/null || true
+        wait "$download_pid" 2>/dev/null || true
     fi
 
     if [ -n "$heartbeat_pid" ]; then
@@ -2935,7 +2904,14 @@ _run_go_mod_download_bounded() {
         wait "$heartbeat_pid" 2>/dev/null || true
     fi
 
-    trap - EXIT
+    # Keep IPv6 disabled until we confirm the module graph is readable.
+    if [ "$status" -eq 0 ]; then
+        if ! go list -m all >/dev/null 2>&1; then
+            print_error "go mod download reported success but 'go list -m all' failed"
+            status=1
+        fi
+    fi
+
     _go_ipv4_force_end
     return "$status"
 }

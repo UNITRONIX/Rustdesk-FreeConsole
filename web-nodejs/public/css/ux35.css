@@ -584,6 +584,20 @@ body.ux35-is-resizing {
         --settings-nav-bleed: var(--ux35-content-padding);
         --settings-nav-bleed-x: var(--ux35-content-padding);
     }
+    /* #396 follow-up: tighter mobile tabs, vertically centered icons/labels */
+    .ux35-page .settings-shell-nav .settings-shell-tab,
+    .ux35-page .settings-shell-nav .settings-tab {
+        padding: 6px 12px;
+        min-height: 36px;
+        align-items: center;
+    }
+    .ux35-page .settings-shell-nav .settings-shell-tab .material-icons,
+    .ux35-page .settings-shell-nav .settings-tab .material-icons {
+        font-size: 18px;
+        line-height: 1;
+        width: 18px;
+        height: 18px;
+    }
     .ux35-sidebar {
         width: min(86vw, 280px);
         min-width: min(86vw, 280px);

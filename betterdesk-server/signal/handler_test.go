@@ -687,6 +687,27 @@ func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
 	}
 }
 
+func TestPanelWebRemoteCanRelayToWSTarget(t *testing.T) {
+	// #397: browser Web Remote arrives as TCP from loopback while the target
+	// may be WebSocket Mode — panel /ws/relay mediates the framing.
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.localIP.Store("198.51.100.20")
+	putOnlinePeer(srv, "WSTGT397", "203.0.113.97", 52000, peer.ConnWS)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "WSTGT397",
+		Uuid: "panel-to-ws-relay-uuid",
+	}, udpAddr("127.0.0.1", 51000), peer.ConnTCP)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("panel→WS relay refused: %q", rr.RefuseReason)
+	}
+}
+
 func TestHandleRequestRelayTCPMatchingWSAllowed(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.localIP.Store("198.51.100.20")
@@ -1153,7 +1174,7 @@ func TestPanelProxyLoopbackCanPunchHoleWithoutPeer(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
 	putOnlinePeer(srv, "TGTWEB1", "203.0.113.90", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("127.0.0.1", 51000), "TGTWEB1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("127.0.0.1", 51000), "TGTWEB1", "", 0)
 	if !ok || id != panelWebRemoteInitiatorID {
 		t.Fatalf("loopback panel proxy = (%q, %v), want (%q, true)", id, ok, panelWebRemoteInitiatorID)
 	}
@@ -1191,7 +1212,7 @@ func TestPublicAnonymousInitiatorStillRejectedWithPanelAllowlist(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	putOnlinePeer(srv, "TGTPUB1", "203.0.113.92", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.99", 51000), "TGTPUB1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.99", 51000), "TGTPUB1", "", 0)
 	if ok || id != "" {
 		t.Fatalf("public anonymous = (%q, %v), want reject", id, ok)
 	}
@@ -1212,7 +1233,7 @@ func TestManagedPendingStillRejectedDespitePanelAllowlist(t *testing.T) {
 		t.Fatalf("SetConfig: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.73", 51000), "TGTPEND3", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.73", 51000), "TGTPEND3", "", 0)
 	if ok {
 		t.Fatalf("pending initiator must be rejected, got id=%q", id)
 	}
@@ -1263,7 +1284,7 @@ func TestManagedPendingSameNATAsApprovedInitiatorRejected(t *testing.T) {
 	}
 
 	// Punch from a third port so FindByAddr misses; two live peers → ambiguous.
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.44", 58888), "TGTNAT1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.44", 58888), "TGTNAT1", "", 0)
 	if ok {
 		t.Fatalf("same-NAT pending punch must be rejected, got id=%q", id)
 	}
@@ -1283,13 +1304,13 @@ func TestExactAddrInitiatorAuthorized(t *testing.T) {
 	putOnlinePeer(srv, "EXACTINIT1", "198.51.100.81", 51000, peer.ConnUDP)
 	putOnlinePeer(srv, "TGTEXACT1", "203.0.113.81", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGTEXACT1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGTEXACT1", "", 0)
 	if !ok || id != "EXACTINIT1" {
 		t.Fatalf("exact addr auth = (%q, %v), want EXACTINIT1", id, ok)
 	}
 
 	// Sole live peer at this IP: stock clients PunchHole on a new TCP port.
-	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51001), "TGTEXACT1", "")
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51001), "TGTEXACT1", "", 0)
 	if !ok || id != "EXACTINIT1" {
 		t.Fatalf("single-IP fallback auth = (%q, %v), want EXACTINIT1", id, ok)
 	}
@@ -1305,7 +1326,7 @@ func TestSingleIPFallbackAuthorizesDifferentPort(t *testing.T) {
 	putOnlinePeer(srv, "SOLEINIT1", "78.31.94.73", 51000, peer.ConnTCP)
 	putOnlinePeer(srv, "TGTSINGLE1", "203.0.113.90", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("78.31.94.73", 55041), "TGTSINGLE1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("78.31.94.73", 55041), "TGTSINGLE1", "", 0)
 	if !ok || id != "SOLEINIT1" {
 		t.Fatalf("single-IP fallback = (%q, %v), want SOLEINIT1", id, ok)
 	}
@@ -1328,15 +1349,76 @@ func TestMultiApprovedSameIPAmbiguousRejected(t *testing.T) {
 	putOnlinePeer(srv, "APPR2", "203.0.113.88", 50002, peer.ConnUDP)
 	putOnlinePeer(srv, "TGTMULTI1", "198.51.100.88", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 59999), "TGTMULTI1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 59999), "TGTMULTI1", "", 0)
 	if ok {
 		t.Fatalf("ambiguous same-NAT must be rejected, got id=%q", id)
 	}
 
 	// Exact port still works for each peer.
-	id, ok = srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 50001), "TGTMULTI1", "")
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 50001), "TGTMULTI1", "", 0)
 	if !ok || id != "APPR1" {
 		t.Fatalf("exact addr APPR1 = (%q, %v)", id, ok)
+	}
+}
+
+func TestUdpPortHintDisambiguatesSameNAT(t *testing.T) {
+	// #399: multiple live peers behind CGNAT — PunchHoleRequest.udp_port must
+	// uniquely select the initiator without IP inheritance.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "CGNAT1", Status: "ONLINE", IP: "203.0.113.200"}); err != nil {
+		t.Fatalf("UpsertPeer CGNAT1: %v", err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: "CGNAT2", Status: "ONLINE", IP: "203.0.113.200"}); err != nil {
+		t.Fatalf("UpsertPeer CGNAT2: %v", err)
+	}
+	putOnlinePeer(srv, "CGNAT1", "203.0.113.200", 40001, peer.ConnUDP)
+	putOnlinePeer(srv, "CGNAT2", "203.0.113.200", 40002, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTCGNAT", "198.51.100.200", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.200", 59999), "TGTCGNAT", "", 40002)
+	if !ok || id != "CGNAT2" {
+		t.Fatalf("udp_port hint = (%q, %v), want CGNAT2", id, ok)
+	}
+
+	// Wrong / unknown udp_port stays ambiguous.
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("203.0.113.200", 59999), "TGTCGNAT", "", 41111)
+	if ok {
+		t.Fatalf("unknown udp_port must stay rejected, got %q", id)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{
+		Id:      "TGTCGNAT",
+		UdpPort: 40001,
+	}, udpAddr("203.0.113.200", 58888))
+	if phr := resp.GetPunchHoleResponse(); phr != nil && phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatal("PunchHole with matching udp_port must not be refused as unauthorized")
+	}
+}
+
+func TestOpaqueTokenCaseInsensitive(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srv, "TGTOKCASE", "203.0.113.201", 52000, peer.ConnTCP)
+	user := &db.User{Username: "caseuser", PasswordHash: "hash", Role: "admin"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("ab", 32)
+	sum := sha256.Sum256([]byte(token))
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hex.EncodeToString(sum[:]),
+		UserID:     user.ID,
+		ClientID:   "CASEINIT1",
+		ClientUUID: "case-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	upper := strings.ToUpper(token)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.201", 51000), "TGTOKCASE", upper, 0)
+	if !ok || id != "CASEINIT1" {
+		t.Fatalf("uppercase token auth = (%q, %v), want CASEINIT1", id, ok)
 	}
 }
 
@@ -1356,7 +1438,7 @@ func TestTCPSessionPeerIDAuthorizesWithoutFindByAddr(t *testing.T) {
 		peerID:    "SESSINIT1",
 	})
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTSESS1", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTSESS1", "", 0)
 	if !ok || id != "SESSINIT1" {
 		t.Fatalf("tcp session auth = (%q, %v), want SESSINIT1", id, ok)
 	}
@@ -1374,7 +1456,7 @@ func TestManagedPendingWithDBRowStillRejected(t *testing.T) {
 		t.Fatalf("SetConfig: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.74", 51000), "TGTPEND4", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.74", 51000), "TGTPEND4", "", 0)
 	if ok {
 		t.Fatalf("pending+DB initiator must be rejected, got id=%q", id)
 	}
@@ -1403,14 +1485,14 @@ func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
 		t.Fatalf("CreateClientSession: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token, 0)
 	if !ok || id != "TOKINIT1" {
 		t.Fatalf("token auth = (%q, %v), want TOKINIT1", id, ok)
 	}
 
 	// Managed: token alone without approved DB peer must fail — but queue for approval (#375).
 	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
-	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token, 0)
 	if ok {
 		t.Fatalf("managed token without DB peer must fail, got %q", id)
 	}
@@ -1441,7 +1523,7 @@ func TestManagedTokenQueuesViewerOnlyInitiator(t *testing.T) {
 		t.Fatalf("CreateClientSession: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.80", 51000), "TGTOK375", token)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.80", 51000), "TGTOK375", token, 0)
 	if ok {
 		t.Fatalf("managed viewer token must not punch, got id=%q", id)
 	}
@@ -1454,7 +1536,7 @@ func TestManagedTokenQueuesViewerOnlyInitiator(t *testing.T) {
 	}
 
 	// Second attempt: still denied as pending (must not initiate).
-	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.80", 51000), "TGTOK375", token)
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.80", 51000), "TGTOK375", token, 0)
 	if ok {
 		t.Fatalf("pending initiator must stay denied, got %q", id)
 	}
@@ -1481,7 +1563,7 @@ func TestLockedTokenDoesNotQueueViewerOnlyInitiator(t *testing.T) {
 		t.Fatalf("CreateClientSession: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGLOCK375", token)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGLOCK375", token, 0)
 	if ok {
 		t.Fatalf("locked token without peer must fail, got %q", id)
 	}
@@ -1501,7 +1583,7 @@ func TestIPFallbackDoesNotQueueManagedPending(t *testing.T) {
 	// Memory-only peer (no DB row) at initiator IP — IP fallback would resolve this ID.
 	putOnlinePeer(srv, "IPONLY375", "198.51.100.82", 51000, peer.ConnUDP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTIP375", "")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTIP375", "", 0)
 	if ok {
 		t.Fatalf("unenrolled IP peer must not punch, got %q", id)
 	}
@@ -1626,7 +1708,7 @@ func TestBannedTokenInitiatorRevokesSessionAndRelayTickets(t *testing.T) {
 	if !relay.AuthorizeRelayPair(relayUUID, "TOKBAN1", "TGTBAN1") {
 		t.Fatal("expected relay ticket authorization")
 	}
-	if id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTBAN1", token); ok || id != "" {
+	if id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTBAN1", token, 0); ok || id != "" {
 		t.Fatalf("banned token initiator = (%q, %v), want rejection", id, ok)
 	}
 	if sess, err := database.GetClientSessionByTokenHash(hashOpaqueClientToken(token)); err != nil {
