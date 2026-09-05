@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.76] — 2026-09-05
+
 ### Fixed
 - **Web Remote → WebSocket Mode relay pairing (#397 follow-up):** hbbr now bridges mixed TCP (`:21117`) ↔ WS (`:21119`) sessions with BytesCodec↔message translation (16 MiB peer-frame cap), so panel Web Remote can complete relay to WS-mode peers. Signal exemption for `panel-web-remote` alone was insufficient — pairing previously failed with `Protocol mismatch … tcp <-> ws`. Ships via Go relay restart / panel update.
 
@@ -3249,3 +3256,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.73]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.72...v3.5.73
 [3.5.74]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.73...v3.5.74
 [3.5.75]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.74...v3.5.75
+[3.5.76]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.75...v3.5.76

@@ -1,6 +1,6 @@
 [package]
 name = "betterdesk-desktop"
-version = "3.5.75"
+version = "3.5.76"
 edition = "2021"
 description = "Independent BetterDesk Desktop operator client"
 license = "AGPL-3.0-only"
