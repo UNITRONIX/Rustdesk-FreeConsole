@@ -1444,8 +1444,9 @@ const DeviceDetail = (function () {
                     <p class="form-hint">${Utils.escapeHtml(_('devices.delete_reserved_hint'))}</p>
                     <label class="form-check" for="${releaseIdInput}">
                         <input type="checkbox" id="${releaseIdInput}">
-                        <span>${Utils.escapeHtml(_('devices.delete_permanent'))}</span>
+                        <span>${Utils.escapeHtml(_('devices.delete_hard_option'))}</span>
                     </label>
+                    <p class="form-hint">${Utils.escapeHtml(_('devices.delete_hard_hint'))}</p>
                 `,
                 buttons: [
                     {
@@ -1475,7 +1476,11 @@ const DeviceDetail = (function () {
         try {
             const query = deleteChoice.hard ? '?hard=true' : '';
             await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + query, { method: 'DELETE' });
-            Notifications.success(_('devices.delete_success'));
+            Notifications.success(
+                deleteChoice.hard
+                    ? _('devices.permanent_delete_success')
+                    : _('devices.delete_soft_success_hint')
+            );
             close();
             _notifyChanged();
         } catch (err) {

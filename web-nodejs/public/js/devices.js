@@ -1828,10 +1828,17 @@
                             </h3>
                         </div>
                         <div class="modal-body">
-                            <p class="delete-warning">${_('devices.delete_warning')}</p>
-                            <p class="delete-device-id"><strong>${Utils.escapeHtml(deviceId)}</strong></p>
-                            <p class="delete-info">${_('devices.delete_permanent')}</p>
+                            <p class="delete-warning">${_('devices.delete_confirm', { id: Utils.escapeHtml(deviceId) })}</p>
+                            <p class="delete-info form-hint">${_('devices.delete_reserved_hint')}</p>
                             <div class="revoke-options" style="margin-top: 12px; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">
+                                <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px;">
+                                    <input type="checkbox" id="hard-delete-check-${deviceId}" />
+                                    <span class="material-icons" style="font-size: 18px; color: var(--accent-red);">delete_forever</span>
+                                    <span>${_('devices.delete_hard_option')}</span>
+                                </label>
+                                <p class="revoke-hint" style="font-size: 0.8rem; opacity: 0.7; margin: 0 0 12px 30px;">
+                                    ${_('devices.delete_hard_hint')}
+                                </p>
                                 <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px;">
                                     <input type="checkbox" id="revoke-check-${deviceId}" />
                                     <span class="material-icons" style="font-size: 18px; color: var(--accent-red);">block</span>
@@ -1845,7 +1852,7 @@
                         <div class="modal-footer">
                             <button class="btn btn-secondary cancel-btn">${_('actions.cancel')}</button>
                             <button class="btn btn-danger confirm-delete-btn" disabled>
-                                <span class="material-icons">delete_forever</span>
+                                <span class="material-icons">delete</span>
                                 <span class="btn-text">${_('actions.delete')} (<span class="countdown">3</span>)</span>
                             </button>
                         </div>
@@ -1859,6 +1866,7 @@
             const confirmBtn = modal.querySelector('.confirm-delete-btn');
             const cancelBtn = modal.querySelector('.cancel-btn');
             const countdownEl = confirmBtn.querySelector('.countdown');
+            const hardCheck = document.getElementById(`hard-delete-check-${deviceId}`);
             const revokeCheck = document.getElementById(`revoke-check-${deviceId}`);
             
             let countdown = 3;
@@ -1894,16 +1902,25 @@
             
             confirmBtn.addEventListener('click', async () => {
                 if (confirmBtn.disabled) return;
+                const hard = hardCheck && hardCheck.checked;
                 const revoke = revokeCheck && revokeCheck.checked;
                 closeModal();
                 
                 try {
                     const params = new URLSearchParams();
+                    if (hard) params.set('hard', 'true');
                     if (revoke) params.set('revoke', 'true');
                     const qs = params.toString();
-                    const url = `/api/devices/${deviceId}${qs ? '?' + qs : ''}`;
+                    const url = `/api/devices/${encodeURIComponent(deviceId)}${qs ? '?' + qs : ''}`;
                     await Utils.api(url, { method: 'DELETE' });
-                    const msg = revoke ? _('devices.revoke_success') : _('devices.delete_success');
+                    let msg;
+                    if (hard) {
+                        msg = _('devices.permanent_delete_success');
+                    } else if (revoke) {
+                        msg = _('devices.revoke_success');
+                    } else {
+                        msg = _('devices.delete_soft_success_hint');
+                    }
                     Notifications.success(msg);
                     loadDevices();
                     resolve(true);

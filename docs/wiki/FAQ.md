@@ -153,9 +153,13 @@ curl -X POST http://server:21114/api/peers/OLD_ID/change-id \
 
 ### What happens when I delete a device?
 
-Soft-delete: device is marked as deleted, cannot re-register, filtered from lists. The record remains in the database for audit purposes.
+**Soft-delete** (default Delete in the console): the device is hidden and filtered from lists, but its ID stays reserved. The client **cannot re-register** with that ID until you restore or permanently delete the record. The row remains in the database for audit purposes.
 
-With `?revoke=true`: additionally blocks the device ID and disconnects active sessions. The device can never reconnect with that ID.
+To bring the same device back: enable **Show deleted devices** → kebab menu → **Restore**.
+
+To free the ID for a fresh registration (e.g. after wiping the client config): enable **Show deleted devices** → kebab menu → **Permanently delete**, then restart the RustDesk client. You can also check **Permanently delete (release ID)** in the delete dialog.
+
+With `?revoke=true` (or the Revoke checkbox): additionally blocks the device ID and disconnects active sessions. That ID cannot reconnect until it is unblocked.
 
 ### How do I wake a device remotely?
 
