@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **PunchHole empty `socket_addr` → `OFFLINE` (#405):** success-shaped `PunchHoleResponse` paths that still cannot encode a compatibility address now set `Failure: OFFLINE` instead of leaving `failure` unset (proto3 zero = `ID_NOT_EXIST` on stock clients). WS-only peers with a parseable address still use `encodePeerSocketAddr` as before.
+
 ### Changed
 - _(none yet)_
 

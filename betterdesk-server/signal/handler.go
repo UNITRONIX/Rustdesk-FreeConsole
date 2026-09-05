@@ -82,6 +82,22 @@ func encodePeerSocketAddr(entry *peer.Entry) []byte {
 	return crypto.EncodeAddr(&net.UDPAddr{IP: ip, Port: int(portNumber)})
 }
 
+// ensurePunchHoleSocketAddr rejects a success-shaped PunchHoleResponse that
+// still has an empty socket_addr (#405). Stock RustDesk only reads Failure when
+// socket_addr is empty, and an unset Failure defaults to ID_NOT_EXIST — so a
+// peer that is online but lacks an encodable address would otherwise look like
+// a missing ID. OFFLINE is the honest signal for "cannot reach this peer".
+func ensurePunchHoleSocketAddr(phr *pb.PunchHoleResponse, targetID, relayServer string) *pb.PunchHoleResponse {
+	if phr != nil && len(phr.SocketAddr) > 0 {
+		return phr
+	}
+	log.Printf("[signal] PunchHole: empty compatibility socket_addr for target %s — returning OFFLINE instead of unset failure (#405)", targetID)
+	return &pb.PunchHoleResponse{
+		Failure:     pb.PunchHoleResponse_OFFLINE,
+		RelayServer: relayServer,
+	}
+}
+
 // isInboundOnlyDeviceType identifies agents that may be contacted by an
 // operator/client but must never start RustDesk P2P or relay sessions
 // themselves. Normalize common spelling variants because metadata has existed
@@ -897,6 +913,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	} else {
 		phr.Union = &pb.PunchHoleResponse_NatType{NatType: pb.NatType(target.NATType)}
 	}
+	phr = ensurePunchHoleSocketAddr(phr, targetID, relayServer)
 
 	resp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_PunchHoleResponse{
@@ -911,7 +928,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	// this relay-capable response so the client can fall back to relay instead
 	// of hanging. handlePunchHoleSent cancels the fallback once the genuine
 	// response is forwarded.
-	if s.cfg.P2PFirst && !sameNetwork {
+	if s.cfg.P2PFirst && !sameNetwork && len(phr.SocketAddr) > 0 {
 		raddrCopy := *raddr
 		s.schedulePunchFallback(normalizeAddrKey(raddr.String()), func() {
 			log.Printf("[signal] P2P-first: target %s did not complete hole punch in time, sending relay fallback to %s",
@@ -1035,14 +1052,16 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 
 		targetAddr := encodePeerSocketAddr(target)
 
+		phr := ensurePunchHoleSocketAddr(&pb.PunchHoleResponse{
+			SocketAddr:  targetAddr,
+			Pk:          signedPk,
+			RelayServer: relayServer,
+			Union:       &pb.PunchHoleResponse_NatType{NatType: pb.NatType_SYMMETRIC},
+		}, targetID, relayServer)
+
 		return &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_PunchHoleResponse{
-				PunchHoleResponse: &pb.PunchHoleResponse{
-					SocketAddr:  targetAddr,
-					Pk:          signedPk,
-					RelayServer: relayServer,
-					Union:       &pb.PunchHoleResponse_NatType{NatType: pb.NatType_SYMMETRIC},
-				},
+				PunchHoleResponse: phr,
 			},
 		}
 	}
@@ -1092,6 +1111,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	} else {
 		phr.Union = &pb.PunchHoleResponse_NatType{NatType: pb.NatType(target.NATType)}
 	}
+	phr = ensurePunchHoleSocketAddr(phr, targetID, relayServer)
 
 	resp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_PunchHoleResponse{
@@ -1107,7 +1127,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	// over it. If the target stays silent past the grace period, the scheduled
 	// fallback forwards this relay-capable response so the client can fall back
 	// to relay instead of hanging (preserving the Phase 7 timeout fix).
-	if s.cfg.P2PFirst && !sameNetwork {
+	if s.cfg.P2PFirst && !sameNetwork && len(phr.SocketAddr) > 0 {
 		initiatorKey := normalizeAddrKey(raddr.String())
 		s.schedulePunchFallback(initiatorKey, func() {
 			log.Printf("[signal] P2P-first (TCP): target %s did not complete hole punch in time, forwarding relay fallback to %s",
@@ -1211,6 +1231,7 @@ func (s *Server) handlePunchHoleSent(phs *pb.PunchHoleSent, senderAddr *net.UDPA
 	} else {
 		phr.Union = &pb.PunchHoleResponse_NatType{NatType: phs.NatType}
 	}
+	phr = ensurePunchHoleSocketAddr(phr, phs.Id, relayServer)
 
 	resp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_PunchHoleResponse{

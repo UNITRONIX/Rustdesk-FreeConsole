@@ -805,6 +805,65 @@ func TestWSSOnlyTargetPunchHoleResponseHasSocketAddr(t *testing.T) {
 	}
 }
 
+func TestEnsurePunchHoleSocketAddrRejectsEmpty(t *testing.T) {
+	got := ensurePunchHoleSocketAddr(&pb.PunchHoleResponse{
+		Pk:          []byte{1, 2, 3},
+		RelayServer: "relay.example:21117",
+		Union:       &pb.PunchHoleResponse_NatType{NatType: pb.NatType_SYMMETRIC},
+	}, "TGT405", "relay.example:21117")
+	if got.Failure != pb.PunchHoleResponse_OFFLINE {
+		t.Fatalf("Failure = %v, want OFFLINE", got.Failure)
+	}
+	if len(got.SocketAddr) != 0 {
+		t.Fatalf("SocketAddr should stay empty on OFFLINE fallback, got %d bytes", len(got.SocketAddr))
+	}
+	if len(got.Pk) != 0 {
+		t.Fatal("OFFLINE fallback must not keep a success-shaped pk")
+	}
+
+	ok := ensurePunchHoleSocketAddr(&pb.PunchHoleResponse{
+		SocketAddr:  []byte{0, 1, 2, 3, 4, 5},
+		RelayServer: "relay.example:21117",
+	}, "TGT405", "relay.example:21117")
+	if ok.Failure != 0 || len(ok.SocketAddr) == 0 {
+		t.Fatalf("non-empty socket_addr must pass through unchanged, got %+v", ok)
+	}
+}
+
+func TestPunchHoleUnparseableTargetAddrReturnsOffline(t *testing.T) {
+	// Online WS peer whose IP cannot be encoded must not surface as ID_NOT_EXIST (#405).
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.peers.Put(&peer.Entry{
+		ID:         "BADINIT1",
+		IP:         "198.51.100.102:51000",
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "BADTGT1",
+		IP:         "not-a-hostport",
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handlePunchHoleRequestTCP(
+		&pb.PunchHoleRequest{Id: "BADTGT1", ForceRelay: true},
+		udpAddr("198.51.100.102", 51000),
+	)
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected PunchHoleResponse, got %+v", resp)
+	}
+	if phr.Failure != pb.PunchHoleResponse_OFFLINE {
+		t.Fatalf("Failure = %v, want OFFLINE (not unset/ID_NOT_EXIST)", phr.Failure)
+	}
+	if len(phr.SocketAddr) != 0 {
+		t.Fatal("OFFLINE response must not carry a compatibility socket_addr")
+	}
+}
+
 func TestCancelPunchFallback(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.cfg.P2PFirst = true
