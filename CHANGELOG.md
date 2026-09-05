@@ -26,7 +26,7 @@
 ## [3.5.76] — 2026-09-05
 
 ### Fixed
-- **Web Remote → WebSocket Mode relay pairing (#397 follow-up):** hbbr now bridges mixed TCP (`:21117`) ↔ WS (`:21119`) sessions with BytesCodec↔message translation (16 MiB peer-frame cap), so panel Web Remote can complete relay to WS-mode peers. Signal exemption for `panel-web-remote` alone was insufficient — pairing previously failed with `Protocol mismatch … tcp <-> ws`. Ships via Go relay restart / panel update.
+- **Web Remote → WebSocket Mode relay pairing (#397 follow-up, #403):** hbbr now bridges mixed TCP (`:21117`) ↔ WS (`:21119`) sessions with BytesCodec↔message translation (16 MiB peer-frame cap), so panel Web Remote can complete relay to WS-mode peers. Signal exemption for `panel-web-remote` alone was insufficient — pairing previously failed with `Protocol mismatch … tcp <-> ws`. Ships via Go relay restart / panel update.
 - **Settings mobile topbar + tab chrome (#396 follow-up):** UX 3.5 menu/logo icons are vertically centered in the topbar; Settings tab track drops extra bottom padding and phone viewports tighten the page-header→tabs gap (sticky bleed unchanged). Ships via panel update. Verify: ≤767px UX 3.5 → hamburger/logo aligned in the 48px topbar; Settings tabs compact with no empty strip under the underline; scroll still keeps tabs flush under the content top.
 
 ### Changed
