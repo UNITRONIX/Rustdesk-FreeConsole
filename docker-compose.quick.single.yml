@@ -5,7 +5,7 @@
 # Go server + Node.js console in one container (recommended for all deployments).
 #
 # Image tag (aligned with CHANGELOG / git tag):
-#   Default: 3.5.79  |  Rolling: BETTERDESK_IMAGE_TAG=latest
+#   Default: 3.5.80  |  Rolling: BETTERDESK_IMAGE_TAG=latest
 #
 # Usage (automated — recommended):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
@@ -15,7 +15,7 @@
 #   docker compose pull && docker compose up -d
 #
 # Pin a specific release:
-#   BETTERDESK_IMAGE_TAG=3.5.79 docker compose up -d
+#   BETTERDESK_IMAGE_TAG=3.5.80 docker compose up -d
 #
 # Web Console: http://localhost:5000
 # RustDesk client API: http://localhost:21121 (Go server — all-in-one default port)
@@ -35,7 +35,7 @@
 
 services:
   betterdesk:
-    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.5.79}
+    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.5.80}
     container_name: betterdesk
     hostname: betterdesk
     ports:
@@ -78,7 +78,7 @@ services:
       - PGID=${PGID:-10001}
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=single
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.79}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.80}
       - DB_TYPE=${DB_TYPE:-sqlite}
       - DATABASE_URL=${DATABASE_URL:-}
       - DB_URL=${DATABASE_URL:-}
