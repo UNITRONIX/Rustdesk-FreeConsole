@@ -9,6 +9,7 @@
 
 ### Fixed
 - **PunchHole empty `socket_addr` → `OFFLINE` (#405):** success-shaped `PunchHoleResponse` paths that still cannot encode a compatibility address now set `Failure: OFFLINE` instead of leaving `failure` unset (proto3 zero = `ID_NOT_EXIST` on stock clients). WS-only peers with a parseable address still use `encodePeerSocketAddr` as before.
+- **LAN detection ignores `MASK` / `-mask` (#404):** `isSameNetwork` and LAN-relay reachability used a hardcoded IPv4 `/24` octet compare while `MASK` was loaded but never read. Configured CIDR (e.g. `192.168.0.0/16`) now drives both checks; empty/invalid `MASK` keeps the historic `/24` fallback. Ships via Go signal restart / panel update. Verify: set `MASK=192.168.0.0/16`, connect peers on `192.168.1.x` and `192.168.2.x`, expect `is_local` / `[LAN] … same MASK network` in signal logs.
 
 ### Changed
 - _(none yet)_

@@ -2416,7 +2416,7 @@ func (s *Server) getLANRelayServer(defaultRelay string, peers ...*net.UDPAddr) s
 	// clients and must not be advertised as relay addresses (#142).
 	if ip, ok := s.lanIP.Load().(string); ok && ip != "" {
 		lanIP := net.ParseIP(ip)
-		if !isLANRelayReachableFromPeers(lanIP, peers...) {
+		if !isLANRelayReachableFromPeers(lanIP, s.lanNet, peers...) {
 			log.Printf("[signal] LAN relay %s is outside peer subnet; using configured/default relay=%s", ip, defaultRelay)
 			return defaultRelay
 		}
@@ -2448,13 +2448,13 @@ func (s *Server) selectPeerRelayServer(defaultRelay string, a, b *net.UDPAddr) (
 	if s.cfg.SameNATRelay && isSamePublicIP(a, b) {
 		return s.getRelayServer(), false, true
 	}
-	if isSameNetwork(a, b) {
+	if isSameNetwork(a, b, s.lanNet) {
 		return s.getLANRelayServer(defaultRelay, a, b), true, false
 	}
 	return defaultRelay, false, false
 }
 
-func isLANRelayReachableFromPeers(lanIP net.IP, peers ...*net.UDPAddr) bool {
+func isLANRelayReachableFromPeers(lanIP net.IP, lanNet *net.IPNet, peers ...*net.UDPAddr) bool {
 	lan4 := lanIP.To4()
 	if lan4 == nil || !isPrivateIP(lan4) {
 		return false
@@ -2467,11 +2467,25 @@ func isLANRelayReachableFromPeers(lanIP net.IP, peers ...*net.UDPAddr) bool {
 		if peer4 == nil || peer4.IsLoopback() || !isPrivateIP(peer4) {
 			continue
 		}
-		if lan4.Equal(peer4) || (lan4[0] == peer4[0] && lan4[1] == peer4[1] && lan4[2] == peer4[2]) {
+		if lan4.Equal(peer4) || sameLANSubnet(lan4, peer4, lanNet) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameLANSubnet reports whether two IPs share the configured LAN CIDR, or —
+// when MASK is unset — the historic IPv4 /24 (first three octets) rule (#404).
+func sameLANSubnet(a, b net.IP, lanNet *net.IPNet) bool {
+	if lanNet != nil {
+		return lanNet.Contains(a) && lanNet.Contains(b)
+	}
+	a4 := a.To4()
+	b4 := b.To4()
+	if a4 == nil || b4 == nil {
+		return false
+	}
+	return a4[0] == b4[0] && a4[1] == b4[1] && a4[2] == b4[2]
 }
 
 // registerPkResponse is a helper to create a RegisterPkResponse message.
@@ -2490,11 +2504,13 @@ func registerPkResponse(result pb.RegisterPkResponse_Result) *pb.RendezvousMessa
 //
 // Matches the original Rust hbbs logic:
 //
-//	is_local = (both private IPv4 && same /24 subnet) || (same IP)
+//	is_local = (both private IPv4 && same subnet) || (same IP)
 //
-// Extended: Loopback (127.x.x.x, ::1) connecting to a private IP target is
-// considered "same network" because the server is local and both are LAN peers.
-func isSameNetwork(a, b *net.UDPAddr) bool {
+// Subnet matching uses MASK / -mask when set (CIDR Contains); otherwise the
+// historic IPv4 /24 (first three octets) comparison. Loopback (127.x.x.x, ::1)
+// connecting to a private IP target is considered "same network" because the
+// server is local and both are LAN peers.
+func isSameNetwork(a, b *net.UDPAddr, lanNet *net.IPNet) bool {
 	if a == nil || b == nil {
 		log.Printf("[LAN] isSameNetwork: nil address (a=%v, b=%v)", a, b)
 		return false
@@ -2532,13 +2548,16 @@ func isSameNetwork(a, b *net.UDPAddr) bool {
 		return true
 	}
 
-	// Both private IPv4 on the same /24 subnet — same LAN
+	// Both private IPv4 on the same subnet (MASK CIDR or default /24)
 	a4 := aIP.To4()
 	b4 := bIP.To4()
 	if a4 != nil && b4 != nil && isPrivateIP(a4) && isPrivateIP(b4) {
-		sameSubnet := a4[0] == b4[0] && a4[1] == b4[1] && a4[2] == b4[2]
-		if sameSubnet {
-			log.Printf("[LAN] isSameNetwork: same /24 subnet (%v, %v) → true", a4, b4)
+		if sameLANSubnet(a4, b4, lanNet) {
+			if lanNet != nil {
+				log.Printf("[LAN] isSameNetwork: same MASK network %s (%v, %v) → true", lanNet, a4, b4)
+			} else {
+				log.Printf("[LAN] isSameNetwork: same /24 subnet (%v, %v) → true", a4, b4)
+			}
 			return true
 		}
 	}

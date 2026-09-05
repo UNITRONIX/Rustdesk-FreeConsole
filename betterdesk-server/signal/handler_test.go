@@ -615,6 +615,131 @@ func TestSelectPeerRelayServerKeepsDefaultRelayWhenLANRelayOutsidePeerSubnet(t *
 	}
 }
 
+func TestIsSameNetworkDefaultSlash24(t *testing.T) {
+	a := udpAddr("192.168.1.10", 51000)
+	bSame := udpAddr("192.168.1.42", 52000)
+	bOther := udpAddr("192.168.2.10", 52000)
+
+	if !isSameNetwork(a, bSame, nil) {
+		t.Fatal("same /24 peers should match when MASK is unset")
+	}
+	if isSameNetwork(a, bOther, nil) {
+		t.Fatal("different /24 peers should not match when MASK is unset")
+	}
+}
+
+func TestIsSameNetworkUsesConfiguredMask(t *testing.T) {
+	_, lanNet, err := net.ParseCIDR("192.168.0.0/16")
+	if err != nil {
+		t.Fatalf("ParseCIDR: %v", err)
+	}
+	a := udpAddr("192.168.1.10", 51000)
+	b := udpAddr("192.168.2.10", 52000)
+	outside := udpAddr("10.0.0.5", 52000)
+
+	if !isSameNetwork(a, b, lanNet) {
+		t.Fatal("MASK=/16 should treat 192.168.1.x and 192.168.2.x as same LAN")
+	}
+	if isSameNetwork(a, outside, lanNet) {
+		t.Fatal("peers outside MASK CIDR must not be treated as same LAN")
+	}
+}
+
+func TestIsSameNetworkSlash23Boundary(t *testing.T) {
+	_, lanNet, err := net.ParseCIDR("192.168.0.0/23")
+	if err != nil {
+		t.Fatalf("ParseCIDR: %v", err)
+	}
+	a := udpAddr("192.168.0.10", 51000)
+	inNet := udpAddr("192.168.1.200", 52000)
+	outNet := udpAddr("192.168.2.10", 52000)
+
+	if !isSameNetwork(a, inNet, lanNet) {
+		t.Fatal("MASK=/23 should include 192.168.0.0–192.168.1.255")
+	}
+	if isSameNetwork(a, outNet, lanNet) {
+		t.Fatal("MASK=/23 should exclude 192.168.2.0/24")
+	}
+}
+
+func TestParseLANMaskInvalidFallsBackToNil(t *testing.T) {
+	if got := parseLANMask(""); got != nil {
+		t.Fatalf("empty MASK should yield nil, got %v", got)
+	}
+	if got := parseLANMask("not-a-cidr"); got != nil {
+		t.Fatalf("invalid MASK should yield nil ( /24 fallback), got %v", got)
+	}
+	got := parseLANMask("10.0.0.0/8")
+	if got == nil || got.String() != "10.0.0.0/8" {
+		t.Fatalf("valid MASK = %v, want 10.0.0.0/8", got)
+	}
+}
+
+func TestSelectPeerRelayServerUsesMaskForWidePrivateSubnet(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.localIP.Store("198.51.100.20")
+	srv.lanIP.Store("192.168.1.20")
+	_, lanNet, err := net.ParseCIDR("192.168.0.0/16")
+	if err != nil {
+		t.Fatalf("ParseCIDR: %v", err)
+	}
+	srv.lanNet = lanNet
+
+	relay, sameLAN, samePublic := srv.selectPeerRelayServer(
+		"198.51.100.20:21117",
+		udpAddr("192.168.1.10", 51000),
+		udpAddr("192.168.2.42", 52000),
+	)
+
+	if !sameLAN {
+		t.Fatal("MASK=/16 peers across /24s should be same LAN")
+	}
+	if relay != "192.168.1.20:21117" {
+		t.Fatalf("relay = %q, want LAN relay", relay)
+	}
+	if samePublic {
+		t.Fatal("private MASK peers should not be marked as shared public IP")
+	}
+}
+
+func TestSelectPeerRelayServerInvalidMaskFallsBackToSlash24(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.EnrollmentMode = config.EnrollmentModeOpen
+	cfg.Mask = "not-a-cidr"
+	database, err := db.OpenSQLite(filepath.Join(t.TempDir(), "mask-fallback.db"))
+	if err != nil {
+		t.Fatalf("OpenSQLite: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	if err := database.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	srv := New(cfg, nil, database)
+	if srv.lanNet != nil {
+		t.Fatal("invalid MASK must leave lanNet nil")
+	}
+	srv.localIP.Store("198.51.100.20")
+	srv.lanIP.Store("192.168.1.20")
+
+	_, sameLANCross, _ := srv.selectPeerRelayServer(
+		"198.51.100.20:21117",
+		udpAddr("192.168.1.10", 51000),
+		udpAddr("192.168.2.42", 52000),
+	)
+	if sameLANCross {
+		t.Fatal("invalid MASK fallback must keep /24 (cross-/24 = not LAN)")
+	}
+
+	relay, sameLAN, _ := srv.selectPeerRelayServer(
+		"198.51.100.20:21117",
+		udpAddr("192.168.1.10", 51000),
+		udpAddr("192.168.1.42", 52000),
+	)
+	if !sameLAN || relay != "192.168.1.20:21117" {
+		t.Fatalf("same /24 with invalid MASK fallback: sameLAN=%v relay=%q", sameLAN, relay)
+	}
+}
+
 func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.localIP.Store("198.51.100.20")

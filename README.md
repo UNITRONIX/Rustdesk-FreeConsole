@@ -972,7 +972,7 @@ You can **upgrade to Let's Encrypt** or a custom certificate at any time using m
 | `-key-file` | `id_ed25519` | `KEY_FILE` | Ed25519 key file path (without extension) |
 | `-relay-servers` | *(empty)* | `RELAY_SERVERS` | Comma-separated relay addresses for `ConfigUpdate` |
 | `-rendezvous-servers` | *(empty)* | `RENDEZVOUS_SERVERS` | Comma-separated rendezvous addresses |
-| `-mask` | *(empty)* | `MASK` | LAN mask (e.g. `192.168.0.0/24`) |
+| `-mask` | *(empty)* | `MASK` | CIDR for LAN peer detection (e.g. `192.168.0.0/16`); empty defaults to IPv4 `/24` |
 | `-always-relay` | `false` | `ALWAYS_USE_RELAY=Y` | Force relay for all connections (no P2P) |
 | `-blocklist` | *(empty)* | `BLOCKLIST_FILE` | Path to IP/ID/CIDR blocklist file |
 | `-audit-log` | *(empty)* | `AUDIT_LOG_FILE` | Path to audit log file (JSON lines) |

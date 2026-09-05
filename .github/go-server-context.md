@@ -553,7 +553,7 @@ states is a bitmask: 2 bits per peer
 | `DOWNGRADE_THRESHOLD` | - | 0.66 | Bandwidth downgrade ratio |
 | `RELAY_SERVERS` | `--relay-servers` | (self) | Comma-separated relay servers |
 | `RENDEZVOUS_SERVERS` | `--rendezvous-servers` | (self) | Comma-separated signal servers |
-| `MASK` | `--mask` | - | LAN mask (e.g. 192.168.0.0/24) |
+| `MASK` | `--mask` | - | CIDR for LAN peer detection (e.g. 192.168.0.0/16); empty defaults to IPv4 /24 |
 
 ---
 

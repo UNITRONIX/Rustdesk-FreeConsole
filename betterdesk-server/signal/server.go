@@ -152,6 +152,10 @@ type Server struct {
 	// Used for LAN relay advertisements when both peers are on the same network.
 	lanIP atomic.Value // stores string
 
+	// lanNet is the optional LAN CIDR from MASK / -mask (issue #404). When nil,
+	// peer subnet checks fall back to the historic IPv4 /24 comparison.
+	lanNet *net.IPNet
+
 	// networkPolicy resolves org-level block_direct_p2p / allowed relay servers.
 	networkPolicy *policy.NetworkResolver
 
@@ -160,7 +164,7 @@ type Server struct {
 
 // New creates a new signal server instance.
 func New(cfg *config.Config, kp *crypto.KeyPair, database db.Database) *Server {
-	return &Server{
+	s := &Server{
 		cfg:           cfg,
 		kp:            kp,
 		db:            database,
@@ -168,6 +172,26 @@ func New(cfg *config.Config, kp *crypto.KeyPair, database db.Database) *Server {
 		eventBus:      events.NewBus(),
 		networkPolicy: policy.NewNetworkResolver(database),
 	}
+	if cfg != nil {
+		s.lanNet = parseLANMask(cfg.Mask)
+	}
+	return s
+}
+
+// parseLANMask parses MASK / -mask (e.g. "192.168.0.0/16"). Empty or invalid
+// values yield nil so callers keep the default /24 LAN detection behaviour.
+func parseLANMask(mask string) *net.IPNet {
+	mask = strings.TrimSpace(mask)
+	if mask == "" {
+		return nil
+	}
+	_, network, err := net.ParseCIDR(mask)
+	if err != nil {
+		log.Printf("[signal] WARN: invalid MASK %q (%v); falling back to /24 LAN detection", mask, err)
+		return nil
+	}
+	log.Printf("[signal] LAN MASK configured: %s", network.String())
+	return network
 }
 
 // SetBlocklist sets the blocklist used by the signal server.
