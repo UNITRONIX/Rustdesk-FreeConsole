@@ -70,14 +70,27 @@ body.app-page.ux35-page {
     white-space: nowrap;
     color: inherit;
     text-decoration: none;
+    min-height: var(--ux35-control-size);
 }
 
-.ux35-topbar-logo .material-icons { font-size: 22px; }
-.ux35-topbar-logo img { height: 24px; width: auto; }
+.ux35-topbar-logo .material-icons {
+    font-size: 22px;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
+}
+.ux35-topbar-logo img { height: 24px; width: auto; display: block; }
+.ux35-topbar-logo .sidebar-logo-svg {
+    display: flex;
+    align-items: center;
+    line-height: 0;
+}
 .ux35-topbar-logo .brand-text-accent { opacity: 0.85; }
 
 .ux35-topbar-menu-btn {
     display: none;
+    align-items: center;
+    justify-content: center;
     min-width: var(--ux35-control-size);
     min-height: var(--ux35-control-size);
     background: none;
@@ -88,7 +101,12 @@ body.app-page.ux35-page {
     cursor: pointer;
 }
 .ux35-topbar-menu-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--ux35-topbar-fg); }
-.ux35-topbar-menu-btn .material-icons { font-size: 22px; }
+.ux35-topbar-menu-btn .material-icons {
+    font-size: 22px;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
+}
 
 .ux35-topbar-breadcrumb {
     display: flex;
@@ -132,11 +150,15 @@ body.app-page.ux35-page {
     cursor: pointer;
     display: flex;
     align-items: center;
+    justify-content: center;
     position: relative;
     transition: background var(--ux35-motion-fast), color var(--ux35-motion-fast);
 }
 .ux35-topbar-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--ux35-topbar-fg); }
-.ux35-topbar-btn .material-icons { font-size: 20px; }
+.ux35-topbar-btn .material-icons {
+    font-size: 20px;
+    line-height: 1;
+}
 
 /* Keyboard focus uses the active brand color without relying on hover. */
 .ux35-topbar-btn:focus-visible,
@@ -580,6 +602,11 @@ body.ux35-is-resizing {
         padding: var(--ux35-content-padding);
         padding-bottom: calc(var(--ux35-content-padding) + 72px);
     }
+    /* Tighten header→tabs gap on phone; bleed still cancels content padding when sticky */
+    .ux35-page .ux35-content > .page-header,
+    .ux35-page .ux35-content > .settings-header {
+        margin-bottom: var(--ux35-space-3);
+    }
     .ux35-page .settings-shell-nav {
         --settings-nav-bleed: var(--ux35-content-padding);
         --settings-nav-bleed-x: var(--ux35-content-padding);
@@ -597,6 +624,10 @@ body.ux35-is-resizing {
         line-height: 1;
         width: 18px;
         height: 18px;
+    }
+    .ux35-page .settings-shell-nav-track.mobile-tabs-scroll {
+        padding-bottom: 0;
+        gap: 4px;
     }
     .ux35-sidebar {
         width: min(86vw, 280px);

@@ -481,6 +481,11 @@ body.ux35-page .mobile-bottom-nav {
         padding-bottom: var(--space-xs);
     }
 
+    /* Settings sticky track: no extra bottom padding (compact under topbar) */
+    body.app-page.is-mobile-shell .settings-shell-nav-track {
+        padding-bottom: 0;
+    }
+
     body.app-page.is-mobile-shell .settings-shell-nav-track::-webkit-scrollbar,
     body.app-page.is-mobile-shell .settings-tabs::-webkit-scrollbar,
     body.app-page.is-mobile-shell .server-mgmt-tabs::-webkit-scrollbar {

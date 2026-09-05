@@ -9,6 +9,7 @@
 
 ### Fixed
 - **Web Remote → WebSocket Mode relay pairing (#397 follow-up):** hbbr now bridges mixed TCP (`:21117`) ↔ WS (`:21119`) sessions with BytesCodec↔message translation (16 MiB peer-frame cap), so panel Web Remote can complete relay to WS-mode peers. Signal exemption for `panel-web-remote` alone was insufficient — pairing previously failed with `Protocol mismatch … tcp <-> ws`. Ships via Go relay restart / panel update.
+- **Settings mobile topbar + tab chrome (#396 follow-up):** UX 3.5 menu/logo icons are vertically centered in the topbar; Settings tab track drops extra bottom padding and phone viewports tighten the page-header→tabs gap (sticky bleed unchanged). Ships via panel update. Verify: ≤767px UX 3.5 → hamburger/logo aligned in the 48px topbar; Settings tabs compact with no empty strip under the underline; scroll still keeps tabs flush under the content top.
 
 ### Changed
 - _(none yet)_
@@ -67,6 +68,9 @@
 
 ## [3.5.70] — 2026-08-30
 
+### Fixed
+- **Settings tab bar sticky + mobile (#396):** Settings horizontal tabs stay flush under the top of the content scroll area (bleed cancels content padding), keep sticky on narrow/mobile instead of scrolling away, and scroll the active tab into view when switching or opening a hash link. Ships via panel update. Verify: Settings → scroll a long form → tab bar flush at top; ≤900px / mobile → tabs remain visible while scrolling; `/settings#updates` brings Updates into the horizontal track.
+
 ### Changed
 - _(none yet)_
 
@@ -76,9 +80,6 @@
 
 ### Added
 - **Custom download portal product label (#386):** Agent Generator advanced branding can override or hide the product type line (`download.product_*`) on the public download page without rebuilding installers.
-
-### Fixed
-- **Settings tab bar sticky + mobile (#396):** Settings horizontal tabs stay flush under the top of the content scroll area (bleed cancels content padding), keep sticky on narrow/mobile instead of scrolling away, and scroll the active tab into view when switching or opening a hash link. Ships via panel update. Verify: Settings → scroll a long form → tab bar flush at top; ≤900px / mobile → tabs remain visible while scrolling; `/settings#updates` brings Updates into the horizontal track.
 
 ### Changed
 - _(none yet)_

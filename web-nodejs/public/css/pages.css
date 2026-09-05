@@ -3324,6 +3324,11 @@
     -webkit-overflow-scrolling: touch;
 }
 
+/* Settings track: no extra bottom padding from .mobile-tabs-scroll (keeps bar compact) */
+.settings-shell-nav-track.mobile-tabs-scroll {
+    padding-bottom: 0;
+}
+
 .settings-shell-nav .settings-shell-tab,
 .settings-shell-nav .settings-tab {
     display: flex;
