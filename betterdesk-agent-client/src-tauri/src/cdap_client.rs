@@ -470,8 +470,8 @@ impl CdapClient {
         let value = &payload["value"];
 
         info!(
-            "[cdap] Command: action={} widget={} value={:?}",
-            action, widget_id, value
+            "[cdap] Command: action={} widget={}",
+            action, widget_id
         );
 
         let (status, result, error) = match action.as_str() {
@@ -523,10 +523,7 @@ impl CdapClient {
         let cols = payload["cols"].as_u64().unwrap_or(80) as u16;
         let rows = payload["rows"].as_u64().unwrap_or(24) as u16;
 
-        info!(
-            "[cdap] terminal_start session={} {}x{}",
-            session_id, cols, rows
-        );
+        info!("[cdap] terminal_start {}x{}", cols, rows);
 
         let client = self.clone();
         let sid = session_id.clone();
@@ -585,7 +582,7 @@ impl CdapClient {
                     "terminal_end",
                     json!({ "session_id": sid2, "exit_code": 0 }),
                 );
-                info!("[cdap] Terminal session {} ended", sid2);
+                info!("[cdap] Terminal session ended");
             });
         }
 
@@ -630,14 +627,10 @@ impl CdapClient {
     }
 
     async fn handle_terminal_resize(&self, payload: Value) -> Result<()> {
-        // PTY resize is best-effort; log only.
-        let session_id = payload["session_id"].as_str().unwrap_or("");
+        // PTY resize is best-effort; log only (no session_id — avoids sensitive log sinks).
         let cols = payload["cols"].as_u64().unwrap_or(80);
         let rows = payload["rows"].as_u64().unwrap_or(24);
-        debug!(
-            "[cdap] terminal_resize session={} {}x{}",
-            session_id, cols, rows
-        );
+        debug!("[cdap] terminal_resize {}x{}", cols, rows);
         Ok(())
     }
 

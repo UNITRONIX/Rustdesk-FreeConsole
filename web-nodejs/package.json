@@ -62,7 +62,9 @@
     "brace-expansion": "^5.0.9",
     "form-data": "^4.0.6",
     "body-parser": "^1.20.6",
-    "protobufjs": "^7.6.5"
+    "protobufjs": "^7.6.5",
+    "qs": "^6.16.0",
+    "browserslist": "^4.28.7"
   },
   "devDependencies": {
     "jest": "^29.7.0",

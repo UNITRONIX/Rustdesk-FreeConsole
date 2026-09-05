@@ -11,6 +11,8 @@ paths-ignore:
   - betterdesk-server/meshcentral/assets/bettercore.js
   # EJS layout slot; child views escape user data with <%=
   - web-nodejs/views/layouts/main.ejs
+  # Vendored wry cookie read helpers (copy Secure from platform cookies).
+  - rdclient-desktop/vendor/wry/**
 
 query-filters:
   # --- Sanitizer / confinement libraries (validated paths; not user taint) ---
@@ -67,6 +69,27 @@ query-filters:
         # insecure TLS is additionally gated by !release and explicit opt-in.
         - betterdesk-support-agent/apihttp.go
 
+  # --- On-prem TLS opt-in (env / tls_strict UI); default remains strict ---
+  - exclude:
+      id: rust/disabled-certificate-check
+      paths:
+        - betterdesk-agent-client/src-tauri/src/tls.rs
+        - rdclient-desktop/src-tauri/src/server_probe.rs
+
+  # --- Test golden vectors + Tauri handler registration FP (not production secrets) ---
+  - exclude:
+      id: rust/hard-coded-cryptographic-value
+      paths:
+        - betterdesk-desktop/src/crypto.rs
+        - betterdesk-agent-client/src-tauri/src/settings_lock.rs
+        - betterdesk-agent-client/src-tauri/src/lib.rs
+
+  # --- Vendored wry: copies Secure flag from platform cookies (read path) ---
+  - exclude:
+      id: rust/insecure-cookie
+      paths:
+        - rdclient-desktop/vendor/wry/**
+
   # --- Test harness + global cookieParser (routes validate session/auth) ---
   - exclude:
       id: js/missing-token-validation
@@ -76,6 +99,12 @@ query-filters:
 
   - exclude:
       id: js/clear-text-cookie
+      paths:
+        - web-nodejs/tests/**
+
+  # --- Test harness: env vars passed to subprocess, not interpolated into shell ---
+  - exclude:
+      id: js/shell-command-injection-from-environment
       paths:
         - web-nodejs/tests/**
 

@@ -3557,6 +3557,9 @@ function restoreFromBackup(backupName) {
             throw new Error(`Refusing to restore protected runtime path: ${backupFilePath}`);
         }
         if (fs.existsSync(src)) {
+            if (fs.lstatSync(src).isSymbolicLink()) {
+                throw new Error(`Refusing to restore symlink in backup: ${backupFilePath}`);
+            }
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(src, dest);
             restored++;
@@ -3589,6 +3592,9 @@ function restoreFromBackup(backupName) {
         ];
         const meshSource = meshSources.find((candidate) => fs.existsSync(candidate));
         if (meshSource) {
+            if (fs.lstatSync(meshSource).isSymbolicLink()) {
+                throw new Error('Refusing to restore symlink mesh_agent_server.pem from backup');
+            }
             const meshTarget = path.join(rustdeskDir, 'mesh_agent_server.pem');
             fs.mkdirSync(path.dirname(meshTarget), { recursive: true });
             fs.copyFileSync(meshSource, meshTarget);
