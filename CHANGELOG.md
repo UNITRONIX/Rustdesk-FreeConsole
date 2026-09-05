@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.78] — 2026-09-05
+
 ### Fixed
 - **PunchHole empty `socket_addr` → `OFFLINE` (#405):** success-shaped `PunchHoleResponse` paths that still cannot encode a compatibility address now set `Failure: OFFLINE` instead of leaving `failure` unset (proto3 zero = `ID_NOT_EXIST` on stock clients). WS-only peers with a parseable address still use `encodePeerSocketAddr` as before.
 
@@ -3269,3 +3276,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.75]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.74...v3.5.75
 [3.5.76]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.75...v3.5.76
 [3.5.77]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.76...v3.5.77
+[3.5.78]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.77...v3.5.78
