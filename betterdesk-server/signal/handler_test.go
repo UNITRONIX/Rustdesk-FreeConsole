@@ -689,7 +689,7 @@ func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
 
 func TestPanelWebRemoteCanRelayToWSTarget(t *testing.T) {
 	// #397: browser Web Remote arrives as TCP from loopback while the target
-	// may be WebSocket Mode — panel /ws/relay mediates the framing.
+	// may be WebSocket Mode — signal allows negotiation; hbbr mediates framing.
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.localIP.Store("198.51.100.20")
 	putOnlinePeer(srv, "WSTGT397", "203.0.113.97", 52000, peer.ConnWS)

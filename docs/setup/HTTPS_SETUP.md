@@ -465,7 +465,7 @@ See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snipp
 | Server log `TCP forwarding: no conn found for key "…:0"` / `effective=…:0` / relay timeout with WebSocket Mode | Invalid port in proxied WSS session key; PunchHole/RelayResponse not delivered to WS initiator | Update BetterDesk (fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); set `TRUST_PROXY=Y` **and** `TRUSTED_PROXIES=<proxy CIDR>`; confirm Nginx sends `X-Real-IP` / `X-Forwarded-For` as IP-only |
 | Client `Unexpected protobuf msg … union: None` / server `WS read … EOF (uptime=~10ms write_frames=2 peer="")` on WebSocket Mode | Empty keepalive sent on ephemeral WSS `RequestRelay` before `RelayResponse` | Update BetterDesk (residual fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); keep `TRUST_PROXY=Y` + `TRUSTED_PROXIES`; retest WebSocket Mode through the proxy |
 | Log `TRUST_PROXY=Y but TRUSTED_PROXIES is empty` / `effective=` still shows proxy IP | Forwarded headers ignored without allowlist | Set `TRUSTED_PROXIES` to the Nginx/Caddy address (e.g. `127.0.0.1/32`) and restart `betterdesk-server` |
-| Client `Handshake failed: invalid message format` / server `payload too large` on relay between WebSocket Mode and Native Full TLS | Mixed relay transports (WSS `:21119` vs native TCP/TLS `:21117`) — framing is incompatible | Both peers must use the same mode (both WebSocket Mode **or** both native TCP/UDP). Update BetterDesk for clear `Protocol mismatch` refusal ([#290](https://github.com/UNITRONIX/BetterDesk/issues/290)). Note: Docker `ENCRYPTED_ONLY` does not control the Go server — use `TLS_SIGNAL` / `TLS_RELAY` |
+| Client `Handshake failed: invalid message format` / server `payload too large` on relay between WebSocket Mode and Native Full TLS (older builds) | Mixed relay transports without framing translation (WSS `:21119` vs native TCP/TLS `:21117`) | Update BetterDesk: hbbr bridges mixed pairs with BytesCodec↔WS translation ([#397](https://github.com/UNITRONIX/BetterDesk/issues/397)); older builds rejected mixed pairs ([#290](https://github.com/UNITRONIX/BetterDesk/issues/290)). Note: Docker `ENCRYPTED_ONLY` does not control the Go server — use `TLS_SIGNAL` / `TLS_RELAY` |
 
 **Diagnostic commands** (run from the reverse-proxy host):
 
@@ -504,8 +504,20 @@ If the web remote desktop client connects but shows "requesting connection" inde
 
 2. **Verify WebSocket upgrade is working:**
    ```bash
-   # Test panel Web Remote rendezvous path (expects 401 without session — proves panel owns the path)
-   curl -i -N \
+   # Prefer HTTP/1.1 locally — proves panel owns the path (expects 401 without session)
+   curl --http1.1 -i -N \
+     -H "Connection: Upgrade" \
+     -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" \
+     http://127.0.0.1:5000/ws/rendezvous
+   # Expected: HTTP/1.1 401 Unauthorized
+
+   # Through HTTPS proxy: force HTTP/1.1 as well. Plain curl to https://… often
+   # negotiates HTTP/2, which cannot Upgrade — Caddy/Nginx then serves the SPA
+   # (HTTP/2 404 HTML). That is not “wrong path” if the browser already shows 101
+   # on authenticated Web Remote ([#397](https://github.com/UNITRONIX/BetterDesk/issues/397)).
+   curl --http1.1 -i -N \
      -H "Connection: Upgrade" \
      -H "Upgrade: websocket" \
      -H "Sec-WebSocket-Version: 13" \

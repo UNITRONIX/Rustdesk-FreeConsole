@@ -230,7 +230,7 @@ sudo systemctl reload caddy
 
 ## Desktop WebSocket Mode checklist (not server WebSocket-only)
 
-BetterDesk supports RustDesk **desktop WebSocket Mode** (WSS signal/relay). There is **no** server toggle that disables native TCP/UDP listeners — “WS-only” means client settings plus optional firewall/proxy choices. Desktop WSS maturity is in **≥ 3.4.0** (proxy session keys, mixed-transport reject, full WS relay frames); **3.4.2** fixed Web Remote after the enrollment gate, not desktop WS-only. FAQ: [#344](https://github.com/UNITRONIX/BetterDesk/issues/344).
+BetterDesk supports RustDesk **desktop WebSocket Mode** (WSS signal/relay). There is **no** server toggle that disables native TCP/UDP listeners — “WS-only” means client settings plus optional firewall/proxy choices. Desktop WSS maturity is in **≥ 3.4.0** (proxy session keys, full WS relay frames); hbbr bridges mixed TCP↔WS for Web Remote → WS Mode ([#397](https://github.com/UNITRONIX/BetterDesk/issues/397)). **3.4.2** fixed Web Remote after the enrollment gate, not desktop WS-only. FAQ: [#344](https://github.com/UNITRONIX/BetterDesk/issues/344).
 
 ### Two stacks — do not mix
 
@@ -246,7 +246,7 @@ Never route `/ws/rendezvous` to Go. On **one hostname**, `/ws/relay` cannot clea
 1. **Client:** WebSocket Mode on; ID host is an HTTPS domain so the client builds **`wss://`**. Do not put `ws://…/ws/id` in the ID field (Caddy auto-HTTPS → HTTP **308** — [#294](https://github.com/UNITRONIX/BetterDesk/issues/294)).
 2. **Proxy:** `/ws/id` → `:21118`. For desktop relay WSS, `/ws/relay` → `:21119` only when Web Remote is not on that vhost (or use a second hostname).
 3. **Go env:** `TRUST_PROXY=Y` and `TRUSTED_PROXIES=<proxy CIDR>`; `X-Real-IP` / `X-Forwarded-For` as **IP-only** ([#276](https://github.com/UNITRONIX/BetterDesk/issues/276), [#294](https://github.com/UNITRONIX/BetterDesk/issues/294)).
-4. **Homogeneous transport:** both peers must use WebSocket Mode for relay — mixed WSS (`:21119`) + native TCP/TLS (`:21117`) is rejected ([#290](https://github.com/UNITRONIX/BetterDesk/issues/290)).
+4. **Homogeneous transport (desktop↔desktop):** both peers should use the same mode for best results. Mixed WSS (`:21119`) + native TCP/TLS (`:21117`) is bridged by hbbr with BytesCodec↔WS translation for Web Remote → WS Mode ([#397](https://github.com/UNITRONIX/BetterDesk/issues/397)); older builds rejected mixed pairs ([#290](https://github.com/UNITRONIX/BetterDesk/issues/290)).
 5. **Optional hardening:** firewall WAN `21116` TCP/UDP and `21117` if you want traffic only on 443 WSS — BetterDesk does **not** enforce this.
 6. **Config gap:** panel key/generator TOML does **not** emit `allow-websocket` — set it in a custom client build or manually.
 
@@ -369,15 +369,23 @@ curl -sI https://console.example.com/ | head -5
 # Panel locally (should work after reverse-proxy mode)
 curl -sI http://127.0.0.1:5000/ | head -5
 
+# Web Remote path ownership — use HTTP/1.1 (HTTP/2 cannot Upgrade → SPA 404 HTML)
+curl --http1.1 -i -N \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  http://127.0.0.1:5000/ws/rendezvous
+# Expected: HTTP/1.1 401 Unauthorized (panel owns path; no session)
+
 # Console WebSocket upgrade
-curl -i -N \
+curl --http1.1 -i -N \
   -H "Connection: Upgrade" -H "Upgrade: websocket" \
   -H "Sec-WebSocket-Version: 13" \
   -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
   https://console.example.com/ws/bd-signal
 
 # RustDesk WSS (when configured)
-curl -i -N \
+curl --http1.1 -i -N \
   -H "Connection: Upgrade" -H "Upgrade: websocket" \
   -H "Sec-WebSocket-Version: 13" \
   -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \

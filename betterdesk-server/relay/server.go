@@ -131,7 +131,8 @@ var (
 
 // relayTransport identifies how a peer reached the relay (framing differs).
 // TCP uses RustDesk BytesCodec; WebSocket uses one raw protobuf per binary frame.
-// Mixing them after UUID pairing corrupts the E2E handshake (#290).
+// Mixed pairs are bridged with message-aware translation (#397); naive io.Copy
+// between them corrupts the E2E handshake (#290).
 type relayTransport string
 
 const (
@@ -394,17 +395,26 @@ func (s *Server) handleConn(conn net.Conn) {
 // pairIncomingConn pairs two relay connections sharing the same session UUID.
 // LoadOrStore avoids a race where simultaneous connections both miss LoadAndDelete
 // and overwrite each other in pending without ever pairing.
-// Peers must use the same transport (TCP or WS); mixed framing is rejected (#290).
+// Homogeneous transports use byte/message copy; mixed TCP↔WS uses BytesCodec
+// translation (#397) so Web Remote (TCP proxy) can reach WebSocket Mode peers.
 func (s *Server) pairIncomingConn(pc *pendingConn, uuid string) {
 	if val, loaded := s.pending.LoadOrStore(uuid, pc); loaded {
 		existing := val.(*pendingConn)
 		s.pending.Delete(uuid)
 		close(existing.done)
 		if existing.transport != pc.transport {
-			log.Printf("[relay] Protocol mismatch for UUID %s: %s <-> %s (rejecting mixed WebSocket/native relay)",
-				relayUUIDLogID(uuid), existing.transport, pc.transport)
-			existing.close()
-			pc.close()
+			tcpPC, wsPC := existing, pc
+			if existing.transport == relayTransportWS {
+				tcpPC, wsPC = pc, existing
+			}
+			if tcpPC.conn == nil || wsPC.ws == nil {
+				log.Printf("[relay] Protocol mismatch for UUID %s: %s <-> %s (incomplete mixed pair)",
+					relayUUIDLogID(uuid), existing.transport, pc.transport)
+				existing.close()
+				pc.close()
+				return
+			}
+			s.startMixedRelay(tcpPC.conn, wsPC.ws, tcpPC.remoteAddr(), wsPC.remoteAddr(), uuid)
 			return
 		}
 		if pc.transport == relayTransportWS {

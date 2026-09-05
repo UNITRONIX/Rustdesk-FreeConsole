@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Web Remote → WebSocket Mode relay pairing (#397 follow-up):** hbbr now bridges mixed TCP (`:21117`) ↔ WS (`:21119`) sessions with BytesCodec↔message translation (16 MiB peer-frame cap), so panel Web Remote can complete relay to WS-mode peers. Signal exemption for `panel-web-remote` alone was insufficient — pairing previously failed with `Protocol mismatch … tcp <-> ws`. Ships via Go relay restart / panel update.
+
 ### Changed
 - _(none yet)_
 
@@ -43,7 +46,7 @@
 
 ### Fixed
 - **CGNAT / multi-device same public IP punch auth (#399):** PunchHole now correlates `udp_port` to the initiator's registered NAT-mapped UDP endpoint when several peers share one public IP, and opaque login tokens are matched case-insensitively. Does not restore insecure IP-only identity inheritance (#302). Ships via Go signal restart / panel update.
-- **Web Remote → WebSocket Mode targets (#397):** Panel Web Remote (`panel-web-remote` / loopback proxy) is exempt from the TCP↔WS relay protocol mismatch gate so browser sessions can relay to WS-mode clients through `/ws/relay`.
+- **Web Remote → WebSocket Mode targets (#397):** Panel Web Remote (`panel-web-remote` / loopback proxy) is exempt from the TCP↔WS signal protocol mismatch gate so browser sessions can negotiate relay to WS-mode clients. Full pairing also needs the hbbr BytesCodec↔WS bridge (see Unreleased / later patch).
 - **Docker Support Agent generator missing source (#391):** AIO and console images copy `betterdesk-support-agent` / `betterdesk-agent` (and symlink under `/opt/BetterDeskConsole/agent-source`) so Client Builds no longer fail with `ENOENT` on `agent-source`.
 - **Docker admin credentials file when `ADMIN_PASSWORD` is set (#385):** Bootstrap still writes `/opt/rustdesk/.admin_credentials` on a fresh volume so `betterdesk-show-admin-credentials` matches panel login. Split-volume guard error text now recommends `SQLITE_AUTH_DB_MODE=legacy` before suggesting a wipe.
 - **Native install Go module hang (#371 follow-up):** Module download no longer uses fragile setsid/pidfile waiters; IPv6 stay-disabled wraps a verified `go list -m all`, with `GODEBUG=netdns=go` during the download.

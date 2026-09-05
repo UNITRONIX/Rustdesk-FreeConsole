@@ -1309,9 +1309,9 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		return
 	}
 
-	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
-	// Panel Web Remote bridges browser WSS → native TCP hbbs/hbbr, so it may
-	// talk to WS-mode and native targets alike (#397).
+	// WebSocket Mode and native TCP/UDP cannot share a relay session without
+	// framing translation (#290). Panel Web Remote arrives as TCP from the
+	// loopback proxy (`panel-web-remote`); hbbr mediates BytesCodec↔WS (#397).
 	initiatorType := peer.ConnUDP
 	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
@@ -1484,8 +1484,9 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		}
 	}
 
-	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
-	// Panel Web Remote (loopback proxy) mediates transports via /ws/relay (#397).
+	// WebSocket Mode and native TCP/UDP cannot share a relay session without
+	// framing translation (#290). Panel Web Remote (`panel-web-remote`) is
+	// exempt here; hbbr mediates BytesCodec↔WS (#397).
 	initiatorType := initiatorHint
 	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
