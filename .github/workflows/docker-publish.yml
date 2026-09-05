@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag (empty or latest = push latest + VERSION; else custom tag)'
+        description: 'Image tag (empty or latest = push latest + VERSION; else custom tag). Use tag=dev for amd64-only AIO :dev; use a tip tag such as dev-arm for multi-arch AIO (issue #385 ARM retest).'
         required: false
         default: 'latest'
         type: string
@@ -270,7 +270,8 @@ jobs:
         id: plats
         run: |
           # :dev republish (branch push or dispatch tag=dev): amd64 only.
-          # Full multi-arch on main, tags, release, and other dispatch tags.
+          # Full multi-arch on main, tags, release, and other dispatch tags
+          # (e.g. workflow_dispatch tag=dev-arm for ARM retest — issue #385).
           if { [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/dev" ]; } \
              || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.tag }}" = "dev" ]; }; then
             echo "platforms=linux/amd64" >> "$GITHUB_OUTPUT"

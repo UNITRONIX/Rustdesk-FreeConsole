@@ -88,6 +88,7 @@ services:
       # Do NOT comment these out — ADMIN_PASSWORD on the host shell only reaches
       # the container when referenced here (issue #385).
       #   ADMIN_PASSWORD=YourSecurePassword123 docker compose -f docker-compose.single.yml up -d --build
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
       - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}

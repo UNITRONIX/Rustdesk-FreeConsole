@@ -137,6 +137,7 @@ if [ -n "${INIT_ADMIN_PASS:-}" ] || [ -n "${DEFAULT_ADMIN_PASSWORD:-}" ]; then
     sync_exports
     _env_pass="${INIT_ADMIN_PASS:-$DEFAULT_ADMIN_PASSWORD}"
     if [ -n "$_env_pass" ]; then
+        echo "Bootstrap: INIT_ADMIN_PASS/DEFAULT_ADMIN_PASSWORD set=yes (password not logged)"
         run_as_betterdesk mkdir -p "$CREDS_DIR" 2>/dev/null || true
         if [ ! -f "$CREDS_FILE" ] && ! primary_database_has_users; then
             _creds_content="Admin Username: ${ADMIN_USER}
@@ -152,6 +153,8 @@ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
     fi
     return 0 2>/dev/null || exit 0
 fi
+
+echo "Bootstrap: INIT_ADMIN_PASS/DEFAULT_ADMIN_PASSWORD set=no (will use credentials file or generate)"
 
 run_as_betterdesk mkdir -p "$CREDS_DIR" 2>/dev/null || true
 

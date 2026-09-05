@@ -61,6 +61,8 @@ services:
       - BETTERDESK_DOCKER_LAYOUT=single
       - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.80}
       - AUTH_DB_PATH=/app/data/auth.db
+      # Do NOT comment these out — host ADMIN_PASSWORD only reaches the container when mapped (issue #385).
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
       - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}

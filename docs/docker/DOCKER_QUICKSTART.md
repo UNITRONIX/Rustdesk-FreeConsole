@@ -141,6 +141,23 @@ environment variable on restart will not overwrite the stored password. Use
 the panel password reset flow, or recreate the Docker volumes for a fresh
 install.
 
+Keep the compose `INIT_ADMIN_*` / `DEFAULT_ADMIN_*` / `ADMIN_PASSWORD=${ADMIN_PASSWORD:-}`
+mappings uncommented — otherwise the host shell variable never reaches the
+container (issue #385).
+
+### Image architectures (`:dev` vs ARM)
+
+| Image | `:dev` platforms | Notes |
+|-------|------------------|-------|
+| `ghcr.io/unitronix/betterdesk` (AIO) | **amd64 only** | Multi-arch AIO on `:dev` often hits the GitHub Actions time limit |
+| `betterdesk-server` / `betterdesk-console` | amd64 + arm64 | Prefer [docker-compose.quick.yml](../../docker-compose.quick.yml) on ARM hosts |
+| `betterdesk` `latest` / release tags | amd64 + arm64 | Stable channel |
+
+On **linux/arm64**, use the split quick-start compose, build AIO locally from
+`docker-compose.single.yml`, or pin a multi-arch tip tag (e.g. `dev-arm`) when
+published. Do not expect a fresh `betterdesk:dev` pull to refresh ARM layers
+while AIO `:dev` remains amd64-only.
+
 ### PostgreSQL Instead of SQLite
 
 ```yaml

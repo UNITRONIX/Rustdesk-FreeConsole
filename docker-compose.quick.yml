@@ -60,6 +60,8 @@ services:
       # RustDesk client folders/groups (issue #138). Ignored when DB_URL is postgres://.
       - AUTH_DB_PATH=/app/data/auth.db
       # Admin credentials (first run only; existing users are not overwritten).
+      # Do NOT comment these out — host ADMIN_PASSWORD only reaches the container when mapped (issue #385).
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
       - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
       - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}
@@ -124,6 +126,8 @@ services:
       # - PUBLIC_RELAY_SERVER=gateway.example.net
       # - PUBLIC_API_URL=https://api.example.net:21121
       # Admin credentials (first run only; existing users are not overwritten).
+      # Do NOT comment these out — host ADMIN_PASSWORD only reaches the container when mapped (issue #385).
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - SQLITE_AUTH_DB_MODE=${SQLITE_AUTH_DB_MODE:-}

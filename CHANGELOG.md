@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Docker admin bootstrap clarity (#385 follow-up):** Compose files map `ADMIN_PASSWORD=${ADMIN_PASSWORD:-}` into the container (not only `INIT_ADMIN_*` / `DEFAULT_ADMIN_*`). Bootstrap logs `set=yes|no` without printing the password. Docs note AIO `:dev` is amd64-only — ARM hosts should use split compose, local AIO build, or multi-arch tip tag `dev-arm`.
+
 ### Changed
 - _(none yet)_
 

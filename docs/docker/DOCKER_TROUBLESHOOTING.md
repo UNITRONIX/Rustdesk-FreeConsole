@@ -450,7 +450,9 @@ If no file is found yet, wait for first boot to finish and check `docker compose
 
 **Also common:** wiping only the `/opt/rustdesk` bind mount or volume while keeping `/app/data` (`console-data`). An old `auth.db` forces legacy panel authentication with a stale password hash, while bootstrap regenerates `.admin_credentials` on the rustesk volume. Current `:dev` images fail fast on this split state at container start.
 
-**Also common:** commenting out `INIT_ADMIN_PASS` / `DEFAULT_ADMIN_PASSWORD` in `docker-compose*.yml`. `ADMIN_PASSWORD=… docker compose up -d` on the host only passes the password into the container when those `${ADMIN_PASSWORD}` lines are present in the compose file.
+**Also common:** commenting out `INIT_ADMIN_PASS` / `DEFAULT_ADMIN_PASSWORD` / `ADMIN_PASSWORD` in `docker-compose*.yml`. `ADMIN_PASSWORD=… docker compose up -d` on the host only passes the password into the container when those `${ADMIN_PASSWORD}` lines are present in the compose file.
+
+**Also common on ARM64:** the all-in-one image tag `ghcr.io/unitronix/betterdesk:dev` is published as **amd64-only**. Hosts running `linux/arm64` keep an older cached AIO layer (or fail to refresh), while `betterdesk-server` / `betterdesk-console` stay multi-arch. Prefer [docker-compose.quick.yml](../../docker-compose.quick.yml), build AIO locally, or use a multi-arch tip tag such as `dev-arm` when published.
 
 **Workaround (existing broken install):**
 
@@ -466,7 +468,7 @@ ADMIN_PASSWORD='YourSecurePassword123' docker compose up -d
 
 Do not delete only the `/opt/rustdesk` bind mount while keeping `console-data`: that is not a clean reset. Do not use a credentials file to overwrite an existing user's password; use the normal password-reset procedure instead.
 
-**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). The split entrypoints elect one creator for the shared credentials file and both services reuse it. Setting `ADMIN_PASSWORD` before first start remains the deterministic option — keep the `INIT_ADMIN_*` / `DEFAULT_ADMIN_*` env mappings in your compose file.
+**Fix:** Pull/rebuild current `:dev` images (or wait for the next GHCR tag). On ARM64 prefer the split layout images. The split entrypoints elect one creator for the shared credentials file and both services reuse it. Setting `ADMIN_PASSWORD` before first start remains the deterministic option — keep the `INIT_ADMIN_*` / `DEFAULT_ADMIN_*` / `ADMIN_PASSWORD` env mappings in your compose file. Check `docker logs` for `Bootstrap: INIT_ADMIN_PASS/DEFAULT_ADMIN_PASSWORD set=yes|no` (password itself is never logged).
 
 ### Problem: `betterdesk-show-admin-credentials: executable file not found`
 
