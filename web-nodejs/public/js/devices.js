@@ -281,6 +281,15 @@
             closeContextMenu();
             updateTableHScroll();
         });
+
+        // Dedicated backdrop dismiss (phone bottom-sheet); do not rely only on document click
+        const overlay = document.getElementById('kebab-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', (e) => {
+                e.preventDefault();
+                closeAllKebabMenus();
+            });
+        }
     }
 
     function closeAllKebabMenus() {
@@ -291,6 +300,34 @@
         });
         const overlay = document.getElementById('kebab-overlay');
         if (overlay) overlay.classList.remove('open');
+    }
+
+    /** Phone bottom-sheet overlay CSS only applies at ≤600px */
+    function useKebabOverlay() {
+        return window.innerWidth <= 600;
+    }
+
+    /** Touch / mobile shell: avoid HTML5 drag stealing taps (#410) */
+    function shouldDisableRowDrag() {
+        if (document.body.classList.contains('is-mobile-shell')) return true;
+        if (window.DeviceCapabilities && window.DeviceCapabilities.isTouch()) return true;
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+        return false;
+    }
+
+    /** Prefer single-tap detail on touch / mobile shell; desktop keeps dblclick */
+    function preferSingleTapDetail() {
+        return shouldDisableRowDrag();
+    }
+
+    /** Floating hscroll conflicts with bottom nav on touch + Desktop-site widths */
+    function shouldHideHScrollFloat() {
+        if (window.innerWidth <= 600) return true;
+        if (!document.body.classList.contains('is-mobile-shell')) return false;
+        if (document.body.classList.contains('is-touch')) return true;
+        if (window.DeviceCapabilities && window.DeviceCapabilities.isTouch()) return true;
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+        return false;
     }
 
     function buildDeviceMenuItemsHtml(device) {
@@ -572,6 +609,11 @@
         const tableContainer = document.querySelector('.devices-table-container');
         const mainContent = document.querySelector('.main-content');
         if (!table || !tableContainer) return;
+
+        if (shouldHideHScrollFloat()) {
+            hScrollFloatEl.classList.remove('visible');
+            return;
+        }
 
         const scrollWidth = table.scrollWidth;
         const clientWidth = tableScrollEl.clientWidth;
@@ -896,8 +938,9 @@
             const eid = Utils.escapeHtml(device.id);
             const statusInfo = deviceStatusInfo(device);
             const sc = statusInfo.className;
+            const rowDraggable = (!device.soft_deleted && !shouldDisableRowDrag()) ? 'true' : 'false';
             return `
-            <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}${device.soft_deleted ? ' deleted-row' : ''}" draggable="${device.soft_deleted ? 'false' : 'true'}">
+            <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}${device.soft_deleted ? ' deleted-row' : ''}" draggable="${rowDraggable}">
                 <td data-column="id">
                     <div class="device-id">
                         <span class="device-status-dot ${sc}"></span>
@@ -975,8 +1018,11 @@
                 if (!wasOpen) {
                     menu.classList.add('open');
                     positionKebabMenu(btn, menu);
-                    const overlay = document.getElementById('kebab-overlay');
-                    if (overlay) overlay.classList.add('open');
+                    // Overlay styles only exist at ≤600px — do not leave a ghost .open class wider
+                    if (useKebabOverlay()) {
+                        const overlay = document.getElementById('kebab-overlay');
+                        if (overlay) overlay.classList.add('open');
+                    }
                 }
             });
         });
@@ -994,16 +1040,20 @@
             });
         });
 
-        // Double-click row to open device detail panel
+        function openRowDetail(e, row) {
+            if (e.target.closest('.kebab-wrapper') || e.target.closest('.copy-btn')) return;
+            const deviceId = row.dataset.id;
+            if (deviceId && typeof DeviceDetail !== 'undefined') {
+                DeviceDetail.open(deviceId);
+            }
+        }
+
+        // Touch / mobile: single tap opens detail; desktop keeps double-click
         tableBody.querySelectorAll('tr[data-id]').forEach(row => {
-            row.addEventListener('dblclick', (e) => {
-                // Ignore double-click on kebab menu and copy button
-                if (e.target.closest('.kebab-wrapper') || e.target.closest('.copy-btn')) return;
-                const deviceId = row.dataset.id;
-                if (deviceId && typeof DeviceDetail !== 'undefined') {
-                    DeviceDetail.open(deviceId);
-                }
-            });
+            if (preferSingleTapDetail()) {
+                row.addEventListener('click', (e) => openRowDetail(e, row));
+            }
+            row.addEventListener('dblclick', (e) => openRowDetail(e, row));
         });
     }
     
@@ -3276,6 +3326,10 @@
 
         // Handle drag start on rows
         tableBody?.addEventListener('dragstart', (e) => {
+            if (shouldDisableRowDrag()) {
+                e.preventDefault();
+                return;
+            }
             const row = e.target.closest('tr');
             if (!row) return;
             

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Devices mobile taps blocked (#410):** Sticky folders/groups/strategies no longer cover the device list on phones; kebab backdrop closes on tap and only opens at ≤600px; row HTML5 drag is off on touch/mobile shell; single-tap opens device detail; floating horizontal scrollbar is hidden on touch + mobile-shell (Desktop site). Verify: phone Chrome classic + UX 3.5 → sync/filters/kebab/row detail respond; open/close kebab without a dead full-screen overlay.
+
 ### Changed
 - _(none yet)_
 
