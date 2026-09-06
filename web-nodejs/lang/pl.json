@@ -79,7 +79,8 @@
         "server_management": "Zarządzanie serwerem",
         "server_attestation": "Atest serwera",
         "commercialization": "Komercjalizacja",
-        "remote_open_tab": "Otwórz klienta pulpitu zdalnego w nowej karcie"
+        "remote_open_tab": "Otwórz klienta pulpitu zdalnego w nowej karcie",
+        "client_branding": "Branding klienta"
     },
     "auth": {
         "login": "Zaloguj",
@@ -4315,5 +4316,28 @@
             "link_sponsors_md": "Pełna lista sponsorów",
             "close": "Zamknij"
         }
+    },
+    "client_branding": {
+        "subtitle": "White-label dla klientów desktop BetterDesk i kompatybilny podzbiór dla RustDesk.",
+        "form_title": "Profil Client Branding",
+        "hint": "Zapis trafia na serwer BetterDesk (Go). Klienci BetterDesk pobierają pełny branding automatycznie; stock RustDesk dostaje tylko bezpieczny podzbiór przez heartbeat.",
+        "company_name": "Nazwa firmy",
+        "support_contact": "Kontakt wsparcia",
+        "phone": "Telefon",
+        "email": "E-mail",
+        "website": "Strona WWW",
+        "accent_color": "Kolor akcentu",
+        "logo": "Logo",
+        "logo_hint": "PNG, JPEG lub WebP, max 512 KiB.",
+        "clear_logo": "Usuń logo",
+        "preview_betterdesk": "Podgląd BetterDesk",
+        "preview_rustdesk": "Podzbiór RustDesk (heartbeat)",
+        "preview_rustdesk_hint": "Stock RustDesk nie woła /api/branding — te opcje idą w strategy.config_options.",
+        "revision": "Rewizja",
+        "saved": "Branding klienta zapisany",
+        "save_failed": "Nie udało się zapisać brandingu",
+        "load_failed": "Nie udało się wczytać brandingu",
+        "logo_too_large": "Logo może mieć co najwyżej 512 KiB",
+        "logo_invalid": "Nieprawidłowy format logo"
     }
 }

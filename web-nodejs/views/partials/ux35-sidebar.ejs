@@ -27,6 +27,12 @@
                 <span class="ux35-sidebar-item-badge" id="reg-sidebar-badge" style="display: none;">0</span>
             </a>
             <% } %>
+            <% if (hasPermission('branding.edit')) { %>
+            <a href="/client-branding" class="ux35-sidebar-item <%= currentPage === 'client-branding' ? 'active' : '' %>">
+                <span class="material-icons">branding_watermark</span>
+                <span><%= _('nav.client_branding') %></span>
+            </a>
+            <% } %>
         </div>
 
         <!-- Management -->

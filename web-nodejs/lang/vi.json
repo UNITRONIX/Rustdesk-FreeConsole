@@ -85,7 +85,8 @@
         "server_management": "Quản lý máy chủ",
         "server_attestation": "Chứng nhận máy chủ",
         "commercialization": "Thương mại hóa",
-        "remote_open_tab": "Mở client máy tính để bàn từ xa trong tab mới"
+        "remote_open_tab": "Mở client máy tính để bàn từ xa trong tab mới",
+        "client_branding": "Client Branding"
     },
     "auth": {
         "login": "Login",
@@ -4321,5 +4322,28 @@
             "link_sponsors_md": "Danh sách nhà tài trợ đầy đủ",
             "close": "Đóng"
         }
+    },
+    "client_branding": {
+        "subtitle": "White-label for BetterDesk desktop clients and a compatible subset for RustDesk.",
+        "form_title": "Client Branding profile",
+        "hint": "Saved to the BetterDesk (Go) server. BetterDesk clients fetch full branding automatically; stock RustDesk receives only a safe subset via heartbeat.",
+        "company_name": "Company name",
+        "support_contact": "Support contact",
+        "phone": "Phone",
+        "email": "Email",
+        "website": "Website",
+        "accent_color": "Accent color",
+        "logo": "Logo",
+        "logo_hint": "PNG, JPEG, or WebP, max 512 KiB.",
+        "clear_logo": "Clear logo",
+        "preview_betterdesk": "BetterDesk preview",
+        "preview_rustdesk": "RustDesk subset (heartbeat)",
+        "preview_rustdesk_hint": "Stock RustDesk does not call /api/branding — these options go in strategy.config_options.",
+        "revision": "Revision",
+        "saved": "Client branding saved",
+        "save_failed": "Failed to save branding",
+        "load_failed": "Failed to load branding",
+        "logo_too_large": "Logo must be at most 512 KiB",
+        "logo_invalid": "Invalid logo format"
     }
 }

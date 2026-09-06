@@ -1,0 +1,104 @@
+<%- include('layouts/main', {
+    title: _('nav.client_branding'),
+    pageStyles: ['pages', 'client-branding'],
+    pageScripts: ['client-branding'],
+    currentPage: 'client-branding',
+    breadcrumb: [{ label: _('nav.client_branding') }],
+    body: `
+        <div class="page-header">
+            <h1 class="page-title">
+                <span class="material-icons">branding_watermark</span>
+                ${_('nav.client_branding')}
+            </h1>
+            <p class="page-subtitle">${_('client_branding.subtitle')}</p>
+        </div>
+
+        <div class="client-branding-layout">
+            <section class="card client-branding-form-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="material-icons">edit</span>
+                        ${_('client_branding.form_title')}
+                    </h2>
+                    <div class="editor-actions">
+                        <span id="cb-revision" class="text-muted text-sm"></span>
+                        <button type="button" id="cb-clear-logo" class="btn btn-secondary btn-sm">
+                            <span class="material-icons">hide_image</span>
+                            ${_('client_branding.clear_logo')}
+                        </button>
+                        <button type="button" id="cb-save" class="btn btn-primary btn-sm">
+                            <span class="material-icons">save</span>
+                            ${_('common.save')}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="settings-row-hint">${_('client_branding.hint')}</p>
+                    <form id="cb-form" class="client-branding-form" autocomplete="off">
+                        <div class="form-grid">
+                            <label class="form-field">
+                                <span>${_('client_branding.company_name')}</span>
+                                <input type="text" id="cb-company" maxlength="256" />
+                            </label>
+                            <label class="form-field">
+                                <span>${_('client_branding.support_contact')}</span>
+                                <input type="text" id="cb-support" maxlength="256" />
+                            </label>
+                            <label class="form-field">
+                                <span>${_('client_branding.phone')}</span>
+                                <input type="text" id="cb-phone" maxlength="256" />
+                            </label>
+                            <label class="form-field">
+                                <span>${_('client_branding.email')}</span>
+                                <input type="email" id="cb-email" maxlength="256" />
+                            </label>
+                            <label class="form-field form-field-wide">
+                                <span>${_('client_branding.website')}</span>
+                                <input type="url" id="cb-website" maxlength="512" placeholder="https://" />
+                            </label>
+                            <label class="form-field">
+                                <span>${_('client_branding.accent_color')}</span>
+                                <div class="color-row">
+                                    <input type="color" id="cb-accent-picker" value="#4f6ef7" />
+                                    <input type="text" id="cb-accent" maxlength="7" pattern="^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$" />
+                                </div>
+                            </label>
+                            <label class="form-field form-field-wide">
+                                <span>${_('client_branding.logo')}</span>
+                                <input type="file" id="cb-logo-file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
+                                <span class="field-hint">${_('client_branding.logo_hint')}</span>
+                            </label>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <aside class="client-branding-previews">
+                <section class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">${_('client_branding.preview_betterdesk')}</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="cb-preview-bd" class="cb-preview-pane cb-preview-bd">
+                            <div class="cb-preview-logo-wrap">
+                                <img id="cb-preview-logo" alt="" hidden />
+                                <span id="cb-preview-logo-fallback" class="material-icons">business</span>
+                            </div>
+                            <div id="cb-preview-company" class="cb-preview-company">BetterDesk</div>
+                            <div id="cb-preview-contact" class="cb-preview-contact"></div>
+                        </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">${_('client_branding.preview_rustdesk')}</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="settings-row-hint">${_('client_branding.preview_rustdesk_hint')}</p>
+                        <pre id="cb-preview-rd" class="cb-preview-code">{}</pre>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    `
+}) %>

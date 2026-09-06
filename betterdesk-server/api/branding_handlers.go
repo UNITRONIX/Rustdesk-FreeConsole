@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
@@ -18,13 +20,51 @@ import (
 //  Branding configuration — served to desktop clients (public, no auth)
 // ---------------------------------------------------------------------------
 
+const (
+	brandingSchemaVersion = 1
+	brandingMaxFieldLen   = 256
+	brandingMaxWebsiteLen = 512
+	brandingMaxLogoBytes = 512 * 1024
+)
+
+// BrandingLogo is an optional image payload for BetterDesk desktop clients.
+type BrandingLogo struct {
+	Mime        string `json:"mime,omitempty"`
+	DataBase64  string `json:"data_base64,omitempty"`
+	URL         string `json:"url,omitempty"`
+}
+
+// BrandingBetterDeskProfile lists fields BetterDesk clients should apply.
+type BrandingBetterDeskProfile struct {
+	Apply []string `json:"apply"`
+}
+
+// BrandingRustDeskProfile is the heartbeat-safe subset for stock RustDesk.
+type BrandingRustDeskProfile struct {
+	ConfigOptions map[string]string `json:"config_options,omitempty"`
+}
+
+// BrandingProfiles separates BetterDesk-rich and RustDesk-compatible projections.
+type BrandingProfiles struct {
+	BetterDesk BrandingBetterDeskProfile `json:"betterdesk"`
+	RustDesk   BrandingRustDeskProfile   `json:"rustdesk"`
+}
+
 // BrandingConfig is the payload returned by GET /api/branding.
 // Desktop clients fetch this to apply company theming.
+// Legacy fields are preserved for older clients / enrollment payloads.
 type BrandingConfig struct {
+	SchemaVersion  int               `json:"schema_version"`
+	Revision       string            `json:"revision"`
 	CompanyName    string            `json:"company_name"`
+	Phone          string            `json:"phone,omitempty"`
+	Email          string            `json:"email,omitempty"`
+	Website        string            `json:"website,omitempty"`
 	AccentColor    string            `json:"accent_color"`
 	SupportContact string            `json:"support_contact"`
+	Logo           *BrandingLogo     `json:"logo,omitempty"`
 	Colors         map[string]string `json:"colors,omitempty"`
+	Profiles       BrandingProfiles  `json:"profiles"`
 	SyncModes      []SyncModeOption  `json:"sync_modes"`
 }
 
@@ -41,20 +81,50 @@ var defaultSyncModes = []SyncModeOption{
 	{ID: "turbo", Label: "Turbo", Description: "Aggressive — 10s telemetry, 1min disk, 30min software"},
 }
 
-// handleGetBranding returns the branding configuration.
-// Public endpoint — no authentication required.
-// GET /api/branding
-func (s *Server) handleGetBranding(w http.ResponseWriter, r *http.Request) {
+var (
+	accentColorRegexp = regexp.MustCompile(`(?i)^#([0-9a-f]{6}|[0-9a-f]{3})$`)
+	allowedLogoMimes  = map[string]bool{
+		"image/png":  true,
+		"image/jpeg": true,
+		"image/jpg":  true,
+		"image/webp": true,
+	}
+)
+
+func defaultBetterDeskApply() []string {
+	return []string{"company_name", "phone", "email", "website", "logo", "accent_color"}
+}
+
+// loadBrandingConfig reads Client Branding from server_config with safe defaults.
+func (s *Server) loadBrandingConfig() BrandingConfig {
 	cfg := BrandingConfig{
+		SchemaVersion:  brandingSchemaVersion,
+		Revision:       "0",
 		CompanyName:    "BetterDesk",
 		AccentColor:    "#4f6ef7",
 		SupportContact: "",
 		SyncModes:      defaultSyncModes,
+		Profiles: BrandingProfiles{
+			BetterDesk: BrandingBetterDeskProfile{Apply: defaultBetterDeskApply()},
+			RustDesk:   BrandingRustDeskProfile{ConfigOptions: map[string]string{}},
+		},
 	}
 
-	// Load overrides from server_config
+	if s == nil || s.db == nil {
+		return cfg
+	}
+
 	if v, err := s.db.GetConfig("branding_company_name"); err == nil && v != "" {
 		cfg.CompanyName = v
+	}
+	if v, err := s.db.GetConfig("branding_phone"); err == nil && v != "" {
+		cfg.Phone = v
+	}
+	if v, err := s.db.GetConfig("branding_email"); err == nil && v != "" {
+		cfg.Email = v
+	}
+	if v, err := s.db.GetConfig("branding_website"); err == nil && v != "" {
+		cfg.Website = v
 	}
 	if v, err := s.db.GetConfig("branding_accent_color"); err == nil && v != "" {
 		cfg.AccentColor = v
@@ -68,7 +138,116 @@ func (s *Server) handleGetBranding(w http.ResponseWriter, r *http.Request) {
 			cfg.Colors = colors
 		}
 	}
+	if v, err := s.db.GetConfig("branding_logo"); err == nil && v != "" {
+		var logo BrandingLogo
+		if json.Unmarshal([]byte(v), &logo) == nil && (logo.DataBase64 != "" || logo.URL != "") {
+			cfg.Logo = &logo
+		}
+	}
+	if v, err := s.db.GetConfig("branding_revision"); err == nil && v != "" {
+		cfg.Revision = v
+	}
 
+	cfg.Profiles.RustDesk.ConfigOptions = rustDeskConfigOptionsFromBranding(cfg)
+	return cfg
+}
+
+func rustDeskConfigOptionsFromBranding(cfg BrandingConfig) map[string]string {
+	out := map[string]string{}
+	name := strings.TrimSpace(cfg.CompanyName)
+	if name != "" && !strings.EqualFold(name, "BetterDesk") {
+		out["display-name"] = name
+	}
+	return out
+}
+
+func brandingRevisionMillis(cfg BrandingConfig) int64 {
+	if cfg.Revision == "" || cfg.Revision == "0" {
+		return 0
+	}
+	if ms, err := strconv.ParseInt(cfg.Revision, 10, 64); err == nil {
+		return ms
+	}
+	return 0
+}
+
+func stripHTMLLike(s string) string {
+	s = strings.ReplaceAll(s, "<", "")
+	s = strings.ReplaceAll(s, ">", "")
+	return strings.TrimSpace(s)
+}
+
+func validateAccentColor(color string) error {
+	color = strings.TrimSpace(color)
+	if color == "" {
+		return nil
+	}
+	if !accentColorRegexp.MatchString(color) {
+		return fmt.Errorf("accent_color must be #RGB or #RRGGBB")
+	}
+	return nil
+}
+
+func validateBrandingLogo(logo *BrandingLogo) error {
+	if logo == nil {
+		return nil
+	}
+	logo.Mime = strings.ToLower(strings.TrimSpace(logo.Mime))
+	logo.DataBase64 = strings.TrimSpace(logo.DataBase64)
+	logo.URL = strings.TrimSpace(logo.URL)
+
+	if logo.DataBase64 == "" && logo.URL == "" {
+		return nil
+	}
+	if logo.DataBase64 != "" {
+		if logo.Mime == "" {
+			return fmt.Errorf("logo.mime is required with data_base64")
+		}
+		if !allowedLogoMimes[logo.Mime] {
+			return fmt.Errorf("logo.mime must be image/png, image/jpeg, or image/webp")
+		}
+		raw, err := base64.StdEncoding.DecodeString(logo.DataBase64)
+		if err != nil {
+			// Accept URL-safe / raw without padding variants used by browsers.
+			raw, err = base64.RawStdEncoding.DecodeString(logo.DataBase64)
+			if err != nil {
+				return fmt.Errorf("logo.data_base64 is invalid")
+			}
+		}
+		if len(raw) == 0 || len(raw) > brandingMaxLogoBytes {
+			return fmt.Errorf("logo must be between 1 byte and 512 KiB")
+		}
+		logo.URL = "" // prefer embedded payload when both present
+	}
+	if logo.URL != "" {
+		lower := strings.ToLower(logo.URL)
+		if !strings.HasPrefix(lower, "https://") && !strings.HasPrefix(lower, "http://") {
+			return fmt.Errorf("logo.url must be http(s)")
+		}
+		if strings.ContainsAny(logo.URL, "<>\"'") {
+			return fmt.Errorf("logo.url contains invalid characters")
+		}
+		if utf8.RuneCountInString(logo.URL) > brandingMaxWebsiteLen {
+			return fmt.Errorf("logo.url is too long")
+		}
+	}
+	return nil
+}
+
+func clipBrandingField(s string, max int) string {
+	s = stripHTMLLike(s)
+	if utf8.RuneCountInString(s) <= max {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:max])
+}
+
+// handleGetBranding returns the branding configuration.
+// Public endpoint — no authentication required.
+// GET /api/branding
+func (s *Server) handleGetBranding(w http.ResponseWriter, r *http.Request) {
+	cfg := s.loadBrandingConfig()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(cfg)
 }
@@ -78,36 +257,89 @@ func (s *Server) handleGetBranding(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSaveBranding(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CompanyName    *string           `json:"company_name"`
+		Phone          *string           `json:"phone"`
+		Email          *string           `json:"email"`
+		Website        *string           `json:"website"`
 		AccentColor    *string           `json:"accent_color"`
 		SupportContact *string           `json:"support_contact"`
 		Colors         map[string]string `json:"colors"`
+		Logo           *BrandingLogo     `json:"logo"`
+		ClearLogo      *bool             `json:"clear_logo"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
+	if req.AccentColor != nil {
+		if err := validateAccentColor(*req.AccentColor); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if req.Logo != nil {
+		if err := validateBrandingLogo(req.Logo); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	if req.CompanyName != nil {
-		s.db.SetConfig("branding_company_name", *req.CompanyName)
+		s.db.SetConfig("branding_company_name", clipBrandingField(*req.CompanyName, brandingMaxFieldLen))
+	}
+	if req.Phone != nil {
+		s.db.SetConfig("branding_phone", clipBrandingField(*req.Phone, brandingMaxFieldLen))
+	}
+	if req.Email != nil {
+		s.db.SetConfig("branding_email", clipBrandingField(*req.Email, brandingMaxFieldLen))
+	}
+	if req.Website != nil {
+		s.db.SetConfig("branding_website", clipBrandingField(*req.Website, brandingMaxWebsiteLen))
 	}
 	if req.AccentColor != nil {
-		s.db.SetConfig("branding_accent_color", *req.AccentColor)
+		s.db.SetConfig("branding_accent_color", strings.TrimSpace(*req.AccentColor))
 	}
 	if req.SupportContact != nil {
-		s.db.SetConfig("branding_support_contact", *req.SupportContact)
+		s.db.SetConfig("branding_support_contact", clipBrandingField(*req.SupportContact, brandingMaxFieldLen))
 	}
 	if req.Colors != nil {
-		if data, err := json.Marshal(req.Colors); err == nil {
+		cleaned := make(map[string]string, len(req.Colors))
+		for k, v := range req.Colors {
+			k = clipBrandingField(k, 64)
+			v = clipBrandingField(v, 64)
+			if k == "" {
+				continue
+			}
+			cleaned[k] = v
+		}
+		if data, err := json.Marshal(cleaned); err == nil {
 			s.db.SetConfig("branding_colors", string(data))
 		}
 	}
+	if req.ClearLogo != nil && *req.ClearLogo {
+		_ = s.db.DeleteConfig("branding_logo")
+	} else if req.Logo != nil {
+		if req.Logo.DataBase64 == "" && req.Logo.URL == "" {
+			_ = s.db.DeleteConfig("branding_logo")
+		} else if data, err := json.Marshal(req.Logo); err == nil {
+			s.db.SetConfig("branding_logo", string(data))
+		}
+	}
+
+	revision := strconv.FormatInt(time.Now().UnixMilli(), 10)
+	s.db.SetConfig("branding_revision", revision)
 
 	if s.auditLog != nil {
 		s.auditLog.Log("branding_updated", s.remoteIP(r), getUsernameFromCtx(r), nil)
 	}
 
+	cfg := s.loadBrandingConfig()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"revision": revision,
+		"branding": cfg,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1129,29 +1361,9 @@ func (s *Server) buildEnrollmentResponse(status, deviceID, syncMode, displayName
 		HeartbeatSec: 15,
 	}
 
-	// Inline branding
-	branding := &BrandingConfig{
-		CompanyName:    "BetterDesk",
-		AccentColor:    "#4f6ef7",
-		SupportContact: "",
-		SyncModes:      defaultSyncModes,
-	}
-	if v, _ := s.db.GetConfig("branding_company_name"); v != "" {
-		branding.CompanyName = v
-	}
-	if v, _ := s.db.GetConfig("branding_accent_color"); v != "" {
-		branding.AccentColor = v
-	}
-	if v, _ := s.db.GetConfig("branding_support_contact"); v != "" {
-		branding.SupportContact = v
-	}
-	if v, _ := s.db.GetConfig("branding_colors"); v != "" {
-		var colors map[string]string
-		if json.Unmarshal([]byte(v), &colors) == nil {
-			branding.Colors = colors
-		}
-	}
-	resp.Branding = branding
+	// Inline branding (same source as GET /api/branding)
+	branding := s.loadBrandingConfig()
+	resp.Branding = &branding
 
 	// Server public key
 	if s.keyPair != nil {

@@ -105,6 +105,7 @@ router.use('/', devicesRoutes);
 router.use('/', keysRoutes);
 router.use('/', settingsRoutes);
 router.use('/', generatorRoutes);
+router.use('/', require('./client-branding.routes'));
 router.use('/', usersRoutes);
 router.use('/', foldersRoutes);
 router.use('/', remoteRoutes);

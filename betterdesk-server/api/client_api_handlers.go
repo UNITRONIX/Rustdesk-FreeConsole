@@ -849,27 +849,26 @@ func (s *Server) handleClientGroupPeers(w http.ResponseWriter, r *http.Request) 
 
 // handleClientHeartbeat accepts heartbeat pings from RustDesk clients.
 // POST /api/heartbeat
-// Request:  { "id": "DEVICE_ID", "uuid": "...", "cpu": 42, "memory": 55, "disk": 30 }
-// Response: { "modified_at": "2026-...", "sysinfo": true } (if sysinfo needed)
-//
-//	{ "modified_at": "2026-..." }                   (normal ACK)
+// Request:  { "id": "DEVICE_ID", "uuid": "...", "modified_at": 0, ... }
+// Response: { "modified_at": <i64 ms>, "strategy"?: { "config_options": {...} }, "sysinfo"?: true }
 func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// BD-2026-001: Rate-limit heartbeat requests per IP
 	clientIP := s.remoteIP(r)
 	if !s.heartbeatLimiter.Allow(clientIP) {
-		writeJSON(w, http.StatusOK, map[string]string{"modified_at": time.Now().UTC().Format(time.RFC3339)})
+		writeJSON(w, http.StatusOK, map[string]any{"modified_at": s.clientBrandingModifiedAt()})
 		return
 	}
 
 	var body struct {
-		ID     string  `json:"id"`
-		UUID   string  `json:"uuid"`
-		CPU    float64 `json:"cpu"`
-		Memory float64 `json:"memory"`
-		Disk   float64 `json:"disk"`
+		ID         string  `json:"id"`
+		UUID       string  `json:"uuid"`
+		CPU        float64 `json:"cpu"`
+		Memory     float64 `json:"memory"`
+		Disk       float64 `json:"disk"`
+		ModifiedAt int64   `json:"modified_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusOK, map[string]string{"modified_at": time.Now().UTC().Format(time.RFC3339)})
+		writeJSON(w, http.StatusOK, map[string]any{"modified_at": s.clientBrandingModifiedAt()})
 		return
 	}
 
@@ -878,19 +877,19 @@ func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 		deviceID = body.UUID
 	}
 	if deviceID == "" || !peerIDRegexp.MatchString(deviceID) {
-		writeJSON(w, http.StatusOK, map[string]string{"modified_at": time.Now().UTC().Format(time.RFC3339)})
+		writeJSON(w, http.StatusOK, map[string]any{"modified_at": s.clientBrandingModifiedAt()})
 		return
 	}
 
 	// Verify peer exists
 	peer, err := s.db.GetPeer(deviceID)
 	if err != nil || peer == nil {
-		writeJSON(w, http.StatusOK, map[string]string{"modified_at": time.Now().UTC().Format(time.RFC3339)})
+		writeJSON(w, http.StatusOK, map[string]any{"modified_at": s.clientBrandingModifiedAt()})
 		return
 	}
 
 	if peer.Banned {
-		writeJSON(w, http.StatusOK, map[string]string{"error": "BANNED"})
+		writeJSON(w, http.StatusOK, map[string]any{"error": "BANNED", "modified_at": s.clientBrandingModifiedAt()})
 		return
 	}
 
@@ -907,18 +906,27 @@ func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Request sysinfo if hostname is empty (never received)
-	if peer.Hostname == "" {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"modified_at": time.Now().UTC().Format(time.RFC3339),
-			"sysinfo":     true,
-		})
-		return
+	serverModifiedAt := s.clientBrandingModifiedAt()
+	resp := map[string]any{
+		"modified_at": serverModifiedAt,
 	}
 
-	resp := map[string]any{
-		"modified_at": time.Now().UTC().Format(time.RFC3339),
+	// Request sysinfo if hostname is empty (never received)
+	if peer.Hostname == "" {
+		resp["sysinfo"] = true
 	}
+
+	// Push RustDesk-compatible branding subset when client cursor is stale.
+	if body.ModifiedAt != serverModifiedAt {
+		branding := s.loadBrandingConfig()
+		opts := branding.Profiles.RustDesk.ConfigOptions
+		if len(opts) > 0 {
+			resp["strategy"] = map[string]any{
+				"config_options": opts,
+			}
+		}
+	}
+
 	if policy, err := s.db.GetAccessPolicy(deviceID); err == nil && policy != nil {
 		resp["access_policy"] = map[string]any{
 			"unattended_enabled": policy.UnattendedEnabled,
@@ -927,6 +935,16 @@ func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// clientBrandingModifiedAt returns branding revision as Unix ms for heartbeat cursors.
+func (s *Server) clientBrandingModifiedAt() int64 {
+	cfg := s.loadBrandingConfig()
+	if ms := brandingRevisionMillis(cfg); ms > 0 {
+		return ms
+	}
+	// Stable non-zero when no branding saved yet so clients can latch a cursor.
+	return 1
 }
 
 // handleClientSysinfo receives hardware/software info from RustDesk clients.
