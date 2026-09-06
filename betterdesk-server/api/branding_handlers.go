@@ -878,8 +878,11 @@ func (s *Server) handleApproveDevice(w http.ResponseWriter, r *http.Request) {
 	s.db.SetConfig("device_sync_mode_"+deviceID, syncMode)
 	if req.DisplayName != "" {
 		s.db.SetConfig("device_display_name_"+deviceID, req.DisplayName)
-		// Also update the peer's note field for display
-		s.db.UpdatePeerFields(deviceID, map[string]string{"note": req.DisplayName})
+		// Persist on the peer so Devices list prefers display_name over hostname.
+		s.db.UpdatePeerFields(deviceID, map[string]string{
+			"display_name": req.DisplayName,
+			"note":         req.DisplayName,
+		})
 	}
 
 	// Preserve enrollment-provided tags unless the approving operator supplied

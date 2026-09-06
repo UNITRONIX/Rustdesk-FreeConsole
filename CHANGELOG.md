@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Enrollment approve display name:** Approving a pending device with a custom name now writes `peers.display_name` (not only `note` / config), so the Devices list shows the operator-assigned name instead of the machine hostname.
+
 ### Changed
 - _(none yet)_
 

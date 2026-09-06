@@ -399,6 +399,14 @@ func TestEnrollmentApprovePersistsHistoryAndClearsRejection(t *testing.T) {
 		t.Fatalf("approve: expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 
+	peerRow, err := database.GetPeer(deviceID)
+	if err != nil || peerRow == nil {
+		t.Fatalf("GetPeer after approve: peer=%v err=%v", peerRow, err)
+	}
+	if peerRow.DisplayName != "Approved Host" {
+		t.Fatalf("expected peer display_name %q, got %q", "Approved Host", peerRow.DisplayName)
+	}
+
 	rejected, _ := database.GetConfig(rejectedDevicePrefix + deviceID)
 	if rejected != "" {
 		t.Fatal("approve should clear rejected_device marker")
