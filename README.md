@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-22+-339933.svg)
-![Version](https://img.shields.io/badge/version-3.5.86-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-3.5.87-brightgreen.svg)
 
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-181717?logo=github&logoColor=white&style=flat)](https://github.com/sponsors/UNITRONIX)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-%23FFDD00?logo=buy-me-a-coffee&logoColor=black&style=flat)](https://buymeacoffee.com/unitronix)
