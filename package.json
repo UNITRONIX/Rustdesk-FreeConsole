@@ -3,7 +3,7 @@
     "i18n:check": "node web-nodejs/scripts/i18n-check.js --system web-nodejs"
   },
   "devDependencies": {
-    "vitest": "^3.2.5"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "postcss": "^8.5.23"
