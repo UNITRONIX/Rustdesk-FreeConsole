@@ -32,7 +32,7 @@
 
 services:
   betterdesk:
-    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.5.84}
+    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.5.85}
     container_name: betterdesk
     hostname: betterdesk
     volumes:
@@ -59,7 +59,7 @@ services:
       - PGID=${PGID:-10001}
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=single
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.84}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.5.85}
       - AUTH_DB_PATH=/app/data/auth.db
       # Do NOT comment these out — host ADMIN_PASSWORD only reaches the container when mapped (issue #385).
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
