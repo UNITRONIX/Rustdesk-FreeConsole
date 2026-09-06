@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -284,6 +285,55 @@ func TestParseJWTPayload(t *testing.T) {
 	if claims["preferred_username"] != "john.doe" {
 		t.Errorf("preferred_username = %v, want john.doe", claims["preferred_username"])
 	}
+}
+
+// TestDiscoveryRetryAfterFailure verifies that auto-discovery retries when the
+// IdP is unreachable on the first attempt (#411).
+func TestDiscoveryRetryAfterFailure(t *testing.T) {
+	origInterval := oidcDiscoveryRetryInterval
+	oidcDiscoveryRetryInterval = 40 * time.Millisecond
+	defer func() { oidcDiscoveryRetryInterval = origInterval }()
+
+	var attempts atomic.Int32
+	var srvURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/openid-configuration" {
+			http.NotFound(w, r)
+			return
+		}
+		n := attempts.Add(1)
+		if n == 1 {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"issuer":                 srvURL,
+			"authorization_endpoint": srvURL + "/authorize",
+			"token_endpoint":         srvURL + "/token",
+			"userinfo_endpoint":      srvURL + "/userinfo",
+		})
+	}))
+	defer srv.Close()
+	srvURL = srv.URL
+
+	p := NewOIDCProvider(&OIDCConfig{
+		Enabled:       true,
+		AutoDiscovery: true,
+		IssuerURL:     srv.URL,
+		ClientID:      "test-client",
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if ep := p.getAuthEndpoint(); ep == srv.URL+"/authorize" {
+			if attempts.Load() < 2 {
+				t.Fatalf("expected at least 2 discovery attempts, got %d", attempts.Load())
+			}
+			return
+		}
+		time.Sleep(15 * time.Millisecond)
+	}
+	t.Fatalf("discovery never succeeded (attempts=%d, authEP=%q)", attempts.Load(), p.getAuthEndpoint())
 }
 
 // TestTestOIDCDiscovery verifies the discovery test function.

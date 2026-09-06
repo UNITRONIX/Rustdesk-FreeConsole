@@ -9,6 +9,7 @@
 
 ### Fixed
 - **Devices mobile taps blocked (#410):** Sticky folders/groups/strategies no longer cover the device list on phones; kebab backdrop closes on tap and only opens at ≤600px; row HTML5 drag is off on touch/mobile shell; single-tap opens device detail; floating horizontal scrollbar is hidden on touch + mobile-shell (Desktop site). Verify: phone Chrome classic + UX 3.5 → sync/filters/kebab/row detail respond; open/close kebab without a dead full-screen overlay.
+- **OIDC discovery retry after boot (#411):** When auto-discovery fails because the IdP is unreachable at Go API start, discovery is retried every 2 minutes until it succeeds (no manual OIDC Save/restart required). Verify: start BetterDesk with IdP down → SSO fails; bring IdP up without restarting → within ~2 minutes logs show `Discovery OK` and SSO login works.
 
 ### Changed
 - _(none yet)_

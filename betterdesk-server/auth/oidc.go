@@ -121,9 +121,14 @@ type oidcAuthCode struct {
 	CreatedAt time.Time
 }
 
+// oidcDiscoveryRetryInterval is how often discovery is retried while it has not
+// yet succeeded (IdP unreachable at boot). Overridable in tests.
+var oidcDiscoveryRetryInterval = 2 * time.Minute
+
 // OIDCProvider manages OIDC authentication.
 type OIDCProvider struct {
 	mu            sync.RWMutex
+	discoverMu    sync.Mutex // serializes discover() (boot / UpdateConfig / retry)
 	config        *OIDCConfig
 	discovery     *oidcDiscovery
 	states        map[string]*oidcState         // state → oidcState
@@ -141,9 +146,8 @@ func NewOIDCProvider(cfg *OIDCConfig) *OIDCProvider {
 		clientPending: make(map[string]*ClientOIDCPending),
 		client:        &http.Client{Timeout: 15 * time.Second},
 	}
-	if cfg.Enabled && cfg.AutoDiscovery && cfg.IssuerURL != "" {
-		go p.discover()
-	}
+	// Immediate discover + periodic retry while discovery remains nil (see #411).
+	go p.discoveryRetryLoop()
 	// Start state cleanup goroutine
 	go p.cleanupStates()
 	return p
@@ -187,13 +191,48 @@ func (p *OIDCProvider) GetDisplayName() string {
 	return "SSO"
 }
 
+// needsDiscovery reports whether auto-discovery should still be attempted.
+func (p *OIDCProvider) needsDiscovery() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.config != nil &&
+		p.config.Enabled &&
+		p.config.AutoDiscovery &&
+		p.config.IssuerURL != "" &&
+		p.discovery == nil
+}
+
+// discoveryRetryLoop attempts discovery immediately, then retries on an interval
+// until it succeeds (or OIDC / auto-discovery is disabled). Self-heals when the
+// IdP is unreachable at process start (#411).
+func (p *OIDCProvider) discoveryRetryLoop() {
+	if p.needsDiscovery() {
+		p.discover()
+	}
+	ticker := time.NewTicker(oidcDiscoveryRetryInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if p.needsDiscovery() {
+			p.discover()
+		}
+	}
+}
+
 // discover fetches the OIDC discovery document from issuer_url/.well-known/openid-configuration.
 func (p *OIDCProvider) discover() {
+	p.discoverMu.Lock()
+	defer p.discoverMu.Unlock()
+
 	p.mu.RLock()
-	issuer := p.config.IssuerURL
+	cfg := p.config
+	var issuer string
+	if cfg != nil {
+		issuer = cfg.IssuerURL
+	}
+	enabled := cfg != nil && cfg.Enabled && cfg.AutoDiscovery && issuer != ""
 	p.mu.RUnlock()
 
-	if issuer == "" {
+	if !enabled {
 		return
 	}
 
@@ -223,10 +262,13 @@ func (p *OIDCProvider) discover() {
 	}
 
 	p.mu.Lock()
-	p.discovery = &disc
+	// Apply only if config still matches the issuer we fetched (avoid stale
+	// write racing UpdateConfig).
+	if p.config != nil && p.config.Enabled && p.config.AutoDiscovery && p.config.IssuerURL == issuer {
+		p.discovery = &disc
+		log.Printf("[OIDC] Discovery OK: auth=%s, token=%s", disc.AuthorizationEndpoint, disc.TokenEndpoint)
+	}
 	p.mu.Unlock()
-
-	log.Printf("[OIDC] Discovery OK: auth=%s, token=%s", disc.AuthorizationEndpoint, disc.TokenEndpoint)
 }
 
 // getAuthEndpoint returns the authorization endpoint URL.
