@@ -25,33 +25,33 @@ log = "0.4"
 env_logger = "0.11"
 anyhow = "1"
 thiserror = "2"
-base64 = "0.22"
+base64 = "0.23"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-directories = "5"
-rand = "0.8"
+directories = "6"
+rand = "0.9"
 hostname = "0.4"
-whoami = "1"
-machine-uid = "0.5"
-sysinfo = { version = "0.32", default-features = false, features = ["system", "disk", "network"] }
-reqwest = { version = "0.12", features = ["json", "native-tls"] }
-keyring = "3"
-bcrypt = "0.15"
+whoami = "2"
+machine-uid = "0.6"
+sysinfo = { version = "0.39", default-features = false, features = ["system", "disk", "network"] }
+reqwest = { version = "0.13", features = ["json", "native-tls"] }
+keyring = "4"
+bcrypt = "0.19"
 url = "2"
-sha2 = "0.10"
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+sha2 = "0.11"
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 tokio-native-tls = "0.3"
 native-tls = "0.2"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 crypto_box = { version = "0.9", features = ["std"] }
-portable-pty = "0.8"
+portable-pty = "0.9"
 home = "0.5"
-enigo = "0.2"
+enigo = "0.6"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 arboard = { version = "3", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
+windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_Console",
     "Win32_Security",
