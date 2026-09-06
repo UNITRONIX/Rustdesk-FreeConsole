@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.83] — 2026-09-06
+
 ### Fixed
 - **Enrollment approve display name:** Approving a pending device with a custom name now writes `peers.display_name` (not only `note` / config), so the Devices list shows the operator-assigned name instead of the machine hostname.
 
@@ -3316,3 +3323,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.80]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.79...v3.5.80
 [3.5.81]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.80...v3.5.81
 [3.5.82]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.81...v3.5.82
+[3.5.83]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.82...v3.5.83
