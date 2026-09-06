@@ -1,106 +1,63 @@
-# ⚠️ Alpha Software Notice
+# Alpha software notice
 
-> **Last updated:** 2026-04-15
+> **Last updated:** 2026-09-06 (product line **3.5.x**)
 
-Both the **BetterDesk MGMT Client** and **BetterDesk Agent Client** are in early alpha (v1.0.0). They are under active development and **should not be used in production environments**.
-
----
-
-## Component Readiness Matrix
-
-| Component | Version | Status | Production Use |
-|-----------|---------|--------|----------------|
-| **Go Server** | v2.4.0 | ✅ Stable | ✅ Recommended |
-| **Web Console (Node.js)** | v2.4.0 | ✅ Stable | ✅ Recommended |
-| **Native CDAP Agent (Go)** | v1.0.0 | ✅ Stable | ✅ OK for deployment |
-| **MGMT Client (Tauri)** | v1.0.0-alpha | ⚠️ Alpha | ❌ Do NOT use in production |
-| **Agent Client (Tauri)** | v1.0.0-alpha | ⚠️ Alpha | ❌ Do NOT use in production |
+Some desktop apps in this repo are still alpha. The Go server, web console, stock RustDesk clients, and Support Agent are the production path.
 
 ---
 
-## BetterDesk MGMT Client — Known Limitations
+## What is ready
 
-The MGMT Client is an operator/admin desktop app (Tauri v2 + SolidJS + Rust). The following features are incomplete or unstable:
+| Component | Status | Production |
+|-----------|--------|------------|
+| Go server | Stable (3.5.x) | Yes |
+| Web console (Node.js 22+) | Stable (3.5.x) | Yes |
+| Stock RustDesk client | Stable | Yes |
+| Support Agent (Go / Wails UI) | Production path | Yes — build from [[Client Generator\|Client-Generator]] |
+| Native CDAP agent (Go) | Stable | Yes for headless / IoT |
+| MeshAgent compat layer | Optional (on by default) | Yes if you need it |
+| MGMT Client (Tauri) | Alpha | No |
+| Agent Client (Tauri) | Alpha (prefer Support Agent) | No |
+| Native BetterDesk Desktop (Flutter) | Early | No |
 
-- **Remote desktop** — Basic streaming works but the H.264/VP9 codec pipeline is not stable in all network conditions
-- **Token management** — JWT refresh may fail on long sessions, requiring re-login
-- **Device management** — Bulk actions, advanced filtering, and some context menu operations are not yet implemented
-- **Chat** — E2E encryption is implemented but the connection may drop in certain network scenarios
-- **File transfer** — The UI exists but large file transfer via the binary protocol is incomplete
-- **CDAP integration** — Widget rendering and command execution work but are not fully tested across all device types
-- **Cross-platform** — Only Windows builds (MSI/NSIS) are currently available; Linux and macOS are planned but not yet built
-- **Server panel** — Admin operations work but may not reflect changes in real-time
-
-### What works well
-
-- Server connection and operator authentication (including TOTP 2FA)
-- Device list with live status indicators
-- Help request management (inbox, accept & connect)
-- Server management panel (admin only)
-- Notification center with type filtering
-- mDNS LAN server discovery
-- Session history viewing
+Version numbers move with each release. Check [Releases](https://github.com/UNITRONIX/BetterDesk/releases) or **Settings → Updates** on your panel.
 
 ---
 
-## BetterDesk Agent Client — Known Limitations
+## MGMT Client (Tauri) — alpha
 
-The Agent Client is a lightweight endpoint agent (Tauri v2 + SolidJS + Rust). The following features are incomplete or unstable:
+Operator desktop app. Incomplete remote pipeline, token refresh, bulk actions, file transfer, and cross-platform packaging. Do not deploy as your main admin UI — use the web console.
 
-- **Remote access support** — Screen sharing and remote control input injection are not yet implemented
-- **Administrative automation** — Script execution, policy deployment, and operator-tasked jobs are in early stages
-- **Security hardening** — Mutual auth, certificate pinning, and advanced process hardening are not yet complete
-- **Cross-platform** — Only Windows installer (NSIS) is available; Linux and macOS builds are planned
-- **Service mode** — Background service via NSSM works but may not survive all upgrade scenarios gracefully
-- **Config sync** — Server-pushed configuration updates may not apply until agent restart
+## Agent Client (Tauri) — alpha
 
-### What works well
+Older endpoint app. Prefer **Support Agent** from the Client Generator for inbound support over Web Remote / CDAP.
 
-- Setup wizard with 5-step server validation and registration
-- Device identity generation with OS keyring storage
-- System info collection and heartbeat reporting
-- Tray icon with autostart on login
-- Help request submission (4-state flow)
-- Basic chat with operators
-- Settings panel (connection, privacy, general, about)
+## Native BetterDesk Desktop (Flutter)
+
+Early operator shell added in 3.5.52. Treat as experimental until release notes say otherwise.
 
 ---
 
-## What to Use in Production
+## Production stack
 
-For production environments, the recommended stack is:
-
-1. **BetterDesk Go Server** — Fully production-ready signal/relay/API server
-2. **BetterDesk Web Console (Node.js)** — Stable admin panel with full device management, RBAC, organizations, TOTP 2FA
-3. **Standard RustDesk Client** — For remote desktop connections (fully compatible with BetterDesk server)
-4. **Native CDAP Agent (Go)** *(optional)* — For headless servers and IoT devices that need telemetry and remote commands
-
-This combination provides full functionality without relying on any alpha components.
+1. BetterDesk Go server  
+2. BetterDesk web console  
+3. Stock RustDesk client (1.4.7+ recommended)  
+4. Optional: Support Agent and/or native CDAP agent  
 
 ---
 
-## When Will These Clients Be Production-Ready?
+## Reporting issues
 
-There is no fixed timeline. Both clients are being actively developed. Progress is tracked in the [GitHub Issues](https://github.com/UNITRONIX/BetterDesk/issues) and the project's `copilot-instructions.md` changelog.
+Include: component name, OS, steps, logs (redact secrets), and panel/server version from Settings → Updates.
 
-When the clients reach **beta** status, this notice will be updated accordingly.
-
----
-
-## Reporting Issues
-
-If you test the alpha clients and encounter bugs, please report via [GitHub Issues](https://github.com/UNITRONIX/BetterDesk/issues) with:
-
-- Client name and version (e.g., "MGMT Client 1.0.0-alpha")
-- Operating system and version
-- Steps to reproduce the issue
-- Screenshots or error logs
-- Server version (Go server + Node.js console)
+- [GitHub Issues](https://github.com/UNITRONIX/BetterDesk/issues)
 
 ---
 
 ## See also
 
-- [[Desktop Clients|Desktop-Clients]] — component comparison
-- [[Web Console|Web-Console]] — stable production alternative
-- [[Home]] — production vs alpha table
+- [[Desktop Clients|Desktop-Clients]]
+- [[Web Console|Web-Console]]
+- [[Client Generator|Client-Generator]]
+- [[Home]]

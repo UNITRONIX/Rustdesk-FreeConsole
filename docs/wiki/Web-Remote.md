@@ -1,26 +1,22 @@
 # Web Remote Desktop
 
-BetterDesk includes a browser-based remote desktop client accessible from the web console.
+Browser remote from the web console — no separate desktop app required. Prefer **HTTPS** so WebCodecs (VP9/AV1) work; plain HTTP falls back to H.264 with lower performance.
+
+**For operators:** open a device → Connect (or Support Agent Web Remote) → enter password → use quality presets / recording as needed. If the target is in WebSocket mode, use a current 3.5.x relay (TCP↔WS bridge).
+
+**For developers:** codec / input notes further down.
 
 ---
 
-## Overview
-
-The web remote client connects to RustDesk peers directly from the browser, with no client installation needed. It supports:
+## Features
 
 | Feature | HTTPS | HTTP |
 |---------|-------|------|
 | Video codec | VP9, H.264, AV1, VP8 (WebCodecs) | H.264 only (JMuxer fallback) |
-| Max FPS | 60 fps | 30 fps |
-| Audio | ✅ Opus | ✅ Opus |
-| Keyboard | ✅ Full (incl. modifiers, F-keys) | ✅ Full |
-| Mouse | ✅ Click, right-click, scroll, drag | ✅ Click, right-click, scroll, drag |
-| Clipboard | ✅ Bidirectional | ✅ Bidirectional |
-| Session recording | ✅ WebM VP9+Opus | ✅ WebM VP9+Opus |
-| Monitor switching | ✅ | ✅ |
-| Quality presets | ✅ 4 presets | ✅ 4 presets |
-
-> **Note:** HTTPS is strongly recommended. WebCodecs API (VP9/AV1) is only available on secure origins. HTTP falls back to JMuxer (H.264 only) with lower performance.
+| Max FPS | 60 | 30 |
+| Audio / keyboard / mouse / clipboard | Yes | Yes |
+| Session recording | WebM VP9+Opus | WebM VP9+Opus |
+| Monitor switching / quality presets | Yes | Yes |
 
 ---
 

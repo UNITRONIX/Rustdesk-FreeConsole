@@ -51,7 +51,7 @@ This has been fixed. Signal handlers now check `IsPeerSoftDeleted()` — deleted
 
 | Cause | Solution |
 |-------|----------|
-| Empty UUID in relay | Update Go server (fixed in Phase 19/23) |
+| Empty UUID in relay | Update Go server to current 3.5.x |
 | Private IP detected | Set `RELAY_SERVERS=YOUR.PUBLIC.IP` |
 | Relay port blocked | Open 21117 TCP |
 | Public IP detection failed | Check `curl -4 ifconfig.me` from server |
@@ -94,13 +94,13 @@ sudo systemctl restart betterdesk-console
 
 **Cause:** Route conflict — RustDesk client API route `/api/users` (Bearer token) intercepting panel requests (session cookie).
 
-**Solution:** Update to the latest Node.js console (fixed in Phase 10).
+**Solution:** Update to the current panel (3.5.x).
 
 ### Password Change Shows "Password is Required"
 
 **Cause:** Field name mismatch — frontend sends `current_password` (snake_case), backend expects `currentPassword` (camelCase).
 
-**Solution:** Update to the latest Node.js console (fixed in Phase 18).
+**Solution:** Update to the current panel (3.5.x).
 
 ### Login Page Redirects in Loop
 
@@ -123,7 +123,7 @@ sudo systemctl restart betterdesk-console
 
 **Cause:** Older scripts overwrote `.env` with SQLite defaults during UPDATE.
 
-**Solution:** Update to v2.4.0+ scripts. They now preserve database configuration via `preserve_database_config()`.
+**Solution:** Update install scripts to current 3.5.x. They preserve database configuration via `preserve_database_config()`.
 
 ### Auth Database Destroyed After Update
 

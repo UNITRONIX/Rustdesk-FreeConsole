@@ -40,7 +40,7 @@ curl http://your-server:21114/api/server-config
    - **API Server**: `http://your-server.com:21121`
    - **Key**: paste the public key from the web console
 
-> **Important:** The API Server must point to port **21121** (Node.js Client API), not 21114 (Go server API). The protocol prefix (`http://`) is required.
+> **Important:** Set **API Server** to port **21121** (RustDesk Client API on Go; some installs still proxy via Node). Do **not** use 21114 for the RustDesk client API field. Include the `http://` or `https://` prefix.
 
 ### Configuration File
 

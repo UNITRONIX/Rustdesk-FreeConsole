@@ -11,7 +11,7 @@ BetterDesk provides two Tauri v2 desktop applications and a headless Go agent fo
 |-----------|--------|----------------|
 | **Go Server** | ✅ Stable | ✅ Recommended |
 | **Web Console (Node.js)** | ✅ Stable | ✅ Recommended |
-| **Support Agent (Go/Fyne)** | ✅ Active | ✅ Recommended end-user agent |
+| **Support Agent (Go/Wails)** | ✅ Active | ✅ Recommended end-user agent |
 | **MGMT Client (Tauri)** | ⚠️ Alpha | ❌ Do not use in production |
 | **Agent Client (Tauri)** | ⚠️ Alpha | ❌ Do not use in production (Support Agent is preferred) |
 | **Native Agent (Go)** | ✅ Stable | Engine used by Support Agent |
@@ -22,7 +22,7 @@ BetterDesk provides two Tauri v2 desktop applications and a headless Go agent fo
 
 **Purpose:** Lightweight inbound-only end-user agent for remote support. Operators connect via **Web Remote (CDAP)** in the console — the Support Agent never initiates connections to other peers.
 
-**Technology:** Single Go binary (Fyne UI) embedding the `betterdesk-agent` CDAP engine.
+**Technology:** Single Go binary with **Wails** UI by default (Fyne UI optional via `BETTERDESK_SUPPORT_FYNEUI=1`), embedding the `betterdesk-agent` CDAP engine.
 
 ### Features
 

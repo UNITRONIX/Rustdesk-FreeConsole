@@ -1,113 +1,32 @@
-# UX 3.5 — Console shell (optional Beta)
+# UX 3.5 (optional beta shell)
 
-UX 3.5 is an **optional Beta** management console chrome in BetterDesk `web-nodejs`. The **default** shell is the classic TeamViewer-style **icon rail + flyout**. Operators can opt in to UX 3.5 (full-list sidebar + topbar) from the navbar; the choice is stored in cookie `bd_ui_shell`. Classic remains the supported production default until UX 3.5 leaves Beta.
+UX 3.5 is an **optional** console chrome. The default remains the classic icon rail + flyout.
 
-## Switching shells
+## Switch
 
-| Action | How |
-|--------|-----|
-| Classic → UX 3.5 (Beta) | Navbar button (view_sidebar icon + **BETA** badge) or `?ui=ux35` |
-| UX 3.5 → Classic | Topbar button (dashboard_customize icon) or `?ui=classic` |
-| Persist | Cookie `bd_ui_shell=classic\|ux35` (1 year, SameSite=Lax) |
+| Want | Do |
+|------|-----|
+| Try UX 3.5 | Navbar shell button, or `?ui=ux35` |
+| Back to classic | Topbar switch, or `?ui=classic` |
+| Remember choice | Cookie `bd_ui_shell=classic` or `ux35` (1 year) |
 
-Default when no cookie: **classic**. While UX 3.5 is active, a small **BETA** chip appears in the topbar next to the brand.
+While UX 3.5 is on, a small **BETA** chip shows in the topbar. Surfaces are **solid** (not glass/blur). Classic may still use glass accents.
 
-Client helper: `web-nodejs/public/js/ui-shell.js`. SSR selects partials in `main.ejs` via `res.locals.uiShell` (middleware in `server.js`).
+## What changes for you
 
-## Architecture
+- Full-height sidebar list + topbar instead of icon rail
+- Same pages and permissions underneath
+- Help panel still opens from **Help** (supporters + links)
 
-| Piece | Path |
-|-------|------|
-| Layout (both shells) | `web-nodejs/views/layouts/main.ejs` |
-| Classic rail / flyout | `web-nodejs/views/partials/sidebar.ejs` + `navbar.ejs` |
-| UX 3.5 topbar | `web-nodejs/views/partials/ux35-topbar.ejs` |
-| UX 3.5 sidebar | `web-nodejs/views/partials/ux35-sidebar.ejs` |
-| Tokens | `web-nodejs/public/css/ux35-tokens.css` |
-| Shell CSS | `web-nodejs/public/css/ux35.css` |
-| Shell JS (drawer, resize, theme icon) | `web-nodejs/public/js/ux35-shell.js` |
-| Shell switcher | `web-nodejs/public/js/ui-shell.js` |
-| Help panel (supporters + links) | `web-nodejs/views/partials/help-panel.ejs`, `public/css/help-panel.css`, `public/js/help-panel.js` |
-| Supporters data | `web-nodejs/config/supporters.json` (mirrors `SPONSORS.md`) |
+If something looks wrong on a phone, update the panel — several 3.5.x fixes targeted mobile topbar/tabs.
 
-Navigation uses ordinary `<a href>` links (full page load). There is **no** iframe shell.
+## Developers
 
-Out of scope for UX 3.5 (unchanged): login page, RdClient, remote viewer, CDAP Studio.
+Layout and CSS live under `web-nodejs/views/partials/ux35-*.ejs`, `public/css/ux35*.css`, `public/js/ui-shell.js`. Acceptance checklists belong in PRs, not in this operator page.
 
-## Chrome (UX 3.5)
+---
 
-- **Topbar:** 48px — brand, breadcrumb (desktop), shell switch, refresh, notifications, theme, accessibility, language, user menu
-- **Sidebar:** default **220px** (resizable 200–320px, stored in `localStorage` key `bd_ux35_sidebar_width`)
-- **Help:** sidebar **Help** opens a right-side panel (supporters list + GitHub / sponsorship links). On ≥1100px the panel docks beside main content; on narrower viewports it is a slide-over with overlay. Classic shell and Desktop Mode use the same panel as a slide-over. Guided tours / spotlight tutorials are retired.
-- **Content:** padding via `--ux35-content-padding` / `--ux35-content-padding-lg` (16–24px)
+## See also
 
-**Solid surfaces (no glass/blur):** UX 3.5 chrome and in-content cards/forms use opaque `bg-*` tokens. `backdrop-filter` is disabled under `.ux35-page`. Classic rail/flyout may still use branding glass. Chrome typography uses `--ux35-font-chrome` (system stack) so Settings branding preview cannot restyle the sidebar.
-
-Sidebar resize: pointer capture + `requestAnimationFrame`; width persisted on pointer-up (`Escape` cancels).
-
-Theme toggle (topbar): applies a full solid token set immediately, then reconciles `branding.css` on load (clears temporary inline overrides). No need to click elsewhere for the UI to catch up.
-
-## Spacing scale
-
-Use only: **4 / 8 / 12 / 16 / 24 / 32** px (`--ux35-space-1` … `--ux35-space-6`, or `--space-xs` / `sm` / `3` / `md` / `lg` / `xl`).
-
-Avoid ad-hoc page paddings that diverge from this scale.
-
-## Themes
-
-Branding `themeMode` (Settings → Branding → Colors):
-
-| Mode | Meaning |
-|------|---------|
-| `dark` | Built-in dark palette (always used for CSS, even if DB still has old custom hex values) |
-| `light` | Built-in light palette for body/sidebar; topbar stays dark chrome (theme-invariant) |
-| `custom` | Operator-edited colors from branding form |
-
-The UX 3.5 topbar does **not** follow light/dark — it always uses fixed dark chrome (`#161b22` background, light ink). Shell surfaces and content still switch with `themeMode`.
-
-`/css/branding.css` is generated by `resolveThemeColors()` + `generateThemeCss()`. The UX 3.5 theme button persists `themeMode` **and** the matching built-in palette so a reload does not snap back to dark text on a “light” shell.
-
-Glass branding (`glassBlur` / frosted panels) applies to the **classic** shell and the Branding mockup. UX 3.5 ignores glass for chrome and content surfaces.
-
-## Stacking / branding wallpaper
-
-Console wallpaper is `body.app-page::before { position: fixed; z-index: 0 }`. The shell **must** sit above it:
-
-```css
-.ux35-shell { position: relative; z-index: 1; }
-.app-layout { /* classic — already stacked above wallpaper */ }
-```
-
-`generateBackgroundCss()` lists `.ux35-shell` next to legacy `.app-layout`. Without this, Settings and other pages in UX 3.5 look like an empty black panel (sidebar/topbar still showed via their own z-index).
-
-## Breakpoints
-
-| Width | Behavior |
-|-------|----------|
-| ≥1100px | Persistent sidebar + resize handle |
-| ≤1099px | Hamburger opens sidebar drawer + overlay |
-| ≤767px | Narrower drawer; content padding reduced; bottom nav retained |
-
-## Migration from Beta 3.1
-
-Beta 3.1 (`beta31.js` / `beta31.css`) was an optional overlay that loaded pages in `?embed=1` iframes. UX 3.5 reuses the **visual pattern** (full-list sidebar + topbar) as a **native optional shell**. Classic rail/flyout remains the default.
-
-## i18n
-
-Keys under `ux35.*` (including `switch_to_ux35` / `switch_to_classic`), `help.panel.*`, and `theme.custom` exist in all 26 `web-nodejs/lang/*.json` locales. Helpers: `web-nodejs/scripts/patch-ux35-i18n.js`, `patch-ux35-shell-switch-i18n.js`, `patch-help-panel-i18n.js`.
-
-## Acceptance checklist
-
-- [ ] Default load: classic rail + flyout
-- [ ] Navbar switch → UX 3.5; cookie persists across reloads
-- [ ] UX 3.5 topbar switch → classic
-- [ ] Desktop 1280 UX 3.5: sidebar + topbar + dashboard (solid, no frosted glass)
-- [ ] Desktop: sidebar drag-resize feels smooth; width persists after reload; Escape cancels mid-drag
-- [ ] Topbar theme dark↔light updates shell immediately (no extra click)
-- [ ] Settings → Updates: sidebar fonts unchanged
-- [ ] Settings → Branding: live preview only while Branding tab is active; does not restyle sidebar
-- [ ] Help (UX 3.5 ≥1100): docks right; shows supporters + GitHub links; Escape / Close dismisses
-- [ ] Help (narrow / classic): slide-over + overlay; no tutorial spotlight / FAB
-- [ ] Tablet 1024 / 768: drawer opens/closes; Escape closes drawer; overlay fades
-- [ ] Phone 390: drawer + bottom nav
-- [ ] Classic shell: branding glass still works when enabled
-- [ ] Permission-gated nav items match former sidebar
+- [[Web Console|Web-Console]]
+- [[Home]]

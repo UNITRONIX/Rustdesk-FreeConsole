@@ -38,6 +38,7 @@ RustDesk clients remain separate software with their own licenses. BetterDesk se
 
 ## See also
 
+- [[Privacy]] — self-hosted data, no vendor analytics
 - [[FAQ]] — licensing FAQ
 - [[Home]] — project overview
-- [Contributing](https://github.com/UNITRONIX/BetterDesk/blob/main/docs/development/CONTRIBUTING.md)
+- [Contributing](https://github.com/UNITRONIX/BetterDesk/blob/dev/docs/development/CONTRIBUTING.md)

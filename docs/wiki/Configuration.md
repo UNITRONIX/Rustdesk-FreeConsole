@@ -29,11 +29,12 @@ betterdesk-server [flags]
   -force-https       Force HTTPS redirects (implies --tls-api)
 
   -cdap              Enable CDAP gateway (:21122)
-  -metrics           Enable Prometheus metrics endpoint
   -admin-port int    TCP admin console port (disabled by default)
   -log-format string Log format: text or json (default "text")
   -log-level string  Log level: debug, info, warn, error (default "info")
 ```
+
+Prometheus text is served at `GET /metrics` on the admin API port (gated by auth/allowlist). See [[Monitoring]].
 
 ### Environment Variables
 
@@ -59,6 +60,10 @@ betterdesk-server [flags]
 | `API_WS_ALLOWED_ORIGINS` | `*` | API WebSocket origin allowlist |
 | `CDAP_ENABLED` | `N` | Enable CDAP gateway |
 | `API_KEY` | (auto-generated) | API authentication key |
+| `MASK` | (empty → /24 fallback) | LAN CIDR for same-network detection |
+| `ALLOW_SHARED_NAT_INITIATOR` | `N` | Opt-in for multi-device CGNAT punch (see [[Monitoring]]) |
+| `ENROLLMENT_MODE` | `open` | `open` / `managed` / `locked` |
+| `PANEL_MDNS` | on | Set `off` to disable panel mDNS |
 
 ---
 
@@ -127,13 +132,13 @@ TRUSTED_PROXIES=127.0.0.1/32,::1/128
 > UDP/TCP signal on port **21116** cannot use HTTP headers like `X-Forwarded-For`. `TRUST_PROXY` / `TRUSTED_PROXIES` apply to HTTP/API and signal **WebSocket** (`/ws/id`).
 
 > [!TIP]
-> External reverse proxy (TLS on Caddy/Nginx :443): see [External Reverse Proxy Guide](../setup/REVERSE_PROXY.md). Use `HOST=127.0.0.1`, `HTTPS_ENABLED=false`, and run `sudo betterdesk.sh` → **External reverse proxy** to generate Caddy/Nginx snippets.
+> External reverse proxy (TLS on Caddy/Nginx :443): see [External Reverse Proxy Guide](https://github.com/UNITRONIX/BetterDesk/blob/dev/docs/setup/REVERSE_PROXY.md). Use `HOST=127.0.0.1`, `HTTPS_ENABLED=false`, and run `sudo betterdesk.sh` → **External reverse proxy** to generate Caddy/Nginx snippets.
 
 #### `GO_API_PORT` vs `API_PORT`
 
 When both Go server and Node.js console share `.env`:
-- **`GO_API_PORT=21114`** — Go REST API (used by panel proxy)
-- **`API_PORT` / `CLIENT_API_PORT=21121`** — RustDesk Client API (Node.js)
+- **`GO_API_PORT=21114`** — Go admin REST API (panel proxy)
+- **`API_PORT` / `CLIENT_API_PORT=21121`** — RustDesk Client API (Go handlers; optional Node compat proxy on the same port)
 
 The installer sets `GO_API_PORT=21114` on `betterdesk-server.service` to avoid HTTP/HTTPS toggle conflicts (#219).
 
@@ -155,7 +160,7 @@ Switch in **Settings → Updates → Update channel**. See [[Panel Updates|Panel
 | 21117 | TCP | Relay | Bidirectional stream relay |
 | 21118 | WS | WS Signal | WebSocket signal (21116 + 2) |
 | 21119 | WS | WS Relay | WebSocket relay (21117 + 2) |
-| 21121 | TCP (HTTP) | Client API | RustDesk Client API (Node.js) |
+| 21121 | TCP (HTTP) | Client API | RustDesk Client API (Go; optional Node proxy) |
 | 21122 | WS | CDAP | CDAP WebSocket gateway |
 | 5000 | TCP (HTTP) | Web Console | Admin/operator panel |
 
@@ -166,7 +171,7 @@ When TLS terminates at **Caddy/Nginx on :443**:
 - **HTTP-proxied:** panel (`:5000`), console WebSockets, optional RustDesk WSS paths `/ws/id` → `:21118` and `/ws/relay` → `:21119`
 - **Direct to host (not HTTP reverse proxy):** signal **21116** (TCP+UDP), relay **21117** (TCP), Client API **21121** unless you add a separate API vhost
 
-See [External Reverse Proxy Guide](../setup/REVERSE_PROXY.md).
+See [External Reverse Proxy Guide](https://github.com/UNITRONIX/BetterDesk/blob/dev/docs/setup/REVERSE_PROXY.md).
 
 ### Firewall Configuration
 
@@ -207,7 +212,7 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/rustdesk
+WorkingDirectory=/opt/betterdesk
 ExecStart=/opt/betterdesk/betterdesk-server -port 21116 -relay-port 21117 -key id_ed25519
 Restart=always
 RestartSec=5

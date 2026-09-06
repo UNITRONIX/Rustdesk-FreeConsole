@@ -140,8 +140,9 @@ screenshots/tests/
 tmp_test_*.py
 tmp_test_*.sh
 
-# --- Archive (old files with potential sensitive data) ---
-archive/
+# --- Archive (old files with potential sensitive data; repo root only) ---
+/archive/
+# docs/archive/ is tracked (historical audits/roadmaps for maintainers)
 
 # --- Legacy binaries ---
 hbbs-patch/

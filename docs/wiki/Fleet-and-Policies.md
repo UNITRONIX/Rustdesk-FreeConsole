@@ -63,6 +63,7 @@ Org-scoped and role-scoped users see only devices assigned to them. See [[Organi
 
 ## See also
 
+- [[Unattended Access and WoL|Unattended-and-WoL]] — step-by-step unattended + WoL
 - [[Web Console|Web-Console]] — Devices page actions
 - [[Client Setup|Client-Setup]] — client-side login and AB sync
-- [Scoped remote user doc](https://github.com/UNITRONIX/BetterDesk/blob/main/docs/features/SCOPED_REMOTE_USER.md)
+- [Scoped remote user doc](https://github.com/UNITRONIX/BetterDesk/blob/dev/docs/features/SCOPED_REMOTE_USER.md)

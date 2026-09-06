@@ -28,7 +28,7 @@ BetterDesk is an independent, open-source project that provides features beyond 
 - CDAP IoT protocol
 - PostgreSQL support
 - Docker single-container deployment
-- Desktop widget dashboard
+- Optional UX 3.5 console shell
 
 ### Is it free?
 
@@ -168,7 +168,7 @@ The device must have a known MAC address. From the web console, click the kebab 
 ```bash
 curl -X POST http://server:21114/api/peers/DEVICE_ID/wol \
   -H "X-API-Key: your-key" \
-  -d '{"mac_address": "AA:BB:CC:DD:EE:FF"}'
+  -d '{"mac": "AA:BB:CC:DD:EE:FF"}'
 ```
 
 WOL sends a UDP magic packet on broadcast (255.255.255.255:9). Only works on the same LAN segment as the server.
@@ -225,12 +225,11 @@ The relay proxies peer-to-peer traffic via `io.Copy`. Each active remote desktop
 
 ### Will updating break my setup?
 
-No. The v2.4.0+ update process:
-- Preserves database files
-- Preserves PostgreSQL configuration
-- Preserves SSL certificates
-- Preserves API keys and admin credentials
-- Preserves auth.db (user accounts, TOTP)
+No. Current panel updates (Settings → Updates or `betterdesk.sh` option 2) keep your data in place:
+- Database files (`db_v2.sqlite3` on fresh installs; legacy `auth.db` only if you still use SQLite auth legacy mode)
+- PostgreSQL configuration
+- SSL certificates
+- API keys and admin credentials
 
 ### How do I update?
 
@@ -302,6 +301,14 @@ Organizations let you scope devices and users for multi-team or MSP deployments.
 
 Yes. Configure **OIDC / OAuth2** under **Settings → Authentication**. See [[OIDC SSO|OIDC-SSO]].
 
+### Does BetterDesk send my data to the maintainers?
+
+No. It is self-hosted. Fleet metrics go to **your** server. Update checks hit GitHub only when you run them. See [[Privacy]].
+
+### Where are Prometheus metrics?
+
+`GET http://localhost:21114/metrics` (auth/allowlist). See [[Monitoring]].
+
 ### Why do RustDesk clients disconnect after ~24 hours?
 
 Fixed in v3.3.129+: client sessions are DB-backed (7-day sliding, 30-day max). Update the server, then sign in once in the RustDesk client. Configure TTL under **Settings → Authentication → RustDesk clients**.
@@ -311,5 +318,8 @@ Fixed in v3.3.129+: client sessions are DB-backed (7-day sliding, 30-day max). U
 ## See also
 
 - [[Troubleshooting]] — common fixes
+- [[Monitoring]] — metrics and health
+- [[Privacy]] — what leaves your network
+- [[Unattended Access and WoL|Unattended-and-WoL]]
 - [[Licensing]] — AGPL and Commercial Grant
 - [[Panel Updates|Panel-Updates]] — update channels (stable / dev)

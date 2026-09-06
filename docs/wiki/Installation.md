@@ -127,8 +127,8 @@ cd BetterDesk
 # Skip SHA256 verification
 .\betterdesk.ps1 -SkipVerify
 
-# Custom API port
-$env:API_PORT = "21114"
+# Custom RustDesk Client API port (default 21121; Go admin API is GO_API_PORT=21114)
+$env:API_PORT = "21121"
 .\betterdesk.ps1 -Auto
 ```
 
@@ -260,7 +260,7 @@ sudo ./betterdesk.sh
 ```
 
 The update process preserves:
-- Database files (auth.db, db_v2.sqlite3)
+- Database files (`db_v2.sqlite3`; legacy `auth.db` if still in use)
 - PostgreSQL configuration
 - SSL certificates
 - API keys
@@ -288,9 +288,23 @@ This removes all services, binaries, and optionally data files.
 
 ---
 
+## Check it worked
+
+```bash
+# Linux services
+sudo systemctl status betterdesk-server betterdesk-console
+curl -s http://localhost:21114/api/health
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5000/
+```
+
+Expect health JSON and HTTP 200 (or a login redirect) from the panel. Then [[Client Setup|Client-Setup]].
+
+---
+
 ## See also
 
 - [[Configuration]] — environment variables and service units
 - [[Panel Updates|Panel-Updates]] — in-app updates via Settings → Updates
 - [[Docker Deployment|Docker]] — container deployment
 - [[Migration Guide|Migration]] — SQLite ↔ PostgreSQL, RustDesk OSS migration
+- [[Privacy]] — what stays on your server

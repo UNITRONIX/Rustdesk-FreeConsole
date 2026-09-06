@@ -1,41 +1,50 @@
 # Security
 
-BetterDesk implements defense-in-depth security across all layers. Software is distributed under **AGPL-3.0** — see [[Licensing]]. Panel operators can enable **OIDC/SSO** — see [[OIDC SSO|OIDC-SSO]].
+Practical hardening for a self-hosted BetterDesk install. License: [[Licensing]]. Privacy / no vendor analytics: [[Privacy]]. SSO: [[OIDC SSO|OIDC-SSO]].
+
+---
+
+## Production minimum checklist
+
+1. Keep the panel on localhost or behind TLS reverse proxy (`HOST=127.0.0.1`, see [REVERSE_PROXY](https://github.com/UNITRONIX/BetterDesk/blob/dev/docs/setup/REVERSE_PROXY.md)).
+2. Strong admin password + TOTP for operators who need it.
+3. Prefer enrollment **`managed`** or **`locked`** over default **`open`** once you are past lab testing (Settings / Go env `ENROLLMENT_MODE`).
+4. Do not expose `:21114` admin API to the WAN; clients use **`:21121`**.
+5. Turn on TLS for signal/relay/API when clients are off your LAN — [[TLS / SSL Certificates|TLS-SSL]].
+6. Gate `/metrics` (auth or IP allowlist) — [[Monitoring]].
+7. Disable LAN mDNS if you do not need it (`PANEL_MDNS=off`) — [[Privacy]].
+
+### Enrollment modes
+
+| Mode | Behaviour |
+|------|-----------|
+| `open` | **Default.** Accept new device registrations (lab-friendly). |
+| `managed` | New devices need approval or a valid token. |
+| `locked` | Only devices with valid tokens register. |
 
 ---
 
 ## Encryption
 
-### Signal Protocol (NaCl)
+### Signal (NaCl)
 
-Client-server communication on the signal port (21116 TCP) uses NaCl (Networking and Cryptography Library):
+Client–server signal (:21116) uses NaCl:
 
-1. Server generates Ed25519 key pair on first start (`id_ed25519`, `id_ed25519.pub`)
-2. Client connects and performs Diffie-Hellman key exchange
-3. All subsequent messages are encrypted with the shared session key
-4. Peers identify each other via public key verification
+1. Server Ed25519 key pair (`id_ed25519` / `.pub`)
+2. DH session key
+3. Encrypted messages after handshake
 
-### Relay Encryption
+### Relay
 
-Relay connections (port 21117) carry encrypted peer-to-peer traffic:
-- Peers establish E2E encryption through the signal channel
-- Relay server performs blind `io.Copy` — it cannot decrypt traffic
-- UUID pairing ensures both peers connect to the same relay session
+Relay (:21117) forwards opaque peer traffic. Peers set up E2E through signal; the relay does not hold your session keys.
 
-### TLS Transport
+Stock RustDesk clients show a **green lock** when E2E is up (P2P or relay). That is client–client crypto on your infrastructure — not a cloud “trust us” feature.
 
-Optional TLS wrapping for all TCP connections:
-- **Signal TLS** (`--tls-signal`) — Encrypts signal port 21116
-- **Relay TLS** (`--tls-relay`) — Encrypts relay port 21117
-- **API TLS** (`--tls-api`) — HTTPS on API port 21114
-- **WSS** — WebSocket Secure on ports 21118, 21119
-- **Dual-mode listener** — Auto-detects TLS (first byte `0x16`) vs plain TCP on same port
+### TLS transport
 
-See [[TLS / SSL Certificates|TLS-SSL]] for certificate configuration.
+Optional TLS on signal / relay / API — see [[TLS / SSL Certificates|TLS-SSL]]. Dual-mode listeners accept TLS or plain on the same port when configured.
 
-### Chat E2E Encryption
-
-See [[Chat E2E Encryption|Chat-E2E]] for the chat-specific encryption protocol.
+Chat crypto details: [[Chat E2E Encryption|Chat-E2E]] (operator summary up front; protocol appendix for developers).
 
 ---
 

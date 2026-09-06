@@ -1,10 +1,14 @@
-# Chat E2E Encryption
+# Chat E2E encryption
 
-BetterDesk Chat uses end-to-end encryption with ECDH key exchange and AES-256-GCM. No server can read the messages.
+Panel chat can encrypt messages so the BetterDesk server only relays ciphertext. Peers derive keys with ECDH; payloads use AES-256-GCM.
+
+**For operators:** enable chat in the console / client features you already use; open firewall paths your deployment needs; verify both sides show encrypted chat working. You do not need the crypto details below to run production.
+
+**For developers:** protocol notes follow.
 
 ---
 
-## Protocol Overview
+## Protocol overview
 
 ```
 User A                          Server                         User B
@@ -37,7 +41,7 @@ Keys rotate automatically when either condition is met:
 - **24 hours** since last rotation
 - **1000 messages** sent with current key
 
-On rotation, a new key exchange is performed seamlessly.
+On rotation, a new key exchange runs.
 
 ---
 

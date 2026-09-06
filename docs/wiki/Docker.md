@@ -1,6 +1,6 @@
-# Docker Deployment
+# Docker
 
-BetterDesk offers multiple Docker deployment options.
+Run BetterDesk in containers. Quickest path uses pre-built GHCR images.
 
 ---
 
@@ -22,6 +22,10 @@ Default access:
 # View generated admin password
 docker compose logs console | grep "Admin password"
 ```
+
+**Image tags:** prefer pinned versions or `:latest` for stable; `:dev` tracks the development channel. All-in-one **`:dev` images are amd64-only** today — on ARM use split compose, a local AIO build, or a multi-arch tip tag when published (`dev-arm`). Console/server images remain multi-arch.
+
+Node console images target **Node.js 22** (avoid Node 24.19.x for the panel).
 
 ---
 
@@ -81,7 +85,7 @@ ports:
   - "21117:21117"   # Relay
   - "21118:21118"   # WS Signal
   - "21119:21119"   # WS Relay
-  - "21121:21121"   # Client API (Node.js)
+  - "21121:21121"   # Client API (Go; optional Node proxy)
   - "5000:5000"     # Web Console
 ```
 
@@ -107,9 +111,9 @@ Persist these paths:
 |------|-------------|
 | `id_ed25519` | Server private key |
 | `id_ed25519.pub` | Server public key |
-| `db_v2.sqlite3` | Go server database |
+| `db_v2.sqlite3` | Main SQLite DB (Go + consolidated auth on fresh installs) |
 | `.api_key` | API authentication key |
-| `auth.db` | Console user database |
+| `auth.db` | Legacy console auth DB — only if you still use legacy SQLite auth mode |
 
 > ⚠️ Never delete `id_ed25519` — all connected clients use this key. Regenerating it requires reconfiguring every client.
 

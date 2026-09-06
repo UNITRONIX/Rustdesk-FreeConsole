@@ -1,20 +1,29 @@
 # CDAP — Connected Device Automation Protocol
 
-CDAP is BetterDesk's protocol for managing IoT devices, servers, and custom hardware through the web console.
+> **Audience:** integrators and developers. Most BetterDesk installs only need the Go server, web console, and stock RustDesk clients. Enable CDAP if you run IoT/SCADA devices, Support Agent / native agents, or custom bridges.
+
+CDAP talks to devices over WebSocket (`:21122` by default): metrics, widgets, commands, terminal, files.
+
+---
+
+## Do I need this?
+
+| You want… | Use CDAP? |
+|-----------|-----------|
+| Normal remote desktop with RustDesk | No |
+| Support Agent / Web Remote inbound support | Yes (Generator builds use CDAP) |
+| Custom sensors / IoT bridges | Yes |
+
+Quick path: [[Client Generator|Client-Generator]] → Support Agent, or [SDK docs](https://github.com/UNITRONIX/BetterDesk/tree/dev/docs/sdk).
 
 ---
 
 ## Overview
 
-CDAP enables:
-- **Telemetry** — Real-time metrics (CPU, memory, disk, custom sensors)
-- **Widget rendering** — 8 widget types displayed in the web console
-- **Remote commands** — Execute actions on devices
-- **Terminal access** — Full PTY terminal emulation
-- **File management** — Browse, read, write, delete files
-- **Clipboard sync** — Bidirectional clipboard
-- **Screenshots** — On-demand screen capture
-- **Audio streaming** — Bidirectional audio via WebSocket
+CDAP covers:
+- Telemetry (CPU, memory, disk, custom sensors) to **your** server
+- Widget rendering in the console
+- Remote commands, PTY terminal, files, clipboard, screenshots, audio
 
 ---
 

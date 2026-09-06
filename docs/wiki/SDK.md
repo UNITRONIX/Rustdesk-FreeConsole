@@ -1,6 +1,8 @@
 # SDK
 
-BetterDesk provides **Python** and **Node.js** SDKs for building **CDAP agents and bridges** that connect to the Go server CDAP gateway (port **21122**).
+> **Audience:** developers building CDAP agents/bridges. Not required for a normal RustDesk + panel install.
+
+Python and Node.js helpers for the CDAP gateway (**`:21122`**). Repo detail: [docs/sdk/](https://github.com/UNITRONIX/BetterDesk/tree/dev/docs/sdk).
 
 ---
 

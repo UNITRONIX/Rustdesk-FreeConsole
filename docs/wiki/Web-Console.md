@@ -2,20 +2,15 @@
 
 The BetterDesk Web Console is a Node.js (Express.js) management panel accessible at **http://your-server:5000**.
 
-The default chrome is the **classic** icon rail + flyout sidebar. Operators can switch to optional **UX 3.5** (full-list sidebar + topbar, glass branding) from the navbar; the choice is remembered in a cookie. See [[UX 3.5|UX-3.5]] for tokens, breakpoints, theming, and how to switch.
+The default chrome is the **classic** icon rail + flyout sidebar. You can switch to optional **UX 3.5** (full-list sidebar + solid topbar — not glass) from the navbar; the choice is stored in a cookie. See [[UX 3.5|UX-3.5]].
 
 ---
 
 ## Dashboard
 
-The dashboard provides an overview of your BetterDesk deployment:
+Overview cards: device counts, online status, server uptime, versions.
 
-- **Total Devices** — Count of all registered devices
-- **Online Devices** — Currently connected, with real-time WebSocket updates
-- **Server Uptime** — Go server uptime
-- **System Info** — Hostname, OS, Node.js/Go versions
-
-> **Note:** OS-style Desktop Mode is not loaded by the console layout. Use classic rail/flyout (default) or optional [[UX 3.5|UX-3.5]]. Historical widget docs may remain under [[Desktop Dashboard|Desktop-Dashboard]].
+OS-style **Desktop Mode** is not loaded anymore. Use classic or [[UX 3.5|UX-3.5]]. Old notes: [[Desktop Dashboard|Desktop-Dashboard]].
 
 ---
 
@@ -132,15 +127,9 @@ Manage console users and roles. See [[User Management|User-Management]] and [[Or
 
 ---
 
-## OS-Style Login Screen
+## Login screen
 
-When desktop mode is active, the login page transforms into a Windows 11-style experience:
-
-- Wallpaper background with frosted glass card
-- Clock and date overlay (click to dismiss)
-- Multi-user selector (bottom-left avatars)
-- TOTP 2FA with individual digit input boxes
-- Session expiry detection with auto-redirect
+Classic and UX 3.5 use the standard panel login (username / password / optional TOTP). The old Windows 11-style desktop login is retired with Desktop Mode.
 
 ---
 
