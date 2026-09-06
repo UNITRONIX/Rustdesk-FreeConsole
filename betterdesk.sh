@@ -6049,57 +6049,11 @@ CREDEOF
 # Build Functions
 #===============================================================================
 
-# Stage Go support-agent sources where the Node.js build worker expects them.
-# Called after console updates and toolchain install so Generator builds work
-# without a full git checkout on the production host.
+# Legacy Support Agent source staging — Generator now downloads BetterDesk-Client
+# templates into data/modules/betterdesk-support-generator/. Kept as a no-op so
+# older install/update call sites do not fail.
 stage_support_agent_source() {
-    local repo_root="${1:-$SCRIPT_DIR}"
-    local console_path="${CONSOLE_PATH:-/opt/BetterDeskConsole}"
-    local base="$console_path/agent-source"
-    local build_user="${SUDO_USER:-${BUILD_USER:-unitronix}}"
-
-    local support_src="$repo_root/betterdesk-support-agent"
-    local agent_lib_src="$repo_root/betterdesk-agent"
-    local server_lib_src="$repo_root/betterdesk-server"
-    local support_dst="$base/betterdesk-support-agent"
-    local agent_lib_dst="$base/betterdesk-agent"
-    local server_lib_dst="$base/betterdesk-server"
-
-    if [ ! -f "$support_src/build.sh" ]; then
-        print_warning "Support agent source not found: $support_src (Generator builds will fail)"
-        return 1
-    fi
-
-    mkdir -p "$base"
-    local staged=0
-    for pair in "$support_src:$support_dst" "$agent_lib_src:$agent_lib_dst" "$server_lib_src:$server_lib_dst"; do
-        local src="${pair%%:*}"
-        local dst="${pair#*:}"
-        if [ ! -d "$src" ]; then
-            print_warning "Missing agent source tree: $src"
-            continue
-        fi
-        if command -v rsync &>/dev/null; then
-            rsync -a --delete \
-                --exclude '.git/' \
-                --exclude 'dist/' \
-                --exclude 'data/' \
-                "$src/" "$dst/"
-        else
-            rm -rf "$dst"
-            mkdir -p "$dst"
-            cp -a "$src/." "$dst/"
-        fi
-        staged=$((staged + 1))
-    done
-
-    if [ "$staged" -eq 0 ]; then
-        print_error "No support-agent sources staged"
-        return 1
-    fi
-
-    chown -R "$build_user:$build_user" "$base" 2>/dev/null || true
-    print_success "Go support-agent source staged at $base"
+    print_info "Support Generator uses Client templates (module install); skipping Go support-agent staging"
     return 0
 }
 

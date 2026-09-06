@@ -2,33 +2,37 @@
 
 /**
  * Canonical product and queue values shared by generator persistence, routes,
- * and build workers. Legacy rows used "agent" for Support Agent bundles.
+ * and build workers. Legacy rows used "agent" / "support-agent" for the old
+ * Go Support Agent; they normalize to betterdesk-support (template + custom.txt).
  */
 
 const PRODUCT_TYPES = Object.freeze({
-    SUPPORT_AGENT: 'support-agent',
-    AGENT_CLIENT: 'agent-client',
-    RDCLIENT: 'rdclient',
+    BETTERDESK_SUPPORT: 'betterdesk-support',
 });
 
 const QUEUED_BUILD_STATUSES = new Set(['queued', 'pending']);
 
 function canonicalProductType(raw) {
     const value = String(raw ?? '').trim().toLowerCase();
-    if (value === PRODUCT_TYPES.RDCLIENT) return PRODUCT_TYPES.RDCLIENT;
-    if (value === PRODUCT_TYPES.AGENT_CLIENT || value === 'agent_client') {
-        return PRODUCT_TYPES.AGENT_CLIENT;
-    }
-    if (value === PRODUCT_TYPES.SUPPORT_AGENT || value === 'support_agent' || value === 'agent') {
-        return PRODUCT_TYPES.SUPPORT_AGENT;
+    if (
+        value === PRODUCT_TYPES.BETTERDESK_SUPPORT
+        || value === 'betterdesk_support'
+        || value === 'support-agent'
+        || value === 'support_agent'
+        || value === 'agent'
+        || value === 'agent-client'
+        || value === 'agent_client'
+        || value === 'rdclient'
+    ) {
+        return PRODUCT_TYPES.BETTERDESK_SUPPORT;
     }
     return null;
 }
 
-function normalizeProductType(raw, fallback = PRODUCT_TYPES.SUPPORT_AGENT) {
+function normalizeProductType(raw, fallback = PRODUCT_TYPES.BETTERDESK_SUPPORT) {
     return canonicalProductType(raw)
         || canonicalProductType(fallback)
-        || PRODUCT_TYPES.SUPPORT_AGENT;
+        || PRODUCT_TYPES.BETTERDESK_SUPPORT;
 }
 
 function isProductType(raw, expected) {

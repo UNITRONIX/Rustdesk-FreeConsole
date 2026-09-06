@@ -89,9 +89,9 @@ describe('dbAdapter generator bundle compatibility', () => {
         check.close();
 
         expect(columns).toContain('product_type');
-        expect(legacyRow.product_type).toBe('support-agent');
-        expect(created.product_type).toBe('support-agent');
-        expect(client.product_type).toBe('agent-client');
+        expect(legacyRow.product_type).toBe('betterdesk-support');
+        expect(created.product_type).toBe('betterdesk-support');
+        expect(client.product_type).toBe('betterdesk-support');
         expect(build.status).toBe('queued');
     });
 });

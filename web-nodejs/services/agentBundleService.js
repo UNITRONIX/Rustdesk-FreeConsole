@@ -22,13 +22,14 @@ const config = require('../config/config');
 const conn = require('./agentBundleConnection');
 
 // Supported delivery targets. The portal renders one card per entry.
+// BetterDesk Support Generator patches portable desktop templates + custom.txt.
 const PLATFORMS = [
-    { platform: 'windows', arch: 'x64', format: 'portable',  label: 'Windows portable (.exe)' },
-    { platform: 'windows', arch: 'x64', format: 'installed', label: 'Windows installed (.msi)' },
-    { platform: 'linux',   arch: 'x64', format: 'portable',  label: 'Linux universal portable (.tar.gz)' },
-    { platform: 'linux',   arch: 'x64', format: 'appimage',  label: 'Linux portable (AppImage)' },
-    { platform: 'linux',   arch: 'x64', format: 'installed', label: 'Linux Debian/Ubuntu (.deb)' },
-    { platform: 'linux',   arch: 'x64', format: 'rpm',       label: 'Linux Fedora/RHEL (.rpm)' },
+    { platform: 'windows', arch: 'x64',   format: 'portable', label: 'Windows x64 portable (.zip)' },
+    { platform: 'windows', arch: 'arm64', format: 'portable', label: 'Windows ARM64 portable (.zip)' },
+    { platform: 'linux',   arch: 'x64',   format: 'portable', label: 'Linux x64 portable (.tar.gz)' },
+    { platform: 'linux',   arch: 'arm64', format: 'portable', label: 'Linux ARM64 portable (.tar.gz)' },
+    { platform: 'macos',   arch: 'x64',   format: 'portable', label: 'macOS Intel portable (.tar.gz)' },
+    { platform: 'macos',   arch: 'arm64', format: 'portable', label: 'macOS Apple Silicon portable (.tar.gz)' },
 ];
 
 const SUPPORTED_LANGS = [
@@ -122,11 +123,19 @@ function validateBranding(input = {}) {
     const errors = [];
     const out = {};
 
-    out.company_name = clip(input.company_name || input.companyName, MAX_NAME);
-    // Optional for quick Support Agent creation — defaults to product name.
+    out.app_name = clip(input.app_name || input.appName || input.company_name || input.companyName, MAX_NAME);
+    out.company_name = clip(input.company_name || input.companyName || out.app_name, MAX_NAME);
+    // Optional for quick Support creation — defaults to product name.
     if (!out.company_name) {
-        out.company_name = 'BetterDesk Support';
+        out.company_name = 'BetterDesk Support Agent';
     }
+    if (!out.app_name) {
+        out.app_name = out.company_name;
+    }
+    out.relay_host = clip(input.relay_host || input.relayHost || input.relay_server || '', 253);
+    out.api_server = clip(input.api_server || input.apiServer || '', MAX_CONTACT);
+    out.api_port = clip(String(input.api_port || input.apiPort || ''), 8);
+    out.disable_settings = input.disable_settings !== false && input.disableSettings !== false;
 
     out.short_text   = clip(input.short_text   || input.shortText,   MAX_SHORT_TEXT);
     applyPortalProductFields(input, out);
@@ -363,6 +372,7 @@ function publicBundleId(row) {
 /** Default branding used as a starting point in the editor. */
 function defaultBranding() {
     return {
+        app_name: 'BetterDesk Support Agent',
         company_name: '',
         short_text: '',
         product_label: '',
@@ -380,6 +390,7 @@ function defaultBranding() {
         status_ready_color: '#22c55e',
         header_text_color: '#1f2937',
         allow_unattended: false,
+        disable_settings: true,
         capabilities: {
             desktop: true,
             files: true,
@@ -390,7 +401,11 @@ function defaultBranding() {
         },
         default_lang: 'en',
         server_host: '',
+        relay_host: '',
+        api_server: '',
+        api_port: '',
         use_https: true,
+        public_key: '',
         server: { address: '', api_url: '', public_key: '' },
     };
 }

@@ -175,13 +175,6 @@ const COMPONENTS = {
         service: IS_WINDOWS ? 'BetterDeskAgent' : 'betterdesk-agent',
         autoUpdate: false
     },
-    supportAgent: {
-        prefix: 'betterdesk-support-agent/',
-        label: 'Support Agent (Generator)',
-        localRoot: null,
-        service: null,
-        autoUpdate: false
-    },
     scripts: {
         // matched by exact file names, not prefix
         files: [
@@ -266,22 +259,9 @@ const EXCLUDE_PATTERNS = [
     /(^|\/)\.env(\.|$)/                           // .env, .env.local, etc.
 ];
 
-/** Paths in a commit diff that should refresh agent-source/ and rebuild bundles. */
-const AGENT_REBUILD_TRIGGER_PATHS = [
-    /^betterdesk-support-agent\//,
-    /^betterdesk-agent\//,
-    /^betterdesk-server\//,
-    /^web-nodejs\/services\/agentBuildWorker\.js$/,
-    /^web-nodejs\/services\/agentBundleConnection\.js$/,
-    /^web-nodejs\/services\/agentBundleService\.js$/,
-    /^web-nodejs\/routes\/generator\.routes\.js$/,
-    /^scripts\/install-build-toolchain\.sh$/,
-    /^betterdesk\.sh$/,
-];
-
-function shouldQueueAgentRebuild(changedData) {
-    const all = Object.values(changedData?.grouped || {}).flat();
-    return all.some((f) => AGENT_REBUILD_TRIGGER_PATHS.some((rx) => rx.test(f.path)));
+/** Legacy hook — Support Generator now uses Client templates, not Go agent-source. */
+function shouldQueueAgentRebuild(_changedData) {
+    return false;
 }
 
 /**
@@ -2546,7 +2526,7 @@ async function getChangedFiles(remoteSHA) {
     const compare = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/compare/${localSHA}...${remoteSHA}`);
     const files = (compare.files || []).filter(f => !isExcluded(f.filename));
 
-    const grouped = { console: [], server: [], agent: [], supportAgent: [], scripts: [], other: [] };
+    const grouped = { console: [], server: [], agent: [], scripts: [], other: [] };
 
     for (const f of files) {
         const comp = classifyFile(f.filename);
@@ -3254,28 +3234,6 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             fs.writeFileSync(versionDest, versionContent);
         } catch (_e) { /* non-critical */ }
 
-        // ---- Support Agent generator: defer to post-restart phase ----
-        // Agent Client and RdClient use their own workers. Keeping this rebuild
-        // scoped prevents a Support Agent source update from invalidating their
-        // ready artifacts, while legacy "agent" rows normalize to Support Agent.
-        // The source tree can contain hundreds of files, so neither its sync nor
-        // the queue operation may delay completion of the console update.
-        if (shouldQueueAgentRebuild(changedData)) {
-            try {
-                const agentBuildWorker = require('./agentBuildWorker');
-                agentBuildWorker.markRebuildPending('in-app update', { remoteSHA });
-                results.agentRebuildDeferred = true;
-                results.agentRebuildRemoteSHA = remoteSHA;
-                results.agentRebuildProductType = 'support-agent';
-                console.log(
-                    `[UPDATE] Support Agent rebuild deferred until console startup at ${remoteSHA.slice(0, 7)}`
-                );
-            } catch (err) {
-                results.failed.push({ file: 'support-agent-rebuild-defer', error: err.message, nonCritical: true });
-                console.warn(`[UPDATE] Could not defer Support Agent rebuild: ${err.message}`);
-            }
-        }
-
         const finalFailures = splitUpdateFailures(results.failed, ROOT_DIR);
         results.criticalFailures = finalFailures.critical;
         results.nonCriticalFailures = finalFailures.nonCritical;
@@ -3313,14 +3271,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     }
 }
 
-/** Sync full support-agent trees from GitHub at the given commit SHA. */
-async function syncAgentSourceAtSha(remoteSHA) {
-    const agentBuildWorker = require('./agentBuildWorker');
-    return agentBuildWorker.syncFullAgentSourceFromGitHub({
-        remoteSHA,
-        download: ghDownloadFile,
-        listPaths: ghListRepoBlobPaths,
-    });
+/** @deprecated Support Generator no longer syncs Go support-agent source trees. */
+async function syncAgentSourceAtSha(_remoteSHA) {
+    return { staged: 0, paths: 0, skipped: true };
 }
 
 /**

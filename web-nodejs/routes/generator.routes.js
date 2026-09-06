@@ -1,12 +1,11 @@
 /**
- * BetterDesk Console — Agent Generator routes
+ * BetterDesk Console — Support Generator routes
  *
  * Provides:
- *   - "Generator Agenta" admin panel (/generator) — branding editor + bundle list
+ *   - Generator admin panel (/generator) — module install + bundle editor
+ *   - Module install API (/api/generator/module/*)
  *   - Bundle management REST API (/api/generator/bundles/*)
- *   - Public download portal per bundle (/d/:slug) with platform cards
- *   - Legacy RustDesk TOML config generator (kept for backward compat,
- *     marked deprecated in code only — UI no longer exposes it)
+ *   - Public download portal per bundle (/d/:slug)
  */
 
 'use strict';
@@ -16,14 +15,13 @@ const router = express.Router();
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const keyService = require('../services/keyService');
 const bundleService = require('../services/agentBundleService');
-const buildWorker = require('../services/agentBuildWorker');
-const agentClientBuildWorker = require('../services/agentClientBuildWorker');
-const rdclientBuildWorker = require('../services/rdclientBuildWorker');
+const clientTemplateWorker = require('../services/clientTemplateWorker');
+const supportModule = require('../services/supportGeneratorModule');
 const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
 const conn = require('../services/agentBundleConnection');
-const supportProfile = require('../services/supportAgentProfile');
+const clientConfigHost = require('../services/clientConfigHost');
 const { PRODUCT_TYPES, normalizeProductType } = require('../lib/generatorBuildTypes');
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
@@ -85,27 +83,47 @@ async function resolveBundleSlug({ preferred, name, fallbackId, excludeBundleId 
     return { ok: true, slug };
 }
 
-function injectServerBranding(input) {
-    // Legacy alias — use finalizeBundleBranding for new bundles.
-    return supportProfile.finalizeBundleBrandingSync(input);
-}
-
-function finalizeBundleBrandingSync(input) {
-    return supportProfile.finalizeBundleBrandingSync(input);
-}
-
-function addSupportProfileValidity(branding, now = new Date()) {
-    return supportProfile.addSupportProfileValidity(branding, now);
-}
-
 /**
- * Merge operator connection settings and inject server key.
- * Support-agent bundles do NOT embed a shared enrollment token — each
- * installation registers on its own and receives a unique device_token
- * after operator approval (managed enrollment).
+ * Inject server host / API / public key for BetterDesk Support custom.txt builds.
+ * Branding colors/logos are no longer baked into installers — Client Branding API
+ * supplies runtime appearance.
  */
-async function finalizeBundleBranding(input) {
-    return supportProfile.refreshSupportAgentBranding(input);
+async function finalizeSupportBranding(input) {
+    const src = input || {};
+    const branding = { ...src };
+    const hostNorm = conn.normalizeServerHost(
+        branding.server_host || clientConfigHost.resolveClientFacingHost?.() || conn.defaultServerHost()
+    );
+    const host = hostNorm.valid ? hostNorm.host : String(branding.server_host || '').trim();
+    const useHttps = !!(branding.use_https ?? true);
+    const apiPort = String(branding.api_port || conn.defaultApiPort());
+    const scheme = useHttps ? 'https' : 'http';
+    const omitPort = (scheme === 'https' && apiPort === '443') || (scheme === 'http' && apiPort === '80');
+    const apiServer = branding.api_server
+        || (omitPort ? `${scheme}://${host}` : `${scheme}://${host}:${apiPort}`);
+    const pubKey = (await keyService.resolvePublicKey()) || branding.public_key || '';
+
+    branding.server_host = host;
+    branding.relay_host = String(branding.relay_host || host).trim();
+    branding.api_server = apiServer;
+    branding.api_port = apiPort;
+    branding.use_https = useHttps;
+    branding.public_key = pubKey;
+    branding.server_key = pubKey;
+    branding.app_name = String(branding.app_name || branding.company_name || 'BetterDesk Support Agent').trim()
+        || 'BetterDesk Support Agent';
+    branding.company_name = String(branding.company_name || branding.app_name).trim();
+    branding.product_name = branding.app_name;
+    branding.disable_settings = branding.disable_settings !== false;
+    branding.server = {
+        address: omitPort ? `${scheme}://${host}` : `${scheme}://${host}:${apiPort}`,
+        api_url: apiServer,
+        public_key: pubKey,
+    };
+    delete branding.enrollment_token;
+    delete branding.has_enrollment_token;
+    delete branding.enrollment_token_masked;
+    return branding;
 }
 
 function publicBrandingView(branding) {
@@ -117,11 +135,8 @@ function publicBrandingView(branding) {
     return out;
 }
 
-function resolveBuildWorker(productType) {
-    const pt = normalizeProductType(productType);
-    if (pt === PRODUCT_TYPES.RDCLIENT) return rdclientBuildWorker;
-    if (pt === PRODUCT_TYPES.AGENT_CLIENT) return agentClientBuildWorker;
-    return buildWorker;
+function resolveBuildWorker() {
+    return clientTemplateWorker;
 }
 
 // =========================================================================
@@ -135,6 +150,49 @@ router.get('/generator', requireAuth, requireAdmin, (req, res) => {
         supportedLangs: bundleService.SUPPORTED_LANGS,
         localeLabels: bundleService.LOCALE_LABELS,
     });
+});
+
+// =========================================================================
+//  Module install gate
+// =========================================================================
+
+router.get('/api/generator/module/status', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const status = await supportModule.getStatus();
+        res.json({ success: true, data: status });
+    } catch (err) {
+        console.error('[generator] module status error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+router.post('/api/generator/module/accept-terms', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const state = await supportModule.acceptTerms();
+        res.json({ success: true, data: state });
+    } catch (err) {
+        console.error('[generator] accept-terms error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+router.post('/api/generator/module/install', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const repo = req.body?.repo ? String(req.body.repo).trim() : undefined;
+        const tag = req.body?.tag ? String(req.body.tag).trim() : undefined;
+        const state = await supportModule.installFromGitHub({ repo, tag });
+        res.json({ success: true, data: state });
+    } catch (err) {
+        const code = err.code || '';
+        if (code === 'terms_not_accepted') {
+            return res.status(400).json({ success: false, error: 'terms_not_accepted' });
+        }
+        console.error('[generator] module install error:', err);
+        res.status(500).json({
+            success: false,
+            error: err.message || req.t('errors.server_error'),
+        });
+    }
 });
 
 // =========================================================================
@@ -167,28 +225,31 @@ router.get('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
 });
 
 router.get('/api/generator/defaults', requireAuth, requireAdmin, async (req, res) => {
+    const host = clientConfigHost.resolveClientFacingHost(req) || conn.defaultServerHost();
     res.json({
         success: true,
         data: {
-            server_host: conn.defaultServerHost(),
-            use_https: true,
+            server_host: host,
+            relay_host: host,
+            use_https: conn.defaultUseHttps(),
             api_port: conn.defaultApiPort(),
             public_key: (await keyService.resolvePublicKey()) || '',
+            app_name: 'BetterDesk Support Agent',
         },
     });
 });
 
 router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res) => {
     try {
+        if (!supportModule.isReady()) {
+            return res.status(400).json({ success: false, error: 'module_not_ready' });
+        }
         const name = String(req.body.name || '').trim().slice(0, 100);
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const productType = normalizeProductType(req.body.product_type, PRODUCT_TYPES.SUPPORT_AGENT);
-        const validateFn = productType === PRODUCT_TYPES.RDCLIENT
-            ? bundleService.validateRdclientBranding
-            : bundleService.validateBranding;
-        const { valid, errors, normalized: base } = validateFn(req.body.branding || {});
+        const productType = PRODUCT_TYPES.BETTERDESK_SUPPORT;
+        const { valid, errors, normalized: base } = bundleService.validateBranding(req.body.branding || {});
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
@@ -206,18 +267,8 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
                 details: [slugResult.error],
             });
         }
-        const normalized = productType === PRODUCT_TYPES.RDCLIENT
-            ? { ...base, bundle_id: bundleId, server_url: base.panel_url }
-            : await finalizeBundleBranding(base);
-        if (productType !== PRODUCT_TYPES.RDCLIENT) {
-            normalized.bundle_id = bundleId;
-            normalized.product_name = productType === PRODUCT_TYPES.AGENT_CLIENT
-                ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
-                : (normalized.company_name || 'BetterDesk Support');
-            if (productType === PRODUCT_TYPES.SUPPORT_AGENT) {
-                addSupportProfileValidity(normalized);
-            }
-        }
+        const normalized = await finalizeSupportBranding(base);
+        normalized.bundle_id = bundleId;
         const brandingHash = bundleService.hashBranding(normalized);
         const created = await db.createAgentBundle({
             bundleId,
@@ -229,7 +280,7 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             productType,
         });
         const platformsFilter = Array.isArray(req.body.platforms) ? req.body.platforms : null;
-        resolveBuildWorker(productType).enqueueBuildsForHash(brandingHash, {
+        resolveBuildWorker().enqueueBuildsForHash(brandingHash, {
             platforms: platformsFilter,
         }).catch((e) => {
             console.error('[generator] enqueue builds failed:', e.message);
@@ -243,33 +294,22 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
 
 router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async (req, res) => {
     try {
+        if (!supportModule.isReady()) {
+            return res.status(400).json({ success: false, error: 'module_not_ready' });
+        }
         const existing = await db.getAgentBundle(req.params.bundleId);
         if (!existing) return res.status(404).json({ success: false, error: req.t('errors.not_found') });
         const name = String(req.body.name || existing.name).trim().slice(0, 100);
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const productType = normalizeProductType(existing.product_type);
         const existingBranding = parseBranding(existing.branding);
-        const validateFn = productType === PRODUCT_TYPES.RDCLIENT
-            ? bundleService.validateRdclientBranding
-            : bundleService.validateBranding;
-        const { valid, errors, normalized: base } = validateFn(req.body.branding || existingBranding);
+        const { valid, errors, normalized: base } = bundleService.validateBranding(req.body.branding || existingBranding);
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
-        const normalized = productType === PRODUCT_TYPES.RDCLIENT
-            ? { ...base, bundle_id: req.params.bundleId, server_url: base.panel_url }
-            : await finalizeBundleBranding(base);
-        if (productType !== PRODUCT_TYPES.RDCLIENT) {
-            normalized.bundle_id = req.params.bundleId;
-            normalized.product_name = productType === PRODUCT_TYPES.AGENT_CLIENT
-                ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
-                : (normalized.company_name || 'BetterDesk Support');
-            if (productType === PRODUCT_TYPES.SUPPORT_AGENT) {
-                addSupportProfileValidity(normalized);
-            }
-        }
+        const normalized = await finalizeSupportBranding(base);
+        normalized.bundle_id = req.params.bundleId;
         const brandingHash = bundleService.hashBranding(normalized);
         let slug = existing.slug || '';
         if (req.body.slug !== undefined) {
@@ -303,11 +343,9 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
             branding: JSON.stringify(normalized),
             brandingHash,
         });
-        // Phase 2: if branding hash changed, queue new builds; cached artifacts
-        // for the previous hash remain reusable for prior portal links.
         if (existing.branding_hash !== brandingHash) {
             const platformsFilter = Array.isArray(req.body.platforms) ? req.body.platforms : null;
-            resolveBuildWorker(existing.product_type).enqueueBuildsForHash(brandingHash, {
+            resolveBuildWorker().enqueueBuildsForHash(brandingHash, {
                 platforms: platformsFilter,
             }).catch((e) => {
                 console.error('[generator] enqueue builds failed:', e.message);
@@ -327,8 +365,11 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
         if (row.revoked) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
         }
+        if (!supportModule.isReady()) {
+            return res.status(400).json({ success: false, error: 'module_not_ready' });
+        }
         const platformsFilter = Array.isArray(req.body?.platforms) ? req.body.platforms : null;
-        const result = await resolveBuildWorker(row.product_type).rebuildBundleById(
+        const result = await resolveBuildWorker().rebuildBundleById(
             req.params.bundleId,
             platformsFilter ? { platforms: platformsFilter } : undefined
         );
@@ -364,9 +405,11 @@ router.post(
             if (!row.branding_hash) {
                 return res.status(400).json({ success: false, error: req.t('generator.errors.missing_hash') });
             }
-            const worker = resolveBuildWorker(row.product_type);
-            const requeueFn = worker.requeuePlatformBuild || buildWorker.requeuePlatformBuild;
-            const result = await requeueFn(
+            if (!supportModule.isReady()) {
+                return res.status(400).json({ success: false, error: 'module_not_ready' });
+            }
+            const worker = resolveBuildWorker();
+            const result = await worker.requeuePlatformBuild(
                 row.branding_hash,
                 req.params.platform,
                 req.params.arch,
@@ -390,7 +433,7 @@ router.post(
 
 router.get('/api/generator/build-status', requireAuth, requireAdmin, (req, res) => {
     try {
-        const status = buildWorker.getBuildWorkerStatus();
+        const status = clientTemplateWorker.getBuildWorkerStatus();
         res.json({ success: true, data: status });
     } catch (err) {
         console.error('[generator] build-status error:', err);
@@ -421,14 +464,9 @@ router.delete('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, asy
     }
 });
 
-/**
- * Live preview helper — validate + normalize a branding payload without
- * persisting it. Used by the editor to render the preview without writing
- * to the DB on every keystroke.
- */
-router.post('/api/generator/preview', requireAuth, requireAdmin, (req, res) => {
+router.post('/api/generator/preview', requireAuth, requireAdmin, async (req, res) => {
     try {
-        const rawBranding = finalizeBundleBrandingSync(req.body.branding || {});
+        const rawBranding = await finalizeSupportBranding(req.body.branding || {});
         const { valid, errors, normalized } = bundleService.validateBranding(rawBranding);
         res.json({ success: true, data: { valid, errors, branding: publicBrandingView(normalized) }, errors });
     } catch (err) {
@@ -445,10 +483,6 @@ router.get('/api/generator/platforms', requireAuth, requireAdmin, (req, res) => 
 //  Public download portal
 // =========================================================================
 
-/**
- * Public landing page for an issued bundle. No auth — the slug (or legacy
- * bundle ID) is the access token. Revoked or unknown bundles return 404.
- */
 router.get('/d/:publicId', async (req, res) => {
     try {
         const row = await resolvePublicBundle(req.params.publicId);
@@ -468,8 +502,6 @@ router.get('/d/:publicId', async (req, res) => {
             ...p,
             status: buildMap[`${p.platform}/${p.arch}/${p.format}`] || 'pending',
         }));
-        // Global console branding provides portal-wide defaults (wallpaper,
-        // attribution) shared by every bundle that does not override them.
         const gb = brandingService.getBranding();
         const globalBranding = {
             background: brandingService.buildBackgroundValue(gb.agentBgType, gb.agentBgColor, gb.agentBgGradient, gb.agentBgImageUrl),
@@ -490,10 +522,6 @@ router.get('/d/:publicId', async (req, res) => {
     }
 });
 
-/**
- * Public manifest endpoint — JSON shape the portal page polls to refresh
- * platform build status without a full reload.
- */
 router.get('/api/d/:publicId/manifest', async (req, res) => {
     try {
         const row = await resolvePublicBundle(req.params.publicId);
@@ -527,11 +555,6 @@ router.get('/api/d/:publicId/manifest', async (req, res) => {
     }
 });
 
-/**
- * Public download endpoint. Phase 1 returns 503 with `build_pending` until
- * the Phase 2 build pipeline is wired; the route exists so the portal can
- * link to it today and Phase 2 is a pure backend swap.
- */
 router.get('/api/d/:publicId/download/:platform/:arch/:format', async (req, res) => {
     try {
         const row = await resolvePublicBundle(req.params.publicId);

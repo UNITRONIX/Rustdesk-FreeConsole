@@ -1,75 +1,91 @@
 # Client Generator
 
-The **Support Agent Generator** in the web console builds branded **BetterDesk Support Agent** installers with your server address, public key, and appearance baked in. End users download from a public hub page — no manual network configuration.
+The **BetterDesk Support Generator** in the web console builds **incoming-only** desktop installers from BetterDesk-Client portable templates. Each build injects a server-locked `custom.txt` (rendezvous, relay, API, public key). End users download from a public hub page — no manual network configuration.
 
-BetterDesk focuses on **Support Agent** as the supported end-user client. Legacy Agent Client / RdClient workers may still exist in the codebase but are not offered in the Generator UI.
+Appearance (logo, colors) is **not** baked into installers. The desktop client loads branding at runtime from the Console **Client Branding API**.
 
 ---
 
 ## What you get
 
-Each Support Agent bundle includes:
+Each Support bundle produces portable artifacts that:
 
-- Server / API / CDAP connection profile
-- Server public key
-- Optional company branding (colors, logo, product name, contact)
-- Optional unattended access flag
-- Incoming capability defaults (desktop, files, clipboard, audio, terminal, restart)
+- Use BetterDesk-Client desktop binaries (AGPL)
+- Force **incoming-only** (`conn-type: incoming`)
+- Override server settings via signed or plain `custom.txt`
+- Target Windows / Linux / macOS (x64 + ARM64 portable)
 
-### Platforms (Windows + Linux)
+| Platform | Format |
+|----------|--------|
+| Windows x64 / ARM64 | Portable `.zip` |
+| Linux x64 / ARM64 | Portable `.tar.gz` |
+| macOS Intel / Apple Silicon | Portable `.tar.gz` |
 
-| Platform | Formats |
-|----------|---------|
-| Windows x64 | Portable `.exe`, installed `.msi` |
-| Linux x64 | Portable `.tar.gz`, AppImage, `.deb`, `.rpm` |
+---
 
-You can deselect platforms when creating or rebuilding a bundle (for example Windows-only) to shorten the first build.
+## Module install (first run)
+
+Before creating bundles, admins install the **betterdesk-support-generator** module:
+
+1. Open **Generator**
+2. Read the AGPL / incoming-only notice and click **Accept terms**
+3. Click **Install from GitHub** — downloads `generator-templates-*.tar.gz` from [BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) Releases (`BETTERDESK_CLIENT_REPO`, default `UNITRONIX/BetterDesk-Client`)
+4. Click **Finish installation** when status is `ready`
+
+Module data lives under:
+
+```text
+{dataDir}/modules/betterdesk-support-generator/
+  state.json
+  templates/          # extracted generator-templates layout + manifest.json
+  custom-client-signing.seed   # optional; from env or file
+```
+
+Optional signing seed:
+
+- Env: `BETTERDESK_CUSTOM_CLIENT_SIGNING_SEED` (base64 32-byte NaCl seed)
+- Or file `custom-client-signing.seed` copied into the module dir
+
+Without a seed, Generator writes **plain JSON** `custom.txt` (Phase A). With a seed matching the client’s embedded `.pub`, it writes **signed** base64 blobs (Phase B).
 
 ---
 
 ## Quick start
 
-1. Log in as **admin**
-2. Open **Generator** in the sidebar
-3. Click **New Support Agent**
-4. Enter an internal bundle name and confirm the public server host (prefilled from console defaults)
-5. Optionally expand **Branding & appearance** for logo / colors / contact
-6. Confirm build platforms (all selected by default) and **Save**
-7. Watch build status (Ready / Queued / Building / Failed); use **Retry** on failed platforms
-8. Share the download hub link (`/d/:slug`)
+1. Log in as **admin** and finish module install
+2. Open **Generator** → **New Support**
+3. Enter bundle name, optional app name, confirm server / relay / API (prefilled from console defaults)
+4. Select platforms and **Save**
+5. Watch build status; share the download hub link (`/d/:slug`)
 
-### After a BetterDesk update
+### Connection fields
 
-When agent source changes, the panel records a pending Support Agent rebuild
-and completes the console/server update first. After the console restarts, the
-worker synchronizes `agent-source/` and **requeues all non-revoked Support Agent
-bundles** in the background. Check Settings → Updates and the Generator status
-for the deferred sync/build state.
+Defaults come from `/api/generator/defaults` (`keyService` + `clientConfigHost`):
 
-If a Support Agent signed profile is **incomplete or expired**, Rebuild / Retry / auto-requeue **re-issues** the profile (connection URLs + TTL) before compiling. You can still **Save** the bundle in Generator to refresh the profile manually.
+- Server host / relay host
+- HTTPS toggle + API port
+- Server public key (`id_ed25519.pub`)
 
-### Toolchain
+The worker writes `custom.txt` beside the binary (or under `Contents/MacOS` on macOS) using the Support Agent example shape (`override-settings`, `conn-type: incoming`).
 
-Support Agent builds need Go + CGO on the console host:
+---
 
-- **mingw-w64** for Windows cross-builds (`x86_64-w64-mingw32-gcc`)
-- **wixl** (msitools) for MSI
-- **appimagetool** as an **extracted wrapper** under `/usr/local/lib/appimagetool` (raw AppImage in `/usr/local/bin` fails for the `betterdesk` service user)
-- `dpkg-deb` / `rpmbuild` for Linux packages
-- **WebView2** runtime on end-user Windows machines (Wails UI; usually preinstalled on Windows 10/11)
-- **webkit2gtk** on Linux build/runtime hosts for the Wails UI
+## Architecture notes
 
-Install via `sudo ./scripts/install-build-toolchain.sh` or `betterdesk.sh` menu **B**, then restart `betterdesk-console`. The Generator banner reports Go, mingw, wixl, and appimagetool.
+| Piece | Role |
+|-------|------|
+| `supportGeneratorModule.js` | Terms + GitHub template install gate |
+| `customTxtBuilder.js` | Build / sign `custom.txt` (`tweetnacl`) |
+| `clientTemplateWorker.js` | Queue builds, inject templates, store artifacts in `data/agent-builds/` |
+| `agent_bundles` / `agent_bundle_builds` | Existing DB tables (product_type `betterdesk-support`) |
 
-**UI:** Support Agent defaults to **Wails** (HTML UI + Go bindings). Legacy Fyne builds remain available with `BETTERDESK_SUPPORT_FYNEUI=1` (may embed Mesa OpenGL DLLs). Remote desktop capture uses ffmpeg (`ddagrab`/`gdigrab` on Windows) with hardware H.264/VP8/VP9/AV1/H.265 when available.
-
-**Note:** Do not set mingw `CC` before branding seal — `sealbranding` is a host (Linux) Go tool and must run with `CGO_ENABLED=0` / native compilers. Windows `CC`/`CXX` apply only to the final cross-compile.
+Legacy Go **Support Agent** (`betterdesk-support-agent`) and compile-on-console workers are removed. Old product types (`support-agent`, `agent`, `agent-client`, `rdclient`) normalize to `betterdesk-support` for compatibility.
 
 ---
 
 ## Security notes
 
 - Bundles do **not** embed a shared enrollment token
-- Each install registers independently; in **managed** mode a unique `device_token` is issued only after operator approval
-- Release builds seal branding inside the binary (obfuscation + integrity); local state is machine-bound AES-GCM
-- Support Agent is **inbound-only** — end users cannot browse or connect to other devices on your infrastructure
+- Each install registers independently; managed mode issues a `device_token` after operator approval
+- Support clients are **inbound-only** — end users cannot browse or connect outbound to other devices on your infrastructure
+- Prefer signed `custom.txt` in production (seed on console must match the pubkey baked into Client releases)

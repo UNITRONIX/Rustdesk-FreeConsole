@@ -58,7 +58,6 @@ query-filters:
       paths:
         - betterdesk-server/api/auth_handlers.go
         - betterdesk-server/main.go
-        - betterdesk-support-agent/signalhost/crypto.go
 
   # --- Agent mTLS / self-signed relay in controlled deployments ---
   - exclude:
@@ -67,7 +66,6 @@ query-filters:
         - betterdesk-agent/agent/agent.go
         # API cert pinning uses VerifyPeerCertificate; development-only
         # insecure TLS is additionally gated by !release and explicit opt-in.
-        - betterdesk-support-agent/apihttp.go
 
   # --- On-prem TLS opt-in (env / tls_strict UI); default remains strict ---
   - exclude:

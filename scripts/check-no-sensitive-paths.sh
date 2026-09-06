@@ -16,7 +16,6 @@ SCAN_PATHS=(
   betterdesk-agent/
   betterdesk-agent-client/
   betterdesk-server/
-  betterdesk-support-agent/
   web-nodejs/
   sdks/
   scripts/

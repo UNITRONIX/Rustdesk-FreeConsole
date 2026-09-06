@@ -585,31 +585,14 @@ async function startServer() {
         // Defer build workers until after listen + event-bus WS connect settle
         // (#353): toolchain/DB work racing native addon init can abort Node 24.
         setImmediate(() => {
-            // Start branded agent installer build worker (Generator Agenta / Phase 2).
-            // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
-            // build toolchain (e.g. small consoles that only proxy to a build node).
+            // BetterDesk Support Generator — patches Client templates with custom.txt.
+            // Disabled when AGENT_BUILD_WORKER=off (small consoles without templates).
             if (process.env.AGENT_BUILD_WORKER !== 'off') {
                 try {
-                    const agentBuildWorker = require('./services/agentBuildWorker');
-                    agentBuildWorker.startWorker();
+                    const clientTemplateWorker = require('./services/clientTemplateWorker');
+                    clientTemplateWorker.startWorker();
                 } catch (err) {
-                    console.warn('[server] agent build worker disabled:', err.message);
-                }
-            }
-            if (process.env.RDCLIENT_BUILD_WORKER !== 'off') {
-                try {
-                    const rdclientBuildWorker = require('./services/rdclientBuildWorker');
-                    rdclientBuildWorker.startWorker();
-                } catch (err) {
-                    console.warn('[server] rdclient build worker disabled:', err.message);
-                }
-            }
-            if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
-                try {
-                    const agentClientBuildWorker = require('./services/agentClientBuildWorker');
-                    agentClientBuildWorker.startWorker();
-                } catch (err) {
-                    console.warn('[server] agent-client build worker disabled:', err.message);
+                    console.warn('[server] client template worker disabled:', err.message);
                 }
             }
         });

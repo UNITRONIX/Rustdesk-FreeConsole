@@ -47,6 +47,7 @@ const ARTIFACT_ROOT = process.env.AGENT_CLIENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-client-builds');
 const POLL_INTERVAL_MS = parseInt(process.env.AGENT_CLIENT_BUILD_POLL_MS || '8000', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_CLIENT_BUILD_TIMEOUT_MS || (45 * 60 * 1000), 10);
+const IS_WINDOWS = process.platform === 'win32';
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 function _resolveSourceRoot() {
@@ -124,8 +125,9 @@ const SIDECAR_NAMES = {
     'windows/x64': 'betterdesk-agent-x86_64-pc-windows-msvc.exe',
 };
 
-function _isAgentClientBundle(bundle) {
-    return normalizeProductType(bundle?.product_type) === PRODUCT_TYPES.AGENT_CLIENT;
+function _isAgentClientBundle(_bundle) {
+    // Product types collapsed to betterdesk-support; agent-client worker is unused.
+    return false;
 }
 
 let _pollTimer = null;
@@ -208,10 +210,9 @@ async function _ensureAgentLib() {
 }
 
 async function _buildSidecar(profile, destPath) {
-    const agentBuildWorker = require('./agentBuildWorker');
-    const goBin = typeof agentBuildWorker.getGoBin === 'function'
-        ? agentBuildWorker.getGoBin()
-        : null;
+    // Prefer PATH / common Go locations (legacy agentBuildWorker removed).
+    const goBin = process.env.GO_BIN
+        || (IS_WINDOWS ? 'go.exe' : 'go');
     if (!goBin) throw new Error('Go toolchain not available for sidecar build');
 
     const agentLib = await _ensureAgentLib();

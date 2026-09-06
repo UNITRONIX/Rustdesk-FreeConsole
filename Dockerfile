@@ -98,22 +98,20 @@ WORKDIR /app
 COPY web-nodejs/ .
 COPY --from=node-builder /app/node_modules ./node_modules/
 
-# Support Agent generator source (#391) — panel builds need these trees in-image.
-COPY betterdesk-support-agent /app/betterdesk-support-agent
+# Shared Go trees kept for server tooling / legacy workers (not Support Generator).
+# Support Generator downloads BetterDesk-Client templates into data/modules/.
 COPY betterdesk-agent /app/betterdesk-agent
 COPY betterdesk-server /app/betterdesk-server
 RUN mkdir -p /opt/BetterDeskConsole/agent-source \
-    && ln -sfn /app/betterdesk-support-agent /opt/BetterDeskConsole/agent-source/betterdesk-support-agent \
     && ln -sfn /app/betterdesk-agent /opt/BetterDeskConsole/agent-source/betterdesk-agent \
     && ln -sfn /app/betterdesk-server /opt/BetterDeskConsole/agent-source/betterdesk-server \
-    && chown -R betterdesk:betterdesk /app/betterdesk-support-agent /app/betterdesk-agent /app/betterdesk-server /opt/BetterDeskConsole
+    && chown -R betterdesk:betterdesk /app/betterdesk-agent /app/betterdesk-server /opt/BetterDeskConsole
 
 ARG BETTERDESK_COMMIT_SHA=unknown
 ARG BETTERDESK_IMAGE_VERSION=unknown
 ENV BETTERDESK_IMAGE_SHA=${BETTERDESK_COMMIT_SHA}
 ENV BETTERDESK_IMAGE_VERSION=${BETTERDESK_IMAGE_VERSION}
 ENV BETTERDESK_UPDATE_MODE=image
-ENV AGENT_SOURCE_DIR=/app/betterdesk-support-agent
 RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
 
 # ---- Supervisord config ----

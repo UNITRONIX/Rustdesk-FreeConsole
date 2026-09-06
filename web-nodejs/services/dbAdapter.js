@@ -993,7 +993,7 @@ function createSqliteAdapter(config) {
         try {
             const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
             if (!cols.has('product_type')) {
-                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'support-agent'");
+                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'betterdesk-support'");
                 console.log('[DB] Migration: added agent_bundles.product_type');
             }
             // SQLite cannot alter a column default in place. Normalize legacy
@@ -1001,13 +1001,18 @@ function createSqliteAdapter(config) {
             db.exec(`
                 UPDATE agent_bundles
                 SET product_type = CASE LOWER(TRIM(COALESCE(product_type, '')))
-                    WHEN 'rdclient' THEN 'rdclient'
-                    WHEN 'agent-client' THEN 'agent-client'
-                    WHEN 'agent_client' THEN 'agent-client'
-                    ELSE 'support-agent'
+                    WHEN 'betterdesk-support' THEN 'betterdesk-support'
+                    WHEN 'betterdesk_support' THEN 'betterdesk-support'
+                    WHEN 'rdclient' THEN 'betterdesk-support'
+                    WHEN 'agent-client' THEN 'betterdesk-support'
+                    WHEN 'agent_client' THEN 'betterdesk-support'
+                    WHEN 'support-agent' THEN 'betterdesk-support'
+                    WHEN 'support_agent' THEN 'betterdesk-support'
+                    WHEN 'agent' THEN 'betterdesk-support'
+                    ELSE 'betterdesk-support'
                 END
                 WHERE product_type IS NULL
-                   OR LOWER(TRIM(product_type)) NOT IN ('support-agent', 'agent-client', 'rdclient')
+                   OR LOWER(TRIM(product_type)) NOT IN ('betterdesk-support')
             `);
         } catch (e) {
             console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
@@ -1024,7 +1029,7 @@ function createSqliteAdapter(config) {
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
                 created_by INTEGER DEFAULT NULL,
-                product_type TEXT NOT NULL DEFAULT 'support-agent',
+                product_type TEXT NOT NULL DEFAULT 'betterdesk-support',
                 revoked INTEGER NOT NULL DEFAULT 0,
                 download_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -4230,7 +4235,7 @@ function createPostgresAdapter() {
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
                 created_by INTEGER DEFAULT NULL,
-                product_type TEXT NOT NULL DEFAULT 'support-agent',
+                product_type TEXT NOT NULL DEFAULT 'betterdesk-support',
                 revoked BOOLEAN NOT NULL DEFAULT FALSE,
                 download_count INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -4268,25 +4273,30 @@ function createPostgresAdapter() {
                  WHERE table_name = 'agent_bundles' AND column_name = 'product_type'`
             );
             if (productTypeCols.length === 0) {
-                await q("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'support-agent'");
+                await q("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'betterdesk-support'");
                 console.log('[DB] Migration: added agent_bundles.product_type');
             } else {
                 await q(`
                     UPDATE agent_bundles
                     SET product_type = CASE LOWER(TRIM(COALESCE(product_type, '')))
-                        WHEN 'rdclient' THEN 'rdclient'
-                        WHEN 'agent-client' THEN 'agent-client'
-                        WHEN 'agent_client' THEN 'agent-client'
-                        ELSE 'support-agent'
+                        WHEN 'betterdesk-support' THEN 'betterdesk-support'
+                        WHEN 'betterdesk_support' THEN 'betterdesk-support'
+                        WHEN 'rdclient' THEN 'betterdesk-support'
+                        WHEN 'agent-client' THEN 'betterdesk-support'
+                        WHEN 'agent_client' THEN 'betterdesk-support'
+                        WHEN 'support-agent' THEN 'betterdesk-support'
+                        WHEN 'support_agent' THEN 'betterdesk-support'
+                        WHEN 'agent' THEN 'betterdesk-support'
+                        ELSE 'betterdesk-support'
                     END
                     WHERE product_type IS NULL
-                       OR LOWER(TRIM(product_type)) NOT IN ('support-agent', 'agent-client', 'rdclient')
+                       OR LOWER(TRIM(product_type)) NOT IN ('betterdesk-support')
                 `);
                 if (productTypeCols[0].is_nullable === 'YES') {
                     await q('ALTER TABLE agent_bundles ALTER COLUMN product_type SET NOT NULL');
                 }
-                if (!String(productTypeCols[0].column_default || '').includes('support-agent')) {
-                    await q("ALTER TABLE agent_bundles ALTER COLUMN product_type SET DEFAULT 'support-agent'");
+                if (!String(productTypeCols[0].column_default || '').includes('betterdesk-support')) {
+                    await q("ALTER TABLE agent_bundles ALTER COLUMN product_type SET DEFAULT 'betterdesk-support'");
                 }
             }
         } catch (e) {

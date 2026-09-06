@@ -48,12 +48,10 @@ RUN apk add --no-cache \
 COPY web-nodejs/ .
 COPY --from=build /app/node_modules ./node_modules/
 
-# Support Agent generator source (#391)
-COPY betterdesk-support-agent /app/betterdesk-support-agent
+# Shared Go trees kept for server tooling / legacy workers (not Support Generator).
 COPY betterdesk-agent /app/betterdesk-agent
 COPY betterdesk-server /app/betterdesk-server
 RUN mkdir -p /opt/BetterDeskConsole/agent-source \
-    && ln -sfn /app/betterdesk-support-agent /opt/BetterDeskConsole/agent-source/betterdesk-support-agent \
     && ln -sfn /app/betterdesk-agent /opt/BetterDeskConsole/agent-source/betterdesk-agent \
     && ln -sfn /app/betterdesk-server /opt/BetterDeskConsole/agent-source/betterdesk-server
 
@@ -62,7 +60,6 @@ ARG BETTERDESK_IMAGE_VERSION=unknown
 ENV BETTERDESK_IMAGE_SHA=${BETTERDESK_COMMIT_SHA}
 ENV BETTERDESK_IMAGE_VERSION=${BETTERDESK_IMAGE_VERSION}
 ENV BETTERDESK_UPDATE_MODE=image
-ENV AGENT_SOURCE_DIR=/app/betterdesk-support-agent
 RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
 
 # Copy entrypoint scripts

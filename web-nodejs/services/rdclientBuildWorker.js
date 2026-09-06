@@ -55,8 +55,9 @@ const BUILD_PROFILES = {
     'linux/x64/rpm': { os: 'linux', bundles: ['rpm'], artifact: 'rpm' },
 };
 
-function _isRdclientBundle(bundle) {
-    return normalizeProductType(bundle?.product_type) === PRODUCT_TYPES.RDCLIENT;
+function _isRdclientBundle(_bundle) {
+    // Product types collapsed to betterdesk-support; rdclient worker is unused.
+    return false;
 }
 
 let _pollTimer = null;
