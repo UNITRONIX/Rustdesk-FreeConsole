@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.86] — 2026-09-06
+
 ### Fixed
 - **Devices mobile taps blocked (#410):** Sticky folders/groups/strategies no longer cover the device list on phones; kebab backdrop closes on tap and only opens at ≤600px; row HTML5 drag is off on touch/mobile shell; single-tap opens device detail; floating horizontal scrollbar is hidden on touch + mobile-shell (Desktop site). Verify: phone Chrome classic + UX 3.5 → sync/filters/kebab/row detail respond; open/close kebab without a dead full-screen overlay.
 
@@ -3343,3 +3350,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.83]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.82...v3.5.83
 [3.5.84]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.83...v3.5.84
 [3.5.85]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.84...v3.5.85
+[3.5.86]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.85...v3.5.86
